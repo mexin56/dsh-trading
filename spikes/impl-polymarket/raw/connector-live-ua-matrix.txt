@@ -1,0 +1,4 @@
+HTTP=200  UA=Mozilla/5.0
+HTTP=200  UA=Mozilla/5.0 (compatible; dsh-trading-connector-polymarket)
+HTTP=200  UA=dsh-trading-connector-polymarket/0.6.1
+HTTP=403  UA=Python-urllib/3.11

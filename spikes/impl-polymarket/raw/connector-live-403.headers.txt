@@ -1,0 +1,14 @@
+HTTP/2 403 
+date: Sun, 11 Oct 2026 01:55:20 GMT
+content-type: text/plain; charset=UTF-8
+content-length: 17
+cache-control: private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+expires: Thu, 01 Jan 1970 00:00:01 GMT
+referrer-policy: same-origin
+x-frame-options: SAMEORIGIN
+strict-transport-security: max-age=7776000; includeSubDomains
+speculation-rules: "/cdn-cgi/speculation"
+set-cookie: __cf_bm=BL2mVnIfOLKyZ8krLb_QRpyFsX8kIGY6KvqgkGRGldo-1791683720.4470122-1.0.1.1-BQvvRoWr9dbrcut5SqSUgfjIUdzagnPi76eljPV5O.uhUMLS8x9HhDzqcc7tPel27s5FSgmkrwWCl3e.LBqyvEI1u_cMMW1NHveC.3aE1qzPlgEHe2Jm.EUMoSzdf5Fq; HttpOnly; SameSite=None; Secure; Path=/; Domain=polymarket.com; Expires=Sun, 11 Oct 2026 02:25:20 GMT
+server: cloudflare
+cf-ray: a48a3df4c8868f42-SJC
+
