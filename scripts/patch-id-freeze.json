@@ -87,6 +87,10 @@
       "owner": "bundle:base",
       "name": "@dshtrading/connector-jin10"
     },
+    "dsh-trading-connector-polymarket": {
+      "owner": "bundle:base",
+      "name": "@dshtrading/connector-polymarket"
+    },
     "dsh-trading-crypto-dataplane-binance": {
       "owner": "bundle:crypto",
       "name": "@dshtrading/connector-binance/dataplane"

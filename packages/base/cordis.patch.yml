@@ -116,6 +116,24 @@
       config:
         enabled: true
 
+    # Polymarket 预测市场连接器（2026-10-11）：FOMC 决议档位与隐含概率（只读公开
+    # API，无需密钥）。与金十连接器同款的「跨市场信息源归 base」判据：美联储路径
+    # 影响 crypto/us/cn/hk/global 全部会话，任何单一市场都不该独家拥有它（铁律 #1）。
+    # host 平面 provide tradingPredictionFeed（普通对象 + ctx.reflect.provide，形态同
+    # connector-jin10 的 macro-service）；GUI 面板经桥 /dshtrading/api/prediction/fomc
+    # 消费，将来 agent 工具面复用同一实例——禁止两份取数逻辑漂移。
+    # **只读边界**：只访问 gamma-api.polymarket.com 的 /events，不触达任何下单/交易
+    # 端点，不引入密钥；请求固定带自有 UA（无 UA/黑名单 UA 会被 Cloudflare 1010 拦成
+    # 403 且响应体是 text/plain——该失败必须响亮，绝不回落成空数据）。
+    # 本地快照存 trading home（~/.dsh-trading/polymarket/snapshots.json，经
+    # @dshtrading/dsh-home 解析），不写包内、不写仓库数据。
+    # 包名解析依赖本包 dependencies 里的 @dshtrading/connector-polymarket（进 profile
+    # 安装闭包，S3 坑 3 同款）。
+    - id: dsh-trading-connector-polymarket
+      name: '@dshtrading/connector-polymarket'
+      config:
+        enabled: true
+
     # global 市场数据面：行 dsh-trading-global-dataplane-jin10（provide
     # tradingGlobalMarketData + 注册 (global, jin10) 进 tradingMarketDataRegistry）
     # 2026-09-15 market-group 平权起由 @dshtrading/global bundle 认领，不再归 base

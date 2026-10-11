@@ -48,6 +48,7 @@
     "@deepseek-ai/dsh-agent-preset-registry": ">=0.2.0-rc.2",
     "@dshtrading/api": "workspace:^",
     "@dshtrading/connector-jin10": "workspace:^",
+    "@dshtrading/connector-polymarket": "workspace:^",
     "@dshtrading/dsh-home": "workspace:^",
     "@dshtrading/eventbus": "workspace:^",
     "@dshtrading/holdings": "workspace:^",
