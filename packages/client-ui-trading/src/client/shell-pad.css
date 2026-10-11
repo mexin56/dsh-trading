@@ -238,3 +238,14 @@ body[data-dshtrading-files-open='on'][data-dshtrading-chat-folded='on'] div:has(
 body[data-dshtrading-macro-open='on'] div:has(> [data-shell-overlay]) > div:nth-child(2) > * {
   display: none !important;
 }
+
+/* 16) 2026-10-11 Polymarket 预测市场面板 = 会话列容器的切换页签 6 号（FOMC
+      决议各档隐含概率，只读；与定时任务/资产/快讯/宏观/文件同款模式、六者互斥）：
+      概率曲线按钮激活时隐去对话列直接子节点，PolymarketPanel（fixed，定位吃同一组
+      轨道变量）原位覆盖。新增此规则的理由：规则 14 的注释与既有五处互斥联动都按
+      「五个覆盖面」写定，第六个页签若不在这里同步隐去对话列内容，激活时面板会与
+      对话列叠着显示（新建会话路径同理，见 SessionRail 的 closeContainer）。
+      body[data-dshtrading-prediction-open] 由 SessionRail effect 写入。 */
+body[data-dshtrading-prediction-open='on'] div:has(> [data-shell-overlay]) > div:nth-child(2) > * {
+  display: none !important;
+}

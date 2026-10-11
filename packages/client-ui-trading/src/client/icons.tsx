@@ -258,6 +258,16 @@ export function IconFolder({ size = 14 }: { size?: number }): ReactElement {
   )
 }
 
+/** 预测市场入口（概率分布：钟形曲线 + 基线）。 */
+export function IconPrediction({ size = 16 }: { size?: number }): ReactElement {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12.5h12" />
+      <path d="M2.75 12.25c2.4 0 2.9-6.5 5.25-6.5s2.85 6.5 5.25 6.5" />
+    </svg>
+  )
+}
+
 /** 自选管理（列表 + 滑杆，富途管理入口近似形）。 */
 export function IconManageList({ size = 14 }: { size?: number }): ReactElement {
   return (

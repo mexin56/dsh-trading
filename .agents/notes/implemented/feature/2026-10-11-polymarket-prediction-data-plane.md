@@ -83,8 +83,9 @@ v1 只覆盖 **FOMC 决议路径**，数据面按 connector-jin10 的先例分�
 **处置**：v1 不改主口径（继续下发 `probability` = mid），**并同时下发 `bestBid`/`bestAsk`**，
 使面板要与网页逐字一致时可直接取 ask。不改主口径的理由：`outcomePrices` 与 CLOB 数值
 等价且一次请求拿全量；改判 ask 会把数字绑到单侧盘口（spread 宽时更偏），且结算后
-`bestAsk` 残留 0.001 而 `bestBid` 为 null，反而要写分支（证据 Q4.3）。**口径选择留在展示层**，
-由 P2 面板卡决定（若要复刻网页数字，用 `bestAsk`）。
+`bestAsk` 残留 0.001 而 `bestBid` 为 null，反而要写分支（证据 Q4.3）。**口径选择留在展示层**——
+已由 [P2 面板卡](2026-10-11-polymarket-panel.md) 裁决：显示取 `bestAsk`（与网页逐值一致），
+Δ 沿用本卡快照的 mid 基准，两者基准差异在面板上显式标注。
 
 ## Alternatives considered
 
@@ -120,4 +121,4 @@ v1 只覆盖 **FOMC 决议路径**，数据面按 connector-jin10 的先例分�
 - 测试全部合规（零 mock、零 sleep、BDD 命名）：新增 5 个测试文件 53 用例，
   `test:audit` 无需任何基线豁免；`connector-polymarket` 覆盖率 99.09% lines / 86.6% branches。
 - 未做的（显式记录）：agent 工具面、上游 `prices-history` 回填、CLOB 盘口深度、
-  30 天以外的历史窗口、GUI 面板本身（P2 卡）。
+  30 天以外的历史窗口。GUI 面板本身已由 [P2 面板卡](2026-10-11-polymarket-panel.md) 交付。
