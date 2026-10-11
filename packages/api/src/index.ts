@@ -1093,7 +1093,8 @@ export interface PredictionMeeting {
   readonly probabilitySum: number
   /**
    * 数据质量提示（空 = 全部健康）。桥与面板只做展示，不据此改写概率。
-   * 例：`probability-sum-out-of-band`、`bucket-bid-ask-missing`。
+   * 例：`probability-sum-out-of-band`、`probability-out-of-range`、`bucket-quote-missing`、
+   * `bucket-unrecognized-label`。
    */
   readonly degraded: readonly string[]
 }
