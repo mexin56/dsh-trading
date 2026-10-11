@@ -851,6 +851,8 @@ declare module '@deepseek-ai/cordis' {
     tradingFlashFeed: FlashFeedService
     /** 宏观/利率源（@dshtrading/connector-jin10 提供；缺席 = 未安装金十连接器）。 */
     tradingMacroFeed: MacroFeedService
+    /** 预测市场源（@dshtrading/connector-polymarket 提供；缺席 = 未安装预测市场连接器）。 */
+    tradingPredictionFeed: PredictionFeedService
   }
 }
 
@@ -1031,6 +1033,96 @@ export interface MacroFeedService {
   listCalendar(limit?: number | undefined): Promise<readonly MacroCalendarEntry[]>
   /** 央行最新利率（全量，客户端按地区过滤）。 */
   listRates(): Promise<readonly MacroRateEntry[]>
+}
+
+/**
+ * 预测市场档位条目（2026-10-11 Polymarket 接入）。
+ *
+ * 标签与概率均来自上游 `groupItemTitle` / `outcomePrices[0]`；`key` 是归一化后的
+ * 稳定档位标识（上游标签在大小写与 `+` 上会漂移——实测 `No change` / `No Change`、
+ * `50+ bps decrease` / `50 bps decrease` 并存，按原文匹配会随会议换 slug 静默失效）。
+ */
+export interface PredictionOutcomeBucket {
+  /** 稳定档位键（如 `no_change` / `inc_25` / `dec_50plus`；未识别形态 = `raw:<原文>`）。 */
+  readonly key: string
+  /** 上游档位标签原文（展示用，不做改写）。 */
+  readonly label: string
+  /** 对应利率变动（bps；降息为负）。未识别形态 = undefined（不猜）。 */
+  readonly changeBps?: number | undefined
+  /** 隐含概率 = 上游 `outcomePrices[0]`（gamma 与 CLOB midpoint 实测 15/15 完全相等）。 */
+  readonly probability: number
+  /** 最优买价（结算后上游为 null → 缺省）。 */
+  readonly bestBid?: number | undefined
+  /** 最优卖价。 */
+  readonly bestAsk?: number | undefined
+  /** 价差（bestAsk − bestBid；任一端缺失则缺省）。 */
+  readonly spread?: number | undefined
+  /** 盘口深度（上游 `liquidityNum`，美元）。 */
+  readonly liquidity?: number | undefined
+  /** 累计成交额（上游 `volumeNum`，美元）。 */
+  readonly volume?: number | undefined
+  /** 24 小时成交额（上游 `volume24hr`，美元）。 */
+  readonly volume24h?: number | undefined
+  /** 最小报价粒度（上游 `orderPriceMinTickSize`）。 */
+  readonly tickSize?: number | undefined
+  /**
+   * 是否仍可下单（上游 market 级 `acceptingOrders`）。**不用 `active` 判断**：
+   * 实测结算后 `active` 仍为 true，只有 `closed`/`acceptingOrders` 会翻转。
+   */
+  readonly acceptingOrders: boolean
+  /** 该档位市场是否已结算（上游 market 级 `closed`）。 */
+  readonly closed: boolean
+  /** 与最近一条本地快照的差值（无快照/首次采样 = undefined，绝不填 0 冒充无变动）。 */
+  readonly changeSincePrevious?: number | undefined
+}
+
+/** 一场 FOMC 决议会议（会议时间 + 档位集合 + 健康标记）。 */
+export interface PredictionMeeting {
+  /** 上游 event id（去重键；slug 带随机后缀，不可作标识）。 */
+  readonly id: string
+  readonly slug: string
+  readonly title: string
+  /** 决议结果窗口结束（上游 event `endDate`，ISO 8601 UTC）。 */
+  readonly endDate: string
+  /** FOMC 会议日程（从上游 description 解析，如 `October 27-28, 2026`；未解析到 = 缺省）。 */
+  readonly meetingWindow?: string | undefined
+  readonly closed: boolean
+  /** 档位集合，按利率变动从低到高排序（未知形态排末位）。 */
+  readonly buckets: readonly PredictionOutcomeBucket[]
+  /** 各档概率之和（健康检查；实测正常区间约 [0.98, 1.03]，不假设严格等于 1）。 */
+  readonly probabilitySum: number
+  /**
+   * 数据质量提示（空 = 全部健康）。桥与面板只做展示，不据此改写概率。
+   * 例：`probability-sum-out-of-band`、`bucket-bid-ask-missing`。
+   */
+  readonly degraded: readonly string[]
+}
+
+/**
+ * 预测市场快照（一次取数的完整结果）。
+ *
+ * `fetchedAt` 是**本进程的取数时刻**——上游只给 `updatedAt` 级别的事件时间，
+ * 没有响应级时间戳，所以数据时间戳由取数侧记录（单调可信）。
+ */
+export interface PredictionFeed {
+  /** 取数时刻（ISO 8601 UTC；数据时间戳的唯一来源）。 */
+  readonly fetchedAt: string
+  readonly meetings: readonly PredictionMeeting[]
+}
+
+/**
+ * 预测市场源契约（2026-10-11 Polymarket 接入，v1 只覆盖 FOMC 决议路径）：
+ * host 平面由 connector-polymarket provide `tradingPredictionFeed`，GUI 面板经桥
+ * `/dshtrading/api/prediction/*` 消费；服务缺席 = 未安装/未启用该数据源 →
+ * 消费方报 TRADING_NOT_IMPLEMENTED，绝不把「没有数据源」伪装成「没有数据」。
+ *
+ * 发现规则与概率口径以 spikes/impl-polymarket/EVIDENCE.md 为唯一判据：
+ * `GET /events?series_id=35` → 系列校验 → 标题正则 → 形状 → 噪声排除 → 去重/排序；
+ * 概率取 gamma `outcomePrices[0]`（与 CLOB midpoint 数值等价，单请求可取全量）。
+ */
+export interface PredictionFeedService {
+  /** 当前 FOMC 决议路径全部会议（含已结算；按 endDate 升序）。 */
+  listFomcMeetings(): Promise<PredictionFeed>
 }
 
 /** 新闻聚合器注册表契约（Issue #37，router 插件提供）。 */
