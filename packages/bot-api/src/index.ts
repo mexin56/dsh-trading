@@ -211,6 +211,8 @@ export function apply(ctx: Context): void {
       flashFeed: webCtx.get('tradingFlashFeed', false) as import('./bridge.ts').FlashFeedLike | undefined,
       // 宏观/利率（金十接入，2026-09-15）：host 面 tradingMacroFeed 服务（连接器未装即缺席）。
       macroFeed: webCtx.get('tradingMacroFeed', false) as import('./bridge.ts').MacroFeedLike | undefined,
+      // 预测市场（Polymarket 接入，2026-10-11）：host 面 tradingPredictionFeed 服务（连接器未装即缺席）。
+      predictionFeed: webCtx.get('tradingPredictionFeed', false) as import('./bridge.ts').PredictionFeedLike | undefined,
     })
     const bridge = new TradingBridge(host)
 

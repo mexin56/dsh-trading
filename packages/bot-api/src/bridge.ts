@@ -15,7 +15,7 @@
  * - Issue #65：提供 /holdings 七个端点 + /fx 端点（统一资产台账，契约 §3/§4）。
  */
 import { instrumentFormOf } from '@dshtrading/api'
-import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, Position, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
+import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, Position, PredictionFeed, PredictionMeeting, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
 import { aggregateNews as aggregateCnNews, fetchCnFundamentalsPackage } from '@dshtrading/kit-cn'
 import { aggregateNews as aggregateHkNews, fetchHkFundamentalsPackage } from '@dshtrading/kit-hk'
 import { aggregateNews as aggregateUsNews, fetchUsFundamentalsPackage } from '@dshtrading/kit-us'
@@ -92,6 +92,14 @@ export interface MacroFeedLike {
   listRates(): Promise<readonly MacroRateEntry[]>
 }
 
+/**
+ * 预测市场源最小结构面（桥侧）：host 面 tradingPredictionFeed 服务实现
+ * @dshtrading/api 的 PredictionFeedService；鸭式声明避免 shell 包对连接器包的类型依赖。
+ */
+export interface PredictionFeedLike {
+  listFomcMeetings(): Promise<PredictionFeed>
+}
+
 /** 快讯端点条目上限（保护上游公共配额；超出直接 400）。 */
 export const MAX_FLASH_LIMIT = 50
 
@@ -154,6 +162,8 @@ export function createBridgeHost(services: {
   flashFeed?: FlashFeedLike | undefined
   /** 宏观/利率源（2026-09-15 金十接入；缺席 = 未安装金十连接器 → TRADING_NOT_IMPLEMENTED）。 */
   macroFeed?: MacroFeedLike | undefined
+  /** 预测市场源（2026-10-11 Polymarket 接入；缺席 = 未安装该连接器 → TRADING_NOT_IMPLEMENTED）。 */
+  predictionFeed?: PredictionFeedLike | undefined
 }): BridgeHost {
   return {
     getMarketService: market => {
@@ -179,6 +189,7 @@ export function createBridgeHost(services: {
     newsSources: services.newsSources,
     flashFeed: services.flashFeed,
     macroFeed: services.macroFeed,
+    predictionFeed: services.predictionFeed,
   }
 }
 
@@ -232,6 +243,8 @@ export interface BridgeHost {
   flashFeed?: FlashFeedLike | undefined
   /** 宏观/利率源（2026-09-15 金十接入；缺席 = 未安装金十连接器 → TRADING_NOT_IMPLEMENTED）。 */
   macroFeed?: MacroFeedLike | undefined
+  /** 预测市场源（2026-10-11 Polymarket 接入；缺席 = 未安装该连接器 → TRADING_NOT_IMPLEMENTED）。 */
+  predictionFeed?: PredictionFeedLike | undefined
 }
 
 export interface MarketInfoWire {
@@ -591,6 +604,18 @@ export interface MacroCalendarWire {
 export interface MacroRatesWire {
   ok: true
   items: readonly MacroRateEntry[]
+}
+
+/**
+ * 预测市场响应信封（桥 /prediction/*；2026-10-11 Polymarket 接入）。
+ *
+ * `fetchedAt` 是**取数时刻**（连接器侧记录），与会议数据同源返回——面板据此显示
+ * 「数据时间」，不猜客户端收到响应的时刻。
+ */
+export interface PredictionWire {
+  ok: true
+  fetchedAt: string
+  meetings: readonly PredictionMeeting[]
 }
 
 /** 新闻端点条目上限（保护公共数据源；超出部分由 Kit 层截流）。 */
@@ -1171,6 +1196,25 @@ export class TradingBridge {
       )
     }
     return { ok: true, items: await feed.listRates() }
+  }
+
+  /**
+   * FOMC 决议路径档位与隐含概率（Polymarket 接入，2026-10-11）：host 面
+   * tradingPredictionFeed 服务提供，未安装/未启用 → TRADING_NOT_IMPLEMENTED
+   * （不是空列表——「没装数据源」与「确实没有数据」必须可区分）。
+   *
+   * 只读透传：桥不做缓存、不算概率（口径由连接器按 spike 裁决实现，单一来源）。
+   */
+  async predictionFomc(): Promise<PredictionWire> {
+    const feed = this.host.predictionFeed
+    if (feed === undefined) {
+      throw Object.assign(
+        new Error('prediction feed is not mounted (install/enable the polymarket connector)'),
+        { code: 'TRADING_NOT_IMPLEMENTED' },
+      )
+    }
+    const feedSnapshot = await feed.listFomcMeetings()
+    return { ok: true, fetchedAt: feedSnapshot.fetchedAt, meetings: feedSnapshot.meetings }
   }
 
 
@@ -2075,6 +2119,9 @@ export async function dispatchBridgeRequest(
       }
       case '/macro/rates': {
         return { status: 200, payload: await bridge.macroRates() }
+      }
+      case '/prediction/fomc': {
+        return { status: 200, payload: await bridge.predictionFomc() }
       }
       case '/news': {
         const market = search.get('market') ?? ''

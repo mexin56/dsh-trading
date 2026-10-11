@@ -397,6 +397,80 @@ export async function fetchMacroRates(signal?: AbortSignal): Promise<ClientMacro
 }
 
 /* ------------------------------------------------------------------ */
+/* 预测市场（Polymarket 接入，2026-10-11）                                  */
+/* ------------------------------------------------------------------ */
+
+/** 档位条目（概率口径与归一化键由连接器实现，客户端只读不改写）。 */
+export interface ClientPredictionBucket {
+  /** 稳定档位键（如 `no_change`；服务端归一化，客户端不重算）。 */
+  key: string
+  /** 上游标签原文（展示用）。 */
+  label: string
+  /** 利率变动（bps；降息为负）。未识别形态 = undefined。 */
+  changeBps?: number
+  /** 隐含概率（0..1）。 */
+  probability: number
+  bestBid?: number
+  bestAsk?: number
+  spread?: number
+  /** 盘口深度（美元）。 */
+  liquidity?: number
+  volume?: number
+  volume24h?: number
+  /** 仍可下单（上游 market 级 acceptingOrders）。 */
+  acceptingOrders: boolean
+  closed: boolean
+  /** 与上次观察的差值；**首次观察缺省**（不是 0）。 */
+  changeSincePrevious?: number
+}
+
+/** 一场 FOMC 决议会议。 */
+export interface ClientPredictionMeeting {
+  id: string
+  slug: string
+  title: string
+  endDate: string
+  meetingWindow?: string
+  closed: boolean
+  buckets: ClientPredictionBucket[]
+  /** 各档概率之和（健康检查用，实测正常区间约 [0.98, 1.03]）。 */
+  probabilitySum: number
+  /** 数据质量提示（空数组 = 全部健康）。 */
+  degraded: string[]
+}
+
+/**
+ * 预测市场取数结果。
+ *
+ * **刻意不用 `null` 表示失败**（与 macro 两个 fetcher 的差异，理由在验收要求）：
+ * 「连接器没装」（TRADING_NOT_IMPLEMENTED）、「上游失败」与「真的没有会议」是三种
+ * 不同的事实，面板要分别提示。返回 `null` 会把前两者压成同一个值，正是
+ * 「把失败画成没有数据」的形态。
+ */
+export type ClientPredictionResult =
+  | { status: 'ok'; fetchedAt: string; meetings: ClientPredictionMeeting[] }
+  | { status: 'error'; code: string; message: string }
+
+/**
+ * FOMC 决议档位与隐含概率（桥 /prediction/fomc）。失败 → 明确错误状态
+ * （`status: 'error'` 带 code），由 UI 决定提示；绝不回落成空数组。
+ */
+export async function fetchPredictionFomc(signal?: AbortSignal): Promise<ClientPredictionResult> {
+  try {
+    const wire = await getJson<{ ok: boolean; fetchedAt: string; meetings: ClientPredictionMeeting[] }>('/dshtrading/api/prediction/fomc', signal)
+    if (!Array.isArray(wire.meetings)) {
+      return { status: 'error', code: 'TRADING_PROTOCOL', message: 'bridge returned no meetings array' }
+    }
+    return { status: 'ok', fetchedAt: wire.fetchedAt, meetings: wire.meetings }
+  } catch (error) {
+    if (error instanceof BridgeError) {
+      return { status: 'error', code: error.code ?? 'TRADING_PROTOCOL', message: error.message }
+    }
+    return { status: 'error', code: 'TRADING_NETWORK', message: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* SSE 失效信号订阅（issue #30 / P1）                                        */
 /* ------------------------------------------------------------------ */
 
