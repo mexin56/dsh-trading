@@ -41,6 +41,7 @@ import type { MarketLocaleKey } from './contract.ts'
 import { directionColor, fmtPercent, fmtPrice } from './format.ts'
 import { aggregateHoldings, isCashPosition } from './holdings-aggregate.ts'
 import type { HoldingDetailRow, HoldingSummaryRow } from './holdings-aggregate.ts'
+import { residentTargetKeys } from './quote-budget.ts'
 import { convertUsdToBase, derivePositionRounds } from './position-rounds.ts'
 import type { SymbolRoundHistory } from './position-rounds.ts'
 import { paperTradingStore } from './paper-trading-store.ts'
@@ -451,11 +452,16 @@ export function HoldingsPanel({ t, onClose }: HoldingsPanelProps): React.JSX.Ele
     return [...keys].sort().join(',')
   }, [taggedPositions])
 
-  // 30s：live 持仓刷新 + 批量盯市（挂载即轮，卸载即停）。
+  // 30s：live 持仓刷新 + 批量盯市（挂载即轮，卸载即停）。无常驻轮询预算的市场
+  // （global/金十，见 quote-budget.ts）只在盯市目标变化时按需取一次，之后不进
+  // 常驻轮询——金十 global_quote 的常驻预算为 0。
+  const m2mOnDemandKeyRef = useRef('')
   useEffect(() => {
     const tick = (): void => {
       void refreshLiveTagged()
-      void refreshM2mPrices(m2mTargetsKey)
+      const onDemand = m2mOnDemandKeyRef.current !== m2mTargetsKey
+      m2mOnDemandKeyRef.current = m2mTargetsKey
+      void refreshM2mPrices(onDemand ? m2mTargetsKey : residentTargetKeys(m2mTargetsKey))
     }
     tick()
     const timer = setInterval(tick, 30000)

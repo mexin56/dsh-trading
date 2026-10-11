@@ -14,7 +14,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor, act } from '@testing-library/react'
 import type { DerivativesData, DerivativesHistory } from '../src/client/types.ts'
 
 // TvChart 依赖 lightweight-charts（canvas 族 API 在 jsdom 不可用）：冒烟只关心
@@ -48,7 +48,7 @@ afterEach(() => {
 })
 
 function quoteStageProps(
-  market: 'crypto' | 'us',
+  market: 'crypto' | 'us' | 'global',
   instrument?: { symbol: string; assetClass?: 'crypto' | 'equity' | 'commodity' | 'index' },
   instances: ChartState['instances'] = [],
   /** 适用范围写入记录器（手动收集，测试棘轮禁用 vi.* 通用 mock）。 */
@@ -330,3 +330,55 @@ describe('DerivativesPane 渲染冒烟（入口化）', () => {
     expect(container.textContent).toContain('HYPEUSDT-SWAP · okx')
   })
 })
+
+describe('QuoteStage 行情轮询预算（global 按需取数）', () => {
+  /** 记录 /api/tickers 调用的桥（真实 fetch 缝上的记录桩，不用通用 mock 工具）。 */
+  function recordTickerCalls(): { calls: string[]; restore: () => void } {
+    const calls: string[] = []
+    const original = globalThis.fetch
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input)
+      if (url.includes('/dshtrading/api/tickers')) calls.push(url)
+      return new Response('{}', { status: 500 })
+    }) as typeof fetch
+    return { calls, restore: () => { globalThis.fetch = original } }
+  }
+
+  it('用户聚焦全球品种时只有按需取数，静置一分钟不产生周期性报价调用', async () => {
+    // Given 全球（金十）标的的行情舞台 + 会记下每次 /api/tickers 调用的桥
+    const bridge = recordTickerCalls()
+    vi.useFakeTimers()
+    try {
+      // When 挂载后静置一分钟（有常驻预算的市场会多出十余拍）
+      render(<QuoteStage {...quoteStageProps('global', { symbol: 'XAUUSD' })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+      const afterMount = bridge.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+      // Then 挂载时的按需取数已发生，之后一拍都没有新增
+      expect(afterMount).toBeGreaterThan(0)
+      expect(bridge.calls.length).toBe(afterMount)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户聚焦美股品种时维持 5s 常驻轮询（预算策略不误伤其它市场）', async () => {
+    // Given 美股标的的行情舞台 + 同一记录桥
+    const bridge = recordTickerCalls()
+    vi.useFakeTimers()
+    try {
+      // When 挂载后静置一分钟
+      render(<QuoteStage {...quoteStageProps('us', { symbol: 'AAPL' })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+      const afterMount = bridge.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+      // Then 常驻轮询照旧推进（每分钟十余拍）
+      expect(bridge.calls.length).toBeGreaterThan(afterMount + 5)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+})
+

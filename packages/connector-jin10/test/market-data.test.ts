@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Kline } from '@dshtrading/api'
 import {
   GLOBAL_MARKET,
@@ -148,30 +148,32 @@ describe('createJin10GlobalMarketDataService', () => {
     ])
   })
 
-  it('subscribeTicker：首个 tick 即回调；dispose 后停止轮询', async () => {
-    vi.useFakeTimers()
+  it('管理员接线金十数据面时，常驻 ticker 订阅被显式拒绝且不消耗配额', () => {
+    // Given 一个记录上游调用的假 feed
+    const quotes: string[] = []
+    const service = createJin10GlobalMarketDataService(fakeFeed({
+      getQuote: async (code: string) => {
+        quotes.push(code)
+        return { code, close: 100, time: '2026-09-12T01:00:00.000Z' }
+      },
+    }))
+    // When 订阅常驻 ticker
+    // Then 立刻抛错（不是静默轮询），且上游配额一拍都没被消耗
+    expect(() => service.subscribeTicker('xauusd', () => {})).toThrow(/不提供常驻 ticker 订阅/)
+    expect(quotes).toEqual([])
+  })
+
+  it('管理员读拒绝原因时，错误码是 TRADING_NOT_IMPLEMENTED（可选能力缺席语义）', () => {
+    // Given 任意 feed 构造的 global 数据面
+    const service = createJin10GlobalMarketDataService(fakeFeed({}))
+    // When 订阅并捕获抛出的错误
+    let thrown: unknown
     try {
-      const quotes: string[] = []
-      const service = createJin10GlobalMarketDataService(fakeFeed({
-        getQuote: async (code: string) => {
-          quotes.push(code)
-          return { code, close: 100, time: '2026-09-12T01:00:00.000Z' }
-        },
-      }), { pollMs: 5 })
-      const seen: number[] = []
-      const subscription = service.subscribeTicker('xauusd', (ticker) => { seen.push(ticker.price) })
-
-      // 首 tick 是订阅时立即发起的异步调用，推一拍微任务即可观察。
-      await vi.advanceTimersByTimeAsync(0)
-      expect(seen[0]).toBe(100)
-      expect(quotes).toEqual(['XAUUSD'])
-
-      // dispose 后即使跨过多个轮询周期也不再触网（假时钟确定性推进，不真等待）。
-      subscription.dispose()
-      await vi.advanceTimersByTimeAsync(50)
-      expect(quotes).toEqual(['XAUUSD'])
-    } finally {
-      vi.useRealTimers()
+      service.subscribeTicker('XAUUSD', () => {})
+    } catch (error) {
+      thrown = error
     }
+    // Then 错误码落在「可选方法缺席」词汇上
+    expect((thrown as { code?: string }).code).toBe('TRADING_NOT_IMPLEMENTED')
   })
 })

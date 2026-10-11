@@ -52,7 +52,7 @@ Status: implemented
 ### 3. global 市场数据面（金十行情接市场路由）
 
 - 新市场 id `global`（与 crypto/us/cn/hk/futures 同级），provider slug `jin10`：`@dshtrading/router` 登记 provider 词汇 + `DEFAULT_MARKETS.global = { provider: 'jin10' }` + 目录占位 `SYMBOL_CATALOG.global = []`（97 个品种代码表经 `quote://codes` 动态注入）。
-- 连接器新增 `market-data.ts`（`createJin10GlobalMarketDataService`：get_quote → Ticker、get_kline → Kline、quote://codes → listInstruments、subscribeTicker 轮询 5s）与 `dataplane.ts`（`@dshtrading/connector-jin10/dataplane`）；patch 行 `dsh-trading-global-dataplane-jin10` 归 base——global 无 bundle/kit，没有市场 bundle 会认领它，而连接器行本身也在 base（铁律 #1）。
+- 连接器新增 `market-data.ts`（`createJin10GlobalMarketDataService`：get_quote → Ticker、get_kline → Kline、quote://codes → listInstruments）与 `dataplane.ts`（`@dshtrading/connector-jin10/dataplane`）；patch 行 `dsh-trading-global-dataplane-jin10` 归 base——global 无 bundle/kit，没有市场 bundle 会认领它，而连接器行本身也在 base（铁律 #1）。**常驻 ticker 订阅不提供**：`subscribeTicker` 显式抛 `TRADING_NOT_IMPLEMENTED`，`TICKER_POLL_MS` 与该选项已删——本市场 `global_quote` / `global_klines` 的 UI/价格路径预算为 0 常驻，见 [行情轮询的按市场预算执行](../architecture/2026-10-11-market-scoped-quote-polling-budget.md)。
 - **粒度纪律**：上游只有分钟 K 线，且单次上限 100 根、语义是「从 time 往后取 100 根」，本仓最多拼 300 分钟窗口（3 次上游调用）→ GUI 只上 `1m/5m/15m`（`MARKET_INTERVALS.global`），契约层支持 1m–1h 的分钟子集，`1d` 及以上**显式报错**（不换源、不用单日分钟冒充历史）。闭市返回 `klines: []` 照实回空序列（≠ 故障）。
 - 交易日模型（近似，与 futures 行同款口径）：周一 06:00 — 周六 05:00（北京时间）；`MARKET_TIMEZONE.global = null`（跨时区连续交易，不做交易日分组与固定时段 x 轴，`SESSION_SPANS` 改 Partial、缺席市场由消费方返回 null）。
 - GUI 承载面：market id 进 `MarketId`/`MARKET_IDS`/`MARKET_SERVICE_KEYS`（`tradingGlobalMarketData`）/MARKET_TAB_KEY/MARKET_INDICES（XAUUSD 现货金、USOIL WTI、SPX）/MARKET_INTERVALS/币种 $/侧栏与自选市场列表；自选搜索经既有 `/symbols` 通路动态注入目录，零新代码。

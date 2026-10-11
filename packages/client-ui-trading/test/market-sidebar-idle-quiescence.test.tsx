@@ -21,6 +21,8 @@ import { createWatchlistGroupsStore, createWatchlistStore } from '../src/client/
 const net = vi.hoisted(() => ({
   mode: 'static' as 'static' | 'changing' | 'flip',
   tickerCalls: 0,
+  /** 每次 fetchTickers 的市场名（按调用顺序）——用于断言「哪些市场在常驻轮询」。 */
+  tickerMarkets: [] as string[],
   sparkRenders: 0,
   dynUpdates: 0,
 }))
@@ -31,11 +33,12 @@ vi.mock('../src/client/api.ts', async (importOriginal) => {
   const series: Kline[] = Array.from({ length: 390 }, (_, i) => bar(Date.UTC(2026, 8, 8, 13, 30) + i * 60_000, 100 + (i % 5)))
   return {
     ...actual,
-    fetchMarkets: async () => [{ id: 'us' as MarketId }],
+    fetchMarkets: async () => [{ id: 'us' as MarketId }, { id: 'global' as MarketId }],
     fetchSymbols: async () => [],
     fetchKlines: async (): Promise<Kline[]> => series,
     fetchTickers: async (_market: MarketId, symbols: string[]): Promise<Record<string, { ok: true; ticker: Ticker }>> => {
       net.tickerCalls += 1
+      net.tickerMarkets.push(_market)
       const price = net.mode === 'static' ? 100 : net.mode === 'changing' ? 100 + net.tickerCalls : (net.tickerCalls % 2 === 0 ? 98 : 101)
       const out: Record<string, { ok: true; ticker: Ticker }> = {}
       for (const symbol of symbols) {
@@ -112,6 +115,7 @@ let originalScrollIntoView: unknown
 beforeEach(() => {
   net.mode = 'static'
   net.tickerCalls = 0
+  net.tickerMarkets = []
   net.sparkRenders = 0
   net.dynUpdates = 0
   originalScrollIntoView = (Element.prototype as unknown as Record<string, unknown>).scrollIntoView
@@ -166,6 +170,24 @@ describe('MarketSidebar 静止行情静默', () => {
     net.sparkRenders = 0
     const renders = [await poll(), await poll()]
     expect(renders.every(count => count >= 1)).toBe(true)
+  })
+
+  it('用户自选里的全球品种只在列表变化时按需取价，8s 常驻轮询只覆盖有预算的市场', async () => {
+    // Given 自选同时含美股与全球（金十）标的——后者没有常驻轮询预算
+    const rows = [
+      { market: 'us' as MarketId, symbol: 'AAPL', name: '苹果' },
+      { market: 'global' as MarketId, symbol: 'XAUUSD', name: '现货黄金' },
+    ]
+    renderSidebar(rows)
+    // When 挂载（首拍按需取全部行）后连推两拍 8s 轮询
+    await settle()
+    const globalAfterMount = net.tickerMarkets.filter(market => market === 'global').length
+    await poll()
+    await poll()
+    // Then 全球标的不再有周期性调用，有预算的市场照旧每拍取
+    expect(globalAfterMount).toBeGreaterThanOrEqual(1)
+    expect(net.tickerMarkets.filter(market => market === 'global').length).toBe(globalAfterMount)
+    expect(net.tickerMarkets.filter(market => market === 'us').length).toBeGreaterThan(2)
   })
 })
 

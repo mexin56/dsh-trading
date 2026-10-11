@@ -25,6 +25,7 @@ import { WatchlistManager } from './WatchlistManager.tsx'
 import type { InstrumentForm } from '@dshtrading/api'
 import type { Instrument, MarketId, MarketInfo, ReferenceSeries, Ticker } from './types.ts'
 import { usePoll } from './usePoll.ts'
+import { isResidentPollMarket } from './quote-budget.ts'
 import css from './market-sidebar.module.css'
 
 export type MarketTab = MarketId | 'watch'
@@ -195,6 +196,13 @@ export function MarketSidebar({
 
   const rowsKey = rows.map(row => rowKey(row.market, row.symbol)).join('|')
 
+  // 轮询预算（见 quote-budget.ts）：无常驻预算的市场（global/金十）只在 rowsKey
+  // 变化时按需取一次，常驻轮询只覆盖允许常驻的市场——`*OnDemandKeyRef` 记住本
+  // 轮 rowsKey 是否已按需取过，避免每拍都重拉。
+  const residentRows = useMemo(() => rows.filter(row => isResidentPollMarket(row.market)), [rows])
+  const seriesOnDemandKeyRef = useRef('')
+  const pricesOnDemandKeyRef = useRef('')
+
   // 添加表单的目标市场：自选页签由市场切换按钮决定，市场页签即本市场。
   const addTarget: MarketId | null = tab === 'watch' ? addMarket : tab
   // 形态过滤只在 crypto 目标市场生效（其它市场没有永续，过滤只会得到空结果）。
@@ -246,9 +254,12 @@ export function MarketSidebar({
   // 时的兜底，首次缺省时补拉一次日 K（日 K 序列可能缺最新收盘 bar，倒数第二根
   // 会错位一个交易日，故永远让位于 ticker.prevClose）。
   usePoll(async () => {
-    if (rows.length === 0) return
+    const onDemand = seriesOnDemandKeyRef.current !== rowsKey
+    seriesOnDemandKeyRef.current = rowsKey
+    const targets = onDemand ? rows : residentRows
+    if (targets.length === 0) return
     const now = Date.now()
-    await Promise.all(rows.map(async (row) => {
+    await Promise.all(targets.map(async (row) => {
       const key = rowKey(row.market, row.symbol)
       const cached = series[key]
       if (cached?.mode === 'daily' && now - cached.fetchedAt < SERIES_TTL_MS) return
@@ -313,10 +324,13 @@ export function MarketSidebar({
   // 最新价批量轮询：按市场分组，每市场每拍一次请求，并自动回填标的真实中文名称。
   // 静止行情（休市/无成交）下不 setState、不重建动态字典：整表保持不重渲染。
   usePoll(async () => {
-    if (rows.length === 0) return
+    const onDemand = pricesOnDemandKeyRef.current !== rowsKey
+    pricesOnDemandKeyRef.current = rowsKey
+    const targets = onDemand ? rows : residentRows
+    if (targets.length === 0) return
     const byMarket = new Map<MarketId, string[]>()
     const rowByKey = new Map<string, Instrument>()
-    for (const row of rows) {
+    for (const row of targets) {
       rowByKey.set(rowKey(row.market, row.symbol), row)
       const list = byMarket.get(row.market) ?? []
       list.push(row.symbol)

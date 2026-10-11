@@ -25,8 +25,14 @@ export const TRADING_GLOBAL_MARKET_DATA_KEY = 'tradingGlobalMarketData'
 export const MINUTE_BARS_PER_CALL = 100
 /** 本仓最多拼的分钟窗口（3 次上游调用）；再深的历史上游没有，不做假数据。 */
 export const MAX_MINUTE_WINDOW = 300
-/** Ticker 轮询周期（上游无推送通道）。 */
-export const TICKER_POLL_MS = 5_000
+/**
+ * 本市场**不提供常驻 ticker 订阅**：`global_quote` / `global_klines` 的 UI/价格
+ * 路径预算为 **0 常驻**——上游配额按工具分池，固定间隔轮询按秒折算必然超出一个
+ * 数量级。分配口径与折算数值的家是 dsh-trading-bot 的
+ * `packages/tradectl/bin/feeds-budget.mjs` 与 `docs/guides/connectors-guide.md`
+ * 的「金十额度预算分配」节（本仓只引用规则，不复写数值）；GUI 侧节奏执行见
+ * client-ui-trading 的 quote-budget.ts。要价格一律按需：`getTicker` / `getKlines`。
+ */
 
 /** 支持的周期 → 每根分钟数（api Interval 的子集：分钟级来源能诚实支撑的部分）。 */
 const INTERVAL_MINUTES: Record<string, number> = { '1m': 1, '3m': 3, '5m': 5, '15m': 15, '30m': 30, '1h': 60 }
@@ -101,8 +107,7 @@ function minuteBarToKline(bar: Jin10Kline): Kline | undefined {
 }
 
 /** global 市场数据面实现（纯对象；与快讯面同款，避免 Service 构造签名的类型漂移）。 */
-export function createJin10GlobalMarketDataService(feed: Jin10Service, options: { pollMs?: number } = {}): MarketDataService {
-  const pollMs = options.pollMs ?? TICKER_POLL_MS
+export function createJin10GlobalMarketDataService(feed: Jin10Service): MarketDataService {
 
   const requireCode = (symbol: string): string => {
     const trimmed = symbol.trim().toUpperCase()
@@ -148,25 +153,15 @@ export function createJin10GlobalMarketDataService(feed: Jin10Service, options: 
       return aggregateKlines(bars, minutes).slice(-wanted)
     },
 
-    subscribeTicker(symbol: string, listener: (ticker: Ticker) => void): Disposable {
-      let stopped = false
-      const tick = async (): Promise<void> => {
-        if (stopped) return
-        try {
-          const ticker = await loadTicker(symbol)
-          if (!stopped) listener(ticker)
-        } catch (error) {
-          if (!stopped) console.warn('[dsh-trading] jin10 ticker poll failed for ' + symbol + ':', error)
-        }
-      }
-      void tick()
-      const timer = setInterval(() => { void tick() }, pollMs)
-      return {
-        dispose(): void {
-          stopped = true
-          clearInterval(timer)
-        },
-      }
+    /**
+     * 常驻 ticker 订阅显式拒绝（见模块头注释）：本市场没有常驻轮询预算，静默
+     * 轮询正是预算失控的形态。要价格请按需 `getTicker`。
+     */
+    subscribeTicker(symbol: string): Disposable {
+      throw new Jin10Error(
+        'TRADING_NOT_IMPLEMENTED',
+        'jin10 global: 不提供常驻 ticker 订阅（global_quote 的 UI/价格路径预算为 0 常驻，见 connectors-guide「金十额度预算分配」）；请按需调用 getTicker。symbol=' + symbol,
+      )
     },
 
     async listInstruments(): Promise<Array<{ symbol: string; name?: string }>> {

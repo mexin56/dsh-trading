@@ -48,6 +48,7 @@ import { colorModeStore, type ColorMode } from './color-mode.ts'
 import { MARKET_INDICES, getMarketSessionStatus, type MarketIndexDef } from './market-status.ts'
 import type { Kline, MarketId, Ticker } from './types.ts'
 import { usePoll } from './usePoll.ts'
+import { residentPollMs } from './quote-budget.ts'
 import { fetchNews } from './api.ts'
 import type { ClientNewsItem } from './api.ts'
 import { NewsFeedPane } from './NewsFeedPane.tsx'
@@ -312,7 +313,8 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
 
   const indexDefs = MARKET_INDICES[activeMarket] ?? []
 
-  // 底部大盘指数轮询：按当前激活市场拉取对应核心指数
+  // 底部大盘指数轮询：按当前激活市场拉取对应核心指数。
+  // global（金十）无常驻轮询预算 → residentPollMs 返回 null，只按需取一次。
   usePoll(async () => {
     if (indexDefs.length === 0) return
     try {
@@ -327,14 +329,15 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     } catch {
       /* 下轮重试 */
     }
-  }, TICKER_POLL_MS, [activeMarket])
+  }, residentPollMs(activeMarket, TICKER_POLL_MS), [activeMarket])
 
   // 周期记忆（每市场独立）；切标的时读该市场的上次周期。
   useEffect(() => {
     if (market !== undefined) setIntervalFor(readInterval(market))
   }, [market])
 
-  // K线取数 = poll：挂载/换标的/换周期立即触发，此后 30s resync。
+  // K线取数 = poll：挂载/换标的/换周期立即触发；允许常驻的市场 30s resync，
+  // global（金十 global_klines 同列 0 常驻预算）只在换标的/换周期时取一次。
   const requestRef = useRef('')
   usePoll(async () => {
     if (!market || !symbol) return
@@ -349,7 +352,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
       if (requestRef.current !== request) return
       setKError(String((error as { message?: string })?.message ?? error))
     }
-  }, KLINE_RESYNC_MS, [market, symbol, chartInterval])
+  }, residentPollMs(market, KLINE_RESYNC_MS), [market, symbol, chartInterval])
 
   // 日K参考（头部涨跌/昨收）：每标的只拉一次。
   useEffect(() => {
@@ -486,7 +489,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     setMarkerHover(null)
   }, [market, symbol])
 
-  // ticker 轮询：头部价格 + 尾随合并最后一根 K 线
+  // ticker 轮询：头部价格 + 尾随合并最后一根 K 线。global 按需（见 quote-budget.ts）
   usePoll(async () => {
     if (market === undefined || symbol === undefined) return
     try {
@@ -497,7 +500,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
         setKlines(prev => prev === null ? prev : withTickerBar(prev, result.ticker))
       }
     } catch { /* 下轮再试 */ }
-  }, TICKER_POLL_MS, [market, symbol])
+  }, residentPollMs(market, TICKER_POLL_MS), [market, symbol])
 
   // 新闻情报流轮询（issue #37）：处于 news/announcements 或开启事件图钉时 60s 轮询；symbol/market 变化时立即重拉。
   const NEWS_POLL_MS = 60000
