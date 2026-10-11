@@ -1,0 +1,4 @@
+# raw fetch log — start 2026-10-11T01:23:58Z
+2026-10-11T01:23:59Z | http=200 | bytes=229814 | t=1.220781s | https://gamma-api.polymarket.com/events?tag_slug=fomc&closed=false&limit=100 -> raw/01-events-fomc-limit100.json
+2026-10-11T01:24:00Z | http=200 | bytes=722887 | t=1.277755s | https://gamma-api.polymarket.com/events?tag_slug=fed&closed=false&limit=100 -> raw/02-events-fed-limit100.json
+2026-10-11T01:24:02Z | http=200 | bytes=1741086 | t=1.712490s | https://gamma-api.polymarket.com/events?tag_slug=fomc&limit=100 -> raw/03-events-fomc-closed-incl.json

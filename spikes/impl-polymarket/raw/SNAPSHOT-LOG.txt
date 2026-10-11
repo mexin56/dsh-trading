@@ -1,0 +1,19 @@
+2026-10-11T01:26:07Z tick=1 gamma http=200 bytes=229814
+2026-10-11T01:27:20Z tick=2 gamma http=200 bytes=229814
+2026-10-11T01:28:35Z tick=3 gamma http=200 bytes=229814
+2026-10-11T01:29:50Z tick=4 gamma http=200 bytes=229799
+2026-10-11T01:31:04Z tick=5 gamma http=200 bytes=229799
+2026-10-11T01:32:17Z tick=6 gamma http=200 bytes=229799
+2026-10-11T01:33:31Z tick=7 gamma http=200 bytes=229799
+2026-10-11T01:34:44Z tick=8 gamma http=200 bytes=229765
+
+### per-tick gamma payload identity (supplementary: shows the CDN served byte-identical payloads within the window)
+tick=1 md5=d66fb8bcdc9faa6f728dfc60543c77ce bytes=229814
+tick=2 md5=d66fb8bcdc9faa6f728dfc60543c77ce bytes=229814
+tick=3 md5=d66fb8bcdc9faa6f728dfc60543c77ce bytes=229814
+tick=4 md5=0de11937ec8c61cf152b90fad51e7b1c bytes=229799
+tick=5 md5=0de11937ec8c61cf152b90fad51e7b1c bytes=229799
+tick=6 md5=0de11937ec8c61cf152b90fad51e7b1c bytes=229799
+tick=7 md5=0de11937ec8c61cf152b90fad51e7b1c bytes=229799
+tick=8 md5=6f10173da15b41ace5a68545921f8e90 bytes=229765
+distinct payloads: 3 (tick1-3 identical, tick4-7 identical, tick8 unique)

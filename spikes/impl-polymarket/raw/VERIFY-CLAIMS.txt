@@ -1,0 +1,44 @@
+== Q0: UA matrix (recorded observations) ==
+PASS  403 reproduction rows in UA-MATRIX (data rows)             2
+PASS  200 rows in UA-MATRIX (data rows)                          7
+== Q1: discovery rule ==
+PASS  series_id=35 candidate count                               39
+PASS  events carrying series[].id=35                             39
+PASS  noise titles inside series 35                              0
+PASS  seriesSlug=fomc members (stale slug)                       8
+PASS  seriesSlug=fed-interest-rates members                      31
+PASS  tag_slug=fomc open candidates                              9
+PASS  tag_slug=fomc incl closed                                  46
+PASS  4-bucket meetings (shape-filtered)                         14
+PASS  5-bucket meetings (shape-filtered)                         7
+PASS  6-bucket meetings (shape-filtered)                         2
+PASS  slug has random 17-digit suffix                            1
+PASS  2027-01 slug suffix is a 2026 build date                   1
+== Q2: probability caliber ==
+PASS  gamma==clob_mid on all buckets (15/15)                     15
+PASS  calibration row count                                      15
+PASS  buckets where mid differs from lastTrade                   15
+PASS  mid inside [buy,sell] on all buckets                       15
+== Q4: semantics ==
+PASS  markets where yes+no != 1 (must be 0)                      0
+PASS  October probability sum (x10000)                           9985
+PASS  December probability sum (x10000)                          10155
+PASS  January probability sum (x10000)                           10155
+PASS  resolved: active stays true                                true
+PASS  resolved: closed becomes true                              true
+PASS  resolved: bestBid is null                                  null
+PASS  resolved: bestAsk residual present                         0.001
+PASS  resolved: acceptingOrders false                            false
+PASS  open: acceptingOrders true                                 true
+PASS  event level has no acceptingOrders                         false
+PASS  resolution text: rounded up to 25                          true
+PASS  resolution text: no-statement => No change                 true
+== Q5: rate limiting / failure shapes ==
+PASS  gamma burst non-200 count                                  1
+PASS  gamma burst 429 count                                      0
+PASS  clob burst all 200                                         30
+PASS  no ratelimit headers observed                              0
+
+-------------------------------------------
+PASS=35 FAIL=0
+ALL CLAIMS VERIFIED against committed raw/

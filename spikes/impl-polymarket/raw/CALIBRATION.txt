@@ -1,0 +1,26 @@
+meeting    bucket                gamma  clobMid       d     buy    sell    last   tick
+October?   50+ bps decrease     0.0015   0.0015  0.0000  0.0010  0.0020  0.0010  0.001
+October?   25 bps decrease      0.0035   0.0035  0.0000  0.0030  0.0040  0.0040  0.001
+October?   No change            0.8350   0.8350  0.0000  0.8300  0.8400  0.8400  0.010
+October?   25 bps increase      0.1550   0.1550  0.0000  0.1500  0.1600  0.1600  0.010
+October?   50+ bps increase     0.0035   0.0035  0.0000  0.0030  0.0040  0.0030  0.001
+December?  50+ bps decrease     0.0035   0.0035  0.0000  0.0030  0.0040  0.0050  0.001
+December?  25 bps decrease      0.0125   0.0125  0.0000  0.0120  0.0130  0.0120  0.001
+December?  No change            0.2250   0.2250  0.0000  0.2200  0.2300  0.2300  0.010
+December?  25 bps increase      0.7450   0.7450  0.0000  0.7400  0.7500  0.7500  0.010
+December?  50+ bps increase     0.0295   0.0295  0.0000  0.0290  0.0300  0.0300  0.001
+January?   50+ bps decrease     0.0075   0.0075  0.0000  0.0070  0.0080  0.0070  0.001
+January?   25 bps decrease      0.0220   0.0220  0.0000  0.0160  0.0280  0.0160  0.001
+January?   No change            0.6550   0.6550  0.0000  0.6500  0.6600  0.6600  0.010
+January?   25 bps increase      0.3150   0.3150  0.0000  0.3100  0.3200  0.3100  0.010
+January?   50+ bps increase     0.0160   0.0160  0.0000  0.0150  0.0170  0.0150  0.001
+
+Fed Decision in December?  n=5 sum(mid)=1.015500 dev=+0.0155 sum(buy)=1.0040 sum(sell)=1.0270
+Fed Decision in January?   n=5 sum(mid)=1.015500 dev=+0.0155 sum(buy)=0.9980 sum(sell)=1.0330
+Fed Decision in October?   n=5 sum(mid)=0.998500 dev=-0.0015 sum(buy)=0.9870 sum(sell)=1.0100
+
+Q2 RESULT: gamma outcomePrices == CLOB midpoint on 15/15 buckets (max abs diff 0.0)
+  mid vs lastTradePrice: 15/15 buckets differ, mean |diff|=0.0028, max=0.0060
+  mid sits inside [buy,sell]: 15/15
+  mean spread=0.0054, max=0.0120
+saved raw/CALIBRATION.json

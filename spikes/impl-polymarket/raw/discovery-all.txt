@@ -1,0 +1,177 @@
+source=series_id=35 (closed+open) candidates=39
+layers: L0=39 -> L1 series=39 -> L2 title=39 -> L3 shape=23 -> L4 noise=23
+  dropped@L3: Fed Interest Rates May 2022 (negRisk=undefined, n=1) | Fed Interest Rates June 2022 (negRisk=undefined, n=2) | Fed Interest Rates July 2022 (negRisk=undefined, n=3) | Fed Interest Rates September 2022 (negRisk=undefined, n=4) | Fed Interest Rates November 2022 (negRisk=undefined, n=4) | Fed Interest Rates December 2022 (negRisk=undefined, n=4) | Fed Interest Rates February 2023 (negRisk=undefined, n=4) | Fed Interest Rates: May 2023 (negRisk=undefined, n=4) | Fed Interest Rates March 2023 (negRisk=undefined, n=4) | Fed Interest Rates March 2022 (negRisk=undefined, n=1) | Fed Interest Rates: June 2023 (negRisk=undefined, n=4) | Fed Interest Rates: July 2023 (negRisk=undefined, n=3) | Fed Interest Rates: September 2023 (negRisk=undefined, n=2) | Fed Interest Rates: November 2023 (negRisk=undefined, n=2) | Fed Interest Rates: December 2023 (negRisk=undefined, n=2) | Fed Interest Rates: January 2024 (negRisk=undefined, n=3)
+
+Fed Interest Rates: March 2024  [2024-03-20T00:00:00Z]  slug=fed-interest-rates-march-2024
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=0 ask=1 tick=0.001 accepting=true
+    25 bps decrease    0        bid=0 ask=1 tick=0.001 accepting=true
+    No change          1        bid=0 ask=1 tick=0.001 accepting=true
+    25+ bps increase   0        bid=0 ask=1 tick=0.001 accepting=true
+
+Fed Interest Rates: June 2024  [2024-06-12T12:00:00Z]  slug=fed-interest-rates-june-2024
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=0 ask=1 tick=0.001 accepting=false
+    25 bps decrease    0        bid=0 ask=1 tick=0.001 accepting=false
+    No Change          1        bid=0 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=0 ask=1 tick=0.001 accepting=false
+
+Fed Interest Rates: July 2024  [2024-07-31T12:00:00Z]  slug=fed-interest-rates-july-2024
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No Change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Interest Rates: September 2024  [2024-09-18T12:00:00Z]  slug=fed-interest-rates-september-2024
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No Change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Interest Rates: November 2024  [2024-11-07T12:00:00Z]  slug=fed-interest-rates-november-2024
+  series=fed-interest-rates closed=true buckets=6 sum=1 dev=+0
+    75+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    50 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    1        bid=0.998 ask=1 tick=0.001 accepting=false
+    No Change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    Other              0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in December?  [2024-12-18T12:00:00Z]  slug=fed-interest-rates-december-2024
+  series=fed-interest-rates closed=true buckets=6 sum=1 dev=+0
+    75+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    50 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    1        bid=0.998 ask=0.999 tick=0.001 accepting=false
+    No Change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    Other              0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in January?  [2025-01-29T12:00:00Z]  slug=fed-interest-rates-january-2025
+  series=fed-interest-rates closed=true buckets=5 sum=1 dev=+0
+    75+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    50 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No Change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in March?  [2025-03-19T12:00:00Z]  slug=fed-decision-in-march
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No Change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in May?  [2025-05-07T12:00:00Z]  slug=fed-decision-in-may-2025
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=1 ask=1.01 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in June?  [2025-06-18T12:00:00Z]  slug=fed-decision-in-june
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in July?  [2025-07-30T12:00:00Z]  slug=fed-decision-in-july
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in September?  [2025-09-17T12:00:00Z]  slug=fed-decision-in-september
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    1        bid=0.999 ask=1 tick=0.001 accepting=false
+    No change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in October?  [2025-10-29T12:00:00Z]  slug=fed-decision-in-october
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    1        bid=0.999 ask=1 tick=0.001 accepting=false
+    No change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in December?  [2025-12-10T00:00:00Z]  slug=fed-decision-in-december
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    1        bid=0.999 ask=1 tick=0.001 accepting=false
+    No change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in January?  [2026-01-28T00:00:00Z]  slug=fed-decision-in-january
+  series=fed-interest-rates closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in March?  [2026-03-18T00:00:00Z]  slug=fed-decision-in-march-885
+  series=fomc closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed decision in April?  [2026-04-29T00:00:00Z]  slug=fed-decision-in-april
+  series=fomc closed=true buckets=4 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Decision in June?  [2026-06-17T00:00:00Z]  slug=fed-decision-in-june-825
+  series=fomc closed=true buckets=5 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25 bps increase    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    50+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Decision in July?  [2026-07-29T00:00:00Z]  slug=fed-decision-in-july-181
+  series=fomc closed=true buckets=5 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          1        bid=0.999 ask=1 tick=0.001 accepting=false
+    25 bps increase    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    50+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Decision in September?  [2026-09-16T00:00:00Z]  slug=fed-decision-in-september-762
+  series=fomc closed=true buckets=5 sum=1 dev=+0
+    50+ bps decrease   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps decrease    0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    No change          0        bid=undefined ask=0.001 tick=0.001 accepting=false
+    25 bps increase    1        bid=0.999 ask=1 tick=0.001 accepting=false
+    50+ bps increase   0        bid=undefined ask=0.001 tick=0.001 accepting=false
+
+Fed Decision in October?  [2026-10-29T03:59:00Z]  slug=fed-decision-in-october-20260617190323537
+  series=fomc closed=false buckets=5 sum=0.9985 dev=-0.0015
+    50+ bps decrease   0.0015   bid=0.001 ask=0.002 tick=0.001 accepting=true
+    25 bps decrease    0.0035   bid=0.003 ask=0.004 tick=0.001 accepting=true
+    No change          0.835    bid=0.83 ask=0.84 tick=0.01 accepting=true
+    25 bps increase    0.155    bid=0.15 ask=0.16 tick=0.01 accepting=true
+    50+ bps increase   0.0035   bid=0.003 ask=0.004 tick=0.001 accepting=true
+
+Fed Decision in December?  [2026-12-10T04:59:00Z]  slug=fed-decision-in-december-20260729232808632
+  series=fomc closed=false buckets=5 sum=1.0155 dev=+0.0155
+    50+ bps decrease   0.0035   bid=0.003 ask=0.004 tick=0.001 accepting=true
+    25 bps decrease    0.0125   bid=0.012 ask=0.013 tick=0.001 accepting=true
+    No change          0.225    bid=0.22 ask=0.23 tick=0.01 accepting=true
+    25 bps increase    0.745    bid=0.74 ask=0.75 tick=0.01 accepting=true
+    50+ bps increase   0.0295   bid=0.029 ask=0.03 tick=0.001 accepting=true
+
+Fed Decision in January?  [2027-01-28T04:59:00Z]  slug=fed-decision-in-january-20260729233815502
+  series=fomc closed=false buckets=5 sum=1.0155 dev=+0.0155
+    50+ bps decrease   0.0075   bid=0.007 ask=0.008 tick=0.001 accepting=true
+    25 bps decrease    0.022    bid=0.016 ask=0.028 tick=0.001 accepting=true
+    No change          0.655    bid=0.65 ask=0.66 tick=0.01 accepting=true
+    25 bps increase    0.315    bid=0.31 ask=0.32 tick=0.01 accepting=true
+    50+ bps increase   0.016    bid=0.015 ask=0.017 tick=0.001 accepting=true
+
+meetings matched: 23 (shown 23)

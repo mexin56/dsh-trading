@@ -1,0 +1,15 @@
+# User-Agent / Cloudflare 1010 matrix (2026-10-11, gamma-api.polymarket.com/events?tag_slug=fomc&closed=false&limit=5)
+# method                     UA value                        HTTP   note
+curl-default                 curl/8.7.1                      200    control
+curl -A "Mozilla/5.0"        Mozilla/5.0                     200    browser-like
+curl -A ""                   (empty)                         200    empty UA still passes
+curl -H "User-Agent:"        (header removed)                200    absent UA still passes
+curl -A "curl/8.7.1"         curl/8.7.1                      200
+curl -A "python-requests/2.31.0" python-requests/2.31.0      200    requests UA passes
+python3 urllib (default)     Python-urllib/3.11              403    Cloudflare error 1010
+curl -A "Python-urllib/3.11" Python-urllib/3.11              403    reproduces with curl -> UA-string based, not client based
+python3 urllib + Mozilla UA  Mozilla/5.0                     200    fix = any non-blocked UA
+python3 http.client (no UA)  (none)                          200    server: cloudflare
+
+# 403 body: "error code: 1010" (Cloudflare browser-integrity block), Content-Type: text/plain, 17 bytes
+# Body is NOT JSON -> parsers must treat non-JSON 403 as transport/auth failure, not "no data".
