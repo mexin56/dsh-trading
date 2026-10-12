@@ -21,6 +21,16 @@ import {
 } from '@dshtrading/api'
 import { subscribeTradingEvents } from './api.ts'
 import type { MarketLocaleKey } from './contract.ts'
+
+/**
+ * 跳过原因 → 文案键的显式映射（不用字符串拼接：t() 的键是 MarketLocaleKey 联合类型，
+ * 拼接会退化成 string 并失去编译期检查）。新增原因时这里与 contract.ts 一起加。
+ */
+const SKIP_REASON_KEY = {
+  'permission-pending': 'tasks.skip.permission-pending',
+  capacity: 'tasks.skip.capacity',
+  'already-running': 'tasks.skip.already-running',
+} as const satisfies Record<string, MarketLocaleKey>
 import { fetchTasksMeta, fetchTasksSnapshot, postTaskAction, type TasksMeta } from './tasks-api.ts'
 import css from './session-rail.module.css'
 
@@ -144,9 +154,9 @@ export function ScheduledTasksPanel({ t, openSession, close }: ScheduledTasksPan
                   {task.schedule?.lastSkip !== undefined && (
                     <span
                       className={css.badgePending}
-                      title={fmtTime(task.schedule.lastSkip.triggerPoint) + ' · ' + t('tasks.skip.' + task.schedule.lastSkip.reason)}
+                      title={fmtTime(task.schedule.lastSkip.triggerPoint) + ' · ' + t(SKIP_REASON_KEY[task.schedule.lastSkip.reason])}
                     >
-                      {t('tasks.skip.label') + ' · ' + t('tasks.skip.' + task.schedule.lastSkip.reason)}
+                      {t('tasks.skip.label') + ' · ' + t(SKIP_REASON_KEY[task.schedule.lastSkip.reason])}
                     </span>
                   )}
                   {permissionPending(task, defaultPermission) && <span className={css.badgePending}>{t('tasks.permission.pending')}</span>}
