@@ -96,10 +96,54 @@ describe('TasksLedger 加固', () => {
     } catch (error) {
       thrown = error
     }
-    // Then 接管后锁文件归当前进程，第二个打开者被拒绝
-    expect(readFileSync(env.path + '.lock', 'utf8')).toBe(String(process.pid))
+    // Then 接管后锁首行仍报告当前进程，第二个打开者被拒绝
+    expect(readFileSync(env.path + '.lock', 'utf8').split('\n')[0]).toBe(String(process.pid))
     expect(thrown).toBeInstanceOf(LedgerLockedError)
     expect(first.snapshot().tasks).toHaveLength(0)
+  })
+
+  it('user releasing a replaced lock preserves the new owner even when its PID is unchanged', () => {
+    // Given: another owner replaced the identity marker without changing the process PID.
+    const env = makeEnv('same-pid-owner.json')
+    envs.push(env)
+    const ledger = open(env)
+    const replacement = String(process.pid) + '\nreplacement-owner-token'
+    writeFileSync(env.path + '.lock', replacement, 'utf8')
+    // When: the old owner is disposed.
+    ledger.dispose()
+    // Then: the new owner's marker remains and cannot be silently cleared by the old owner.
+    expect(existsSync(env.path + '.lock')).toBe(true)
+    expect(readFileSync(env.path + '.lock', 'utf8')).toBe(replacement)
+  })
+
+  it('user opening an identity-unknown lock is rejected without deleting the marker', () => {
+    // Given: the marker exists but cannot identify a proven-dead owner.
+    const env = makeEnv('unknown-owner.json')
+    envs.push(env)
+    writeFileSync(env.path + '.lock', '', 'utf8')
+    // When: a new ledger attempts to acquire it.
+    let thrown: unknown
+    try { open(env) } catch (error) { thrown = error }
+    // Then: an unknown owner is not treated as dead and the original marker remains.
+    expect(thrown).toBeInstanceOf(LedgerLockedError)
+    expect(readFileSync(env.path + '.lock', 'utf8')).toBe('')
+  })
+
+  it('user submitting after lock ownership is lost cannot publish or persist a task', () => {
+    // Given: a ready ledger lost its owner identity to another instance.
+    const env = makeEnv('lost-owner-submit.json')
+    envs.push(env)
+    const ledger = open(env)
+    writeFileSync(env.path + '.lock', String(process.pid) + '\nnew-owner-token', 'utf8')
+    // When: the former owner tries to create a task.
+    let thrown: unknown
+    try { ledger.apply(createEnvelope('lost-task') as never) } catch (error) { thrown = error }
+    // Then: no task, revision, or durable file is produced by an unowned writer.
+    expect(thrown).toBeInstanceOf(TaskActionError)
+    expect((thrown as TaskActionError).code).toBe('TASKS_LEDGER_LOCK_LOST')
+    expect(ledger.snapshot().tasks).toEqual([])
+    expect(ledger.snapshot().revision).toBe(0)
+    expect(existsSync(env.path)).toBe(false)
   })
 
   it('用户 磁盘写入失败时账本内存与幂等去重缓存不被污染', () => {

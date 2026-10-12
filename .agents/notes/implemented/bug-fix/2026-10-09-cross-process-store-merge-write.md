@@ -31,6 +31,12 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
 - 归属复核：`withHomeFileLock` 把句柄交给 work；`lock.assertOwned()` 在提交前按 token 复核「这把锁
   现在是否仍归本实例」，被顶替抛 `HomeFileLockLostError`；释放时同样按 token 判断，只删自己的锁，
   绝不按路径盲删新 owner 的锁。
+- `tryAcquireHomeFileLeaseSync(filePath)`（`src/file-lease.ts`）：**内核级 writer lease**，临界区的
+  真正互斥边界。用 Node 内置 `node:sqlite` 对 `<file>.writer-lease.sqlite` 执行
+  `BEGIN IMMEDIATE`——同一文件第二把拿不到（SQLITE_BUSY/LOCKED 即返回 undefined，明确失败），
+  持锁进程退出内核自动释放。锁文件的获取/接管/释放全部在同一 lease 内串行，因此
+  「检查 mtime → rename 抢占 → 复核 token」这段不再跨进程竞争。侧文件在可能有活实例时
+  **不得删除**（删掉即放弃互斥）。运行时缺 `node:sqlite` 时明确报错，不退回不安全路径。
 - `transactStore(filePath, readFromDisk, mutate, serialize, logPrefix)`（`src/store-transaction.ts`）：
   **锁内新鲜重读磁盘 → mutate 在新鲜值上做本次修改 → 提交前 `assertOwned()` → 原子写**。mutate
   返回 `SKIP_WRITE` 表示无内容变化（不落盘，沿用既有「无变化不重写」语义），函数返回锁内新鲜值
@@ -83,8 +89,9 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
   ——墓碑/删除语义直接破功（`deactivate`/`remove`）。正确形态是删除也在锁内基于新鲜值判定。
 - **只在进程内加锁**：2026-09-08 审查 H1 已否决——锁在同一进程内无法区分两个 store 实例的
   缓存，且跨进程无效；本任务要解的正是跨进程缺口。
-- **flock/fcntl**：Node 无内建 flock 绑定，Windows 与网络盘语义不一致；锁文件三平台一致且
-  崩溃后可由后来者按「本机 owner + 已确认死亡」回收，不依赖持锁者自己清理。
+- **flock/fcntl**：Node 无内建 flock 绑定，Windows 与网络盘语义不一致。**2026-10-12 修订**：
+  互斥改由 Node 内置 SQLite 的进程锁提供（`BEGIN IMMEDIATE` + 退出自动释放），三平台一致且
+  无新依赖；锁文件仍保留 owner 身份与心跳用于**可解释的失败与人工排查**，但不再由它裁决互斥。
 - **冲突时 fail-closed 拒绝第二实例写**：桌面端 + CLI 共用 home 是既定用法，拒绝会让第二实例
   完全存不了设置；因此只把「拿不到锁」与「提交前锁被顶替」保留为明确失败。
 - **改用 SQLite**：对若干张扁平 JSON 表引入新依赖与全部既有 home 的数据迁移，收益与成本不匹配；
@@ -100,7 +107,12 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
 - 同一 id 被两进程同时改时，后写者在该 id 上的整条值胜出（Residue：无字段级三方合并）。
 - 锁文件是瞬时产物（`<file>.lock`）：owner 崩溃后由后来者按「本机 + pid 已死 + 陈旧阈值」回收；
   异机或身份未知的陈旧锁不自动回收（只能人工删除）——这是刻意的 fail-closed，宁可停等也不冒
-  双写风险。正常路径不产生 `.lock`/`.owner-*`/`.tmp` 残留。
+  双写风险。正常路径不产生 `.lock`/`.owner-*`/`.tmp` 残留。`<file>.writer-lease.sqlite`
+  是常驻侧文件（内核租约的载体），**不随释放删除**。
+- 内核租约不跨机器：`~/.dsh-trading` 被两台机器共享时互斥失效，这种用法不在支持范围；任务账本
+  的写者身份另按 `pid + host + token` 记录，异机身份同样拒绝接管。
+- 同 PID 的不同实例（同进程双开、或 PID 复用）不再互相误删写者身份：释放与提交前都按
+  每次获取唯一的 token 复核，`TASKS_LEDGER_LOCK_LOST` 是失去身份的明确出路。
 - 跨实例读：每次 `list()`/`snapshot()` 先核对磁盘签名，另一实例已确认的写在下一次读取可见；
   写失败时本实例缓存保持旧值，不会出现「缓存里有、盘上没有」。
 - 每次写多一次锁 staging 文件创建 + `link` + `unlink` 与一次读盘；读路径每次多一次 `stat`；写频率是设置级（用户操作触发），代价可忽略。

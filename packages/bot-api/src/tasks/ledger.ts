@@ -11,7 +11,9 @@
  * task-board 的 pid 探活 + 僵尸态豁免）。
  */
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { hostname } from 'node:os'
+import { tryAcquireHomeFileLeaseSync, type HomeFileLease } from '@dshtrading/dsh-home'
 import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
@@ -52,9 +54,6 @@ interface LedgerDocument {
 /** 幂等缓存容量（对齐 task-board：256 条，随账本持久化）。 */
 const MAX_REQUEST_CACHE = 256
 
-/** 陈旧锁接管的原子重建尝试次数：每轮 EEXIST 后重读持有者。 */
-const LOCK_ACQUIRE_ATTEMPTS = 5
-
 /** 业务拒绝（HTTP 映射由桥层完成）。 */
 export class TaskActionError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
@@ -90,8 +89,9 @@ function fingerprintOf(action: TasksAction): string {
 function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
-  } catch {
-    return false
+  } catch (error) {
+    // Only ESRCH proves death; permission or probing failures must fail closed.
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
   if (process.platform === 'win32') return true
   if (process.platform === 'linux') {
@@ -271,6 +271,8 @@ export class TasksLedger {
   private readonly sessionDefaultPermission: TaskPermission
   private readonly maxInflightExecutions: number
   private disposed = false
+  private lease: HomeFileLease | undefined
+  private lockIdentity: string | undefined
 
   constructor(readonly filePath: string, options: TasksLedgerOptions = {}) {
     this.lockPath = `${filePath}.lock`
@@ -278,54 +280,70 @@ export class TasksLedger {
     this.sessionDefaultPermission = options.sessionDefaultPermission ?? DEFAULT_SESSION_PERMISSION
     this.maxInflightExecutions = options.maxInflightExecutions ?? DEFAULT_MAX_INFLIGHT_EXECUTIONS
     this.acquireLock()
-    this.document = this.load()
+    try { this.document = this.load() } catch (error) { this.dispose(); throw error }
   }
 
   // ── 生命周期 ────────────────────────────────────────────────────────────
 
   /**
-   * 取得目录锁：**原子独占创建**（`open(path,'wx')` = O_CREAT|O_EXCL），绝不
-   * 「先检查存在、再覆盖写」。已存在时读取持有者 pid：活着就拒绝（同进程双开
-   * 同样拒绝——那是两个真实调度器）；死了先删除再原子重建。删除与重建之间若
-   * 被并发的接管者抢先，本轮的 wx 会再次 EEXIST，下一轮重读持有者——两个竞争
-   * 者里只有一个能创建成功，另一个读到活持有者后拒绝，因此任何时刻只有一个写者。
-   * 锁内容保持裸十进制 pid（旧格式兼容）。
+   * 先取得 SQLite 进程持有的 writer lease，再串行裁决标记的获取/接管/释放。
+   * 标记首行保留 PID 兼容旧读者，第二行是每次获取的唯一 token 与本机身份。
+   * 未知身份、异机身份及活着的旧格式 PID 锁都拒绝；只有当前 lease 持有者
+   * 能接管已经释放的 SQLite owner，旧实例不能按相同 PID 删除新实例的标记。
    */
   private acquireLock(): void {
     mkdirSync(dirname(this.filePath), { recursive: true })
-    for (let attempt = 0; attempt < LOCK_ACQUIRE_ATTEMPTS; attempt += 1) {
-      try {
-        const fd = openSync(this.lockPath, 'wx', 0o600)
+    const lease = tryAcquireHomeFileLeaseSync(this.filePath)
+    if (lease === undefined) throw new LedgerLockedError(this.readLockHolder() ?? 0, this.lockPath)
+    try {
+      const prior = this.readLockText()
+      if (prior !== undefined) {
+        const holderPid = this.readLockHolder()
+        let releasedSqliteOwner = false
         try {
-          writeFileSync(fd, String(process.pid), 'utf8')
-        } finally {
-          closeSync(fd)
+          const metadataText = prior.split('\n')[1]
+          if (metadataText !== undefined) {
+            const metadata = JSON.parse(metadataText) as { host?: unknown; lease?: unknown; token?: unknown }
+            if (metadata.host !== hostname() || metadata.lease !== 'sqlite-v1'
+              || typeof metadata.token !== 'string' || !/^[0-9a-f-]{36}$/.test(metadata.token)) {
+              throw new LedgerLockedError(holderPid ?? 0, this.lockPath)
+            }
+            releasedSqliteOwner = true
+          }
+        } catch { throw new LedgerLockedError(holderPid ?? 0, this.lockPath) }
+        if (!releasedSqliteOwner && (holderPid === undefined || processAlive(holderPid))) {
+          throw new LedgerLockedError(holderPid ?? 0, this.lockPath)
         }
-        return
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      }
-      const holderPid = this.readLockHolder()
-      if (holderPid !== undefined && holderPid > 0 && processAlive(holderPid)) {
-        throw new LedgerLockedError(holderPid, this.lockPath)
-      }
-      // 陈旧/不可读锁：先删再原子重建（删除失败留给下一轮重试）。
-      try {
+        // Kernel lease serializes the check and takeover: another current writer cannot intervene.
         unlinkSync(this.lockPath)
-      } catch {
-        // 已被并发接管者清理。
       }
-    }
-    throw new LedgerLockedError(this.readLockHolder() ?? 0, this.lockPath)
+      const identity = String(process.pid) + '\n' + JSON.stringify({
+        host: hostname(), token: randomUUID(), lease: 'sqlite-v1',
+      })
+      const fd = openSync(this.lockPath, 'wx', 0o600)
+      try { writeFileSync(fd, identity, 'utf8') } finally { closeSync(fd) }
+      this.lockIdentity = identity
+      this.lease = lease
+    } catch (error) { lease.dispose(); throw error }
   }
 
-  /** 读取锁文件里的持有者 pid；缺失/不可解析返回 undefined。 */
+  private readLockText(): string | undefined {
+    try { return readFileSync(this.lockPath, 'utf8') } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+      throw error
+    }
+  }
+
   private readLockHolder(): number | undefined {
-    try {
-      const parsed = Number.parseInt(readFileSync(this.lockPath, 'utf8'), 10)
-      return Number.isFinite(parsed) ? parsed : undefined
-    } catch {
-      return undefined
+    const first = this.readLockText()?.split('\n')[0]
+    if (first === undefined || !/^[1-9][0-9]*$/.test(first)) return undefined
+    const pid = Number(first)
+    return Number.isSafeInteger(pid) ? pid : undefined
+  }
+
+  private assertOwned(): void {
+    if (this.lease === undefined || this.lockIdentity !== this.readLockText()) {
+      throw new TaskActionError(503, 'TASKS_LEDGER_LOCK_LOST', 'task ledger writer lease is no longer owned; restart after reconciling the owner')
     }
   }
 
@@ -380,21 +398,12 @@ export class TasksLedger {
 
   /** 释放目录锁（幂等；dispose 后其余方法拒绝工作）。 */
   dispose(): void {
+    if (this.disposed) return
     this.disposed = true
-    // 只有锁文件仍归本进程才删除：被他人接管后（陈旧接管/人工干预）误删别人的
-    // 锁会立刻放进第二个写者，直接违反单写者不变量。
-    const holderPid = this.readLockHolder()
-    if (holderPid !== process.pid) {
-      if (holderPid !== undefined) {
-        console.warn(`[dsh-trading/tasks] lock at ${this.lockPath} is held by pid ${holderPid}; leaving it in place on dispose`)
-      }
-      return
-    }
     try {
-      unlinkSync(this.lockPath)
-    } catch {
-      // 锁文件清理失败不阻断退出（接管逻辑能处理残留）。
-    }
+      if (this.lockIdentity !== undefined && this.readLockText() === this.lockIdentity) unlinkSync(this.lockPath)
+    } catch { /* Leave an unreadable marker in place; do not erase an unknown owner. */ }
+    finally { this.lease?.dispose(); this.lease = undefined }
   }
 
   // ── 读面 ────────────────────────────────────────────────────────────────
@@ -447,6 +456,8 @@ export class TasksLedger {
   // ── 写面（串行 + 原子持久化 + 修订广播） ────────────────────────────────
 
   private commit(next: LedgerDocument): void {
+    if (this.disposed) throw new TaskActionError(503, 'TASKS_LEDGER_DISPOSED', 'task ledger is disposed')
+    this.assertOwned()
     next.revision += 1
     next.recentRequests = next.recentRequests.slice(-MAX_REQUEST_CACHE)
     const payload = JSON.stringify(next)

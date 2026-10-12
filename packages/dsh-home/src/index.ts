@@ -172,3 +172,5 @@ export function migrateLegacyTradingHome(options: LegacyHomeMigrationOptions = {
   }
   return { from, to, copied, skipped }
 }
+export { tryAcquireHomeFileLeaseSync, type HomeFileLease } from './file-lease.ts'
+

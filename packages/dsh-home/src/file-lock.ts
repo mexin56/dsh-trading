@@ -1,9 +1,10 @@
 /**
  * home 数据文件的跨进程排他锁（2026-10-09 事故「多进程整表回写互相覆盖」的机制基座）。
  *
- * 为什么不是 flock/fcntl：Node 无内建 flock，Windows 与网络盘语义不一致；锁文件
- * （带 owner 身份 + 心跳 mtime）三平台一致，且持锁进程崩溃后可由后来者按**可证明
- * 的证据**回收——不依赖持锁者自己清理。
+ * 本地文件系统由 Node 内置 SQLite 的进程锁持有临界区，获取/接管/释放均在
+ * 同一内核排他边界内；业务状态仍是 JSON。持有进程退出自动释放内核租约，
+ * owner 标记继续按可证明的进程死亡与心跳证据回收，不靠路径 rename 冒充 CAS。
+ * 不支持跨机器共 home；writer-lease.sqlite 侧文件在可能有活实例时不得删除。
  *
  * owner 身份（2026-10-12 补强）：锁路径一旦出现就带有完整身份（pid + host + 每次
  * 获取唯一的 token），不经过「先创建空锁、再补写身份」的未知窗口。
@@ -23,6 +24,7 @@
 import { link, mkdir, open, readFile, rename, stat, unlink, utimes } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { dirname } from 'node:path'
+import { tryAcquireHomeFileLeaseSync, type HomeFileLease } from './file-lease'
 
 export interface HomeFileLockOptions {
   /** 等锁上限（毫秒）；超时抛错，不静默降级。 */
@@ -216,10 +218,18 @@ export async function withHomeFileLock<T>(
   await mkdir(dirname(filePath), { recursive: true })
   const owner: HomeFileLockOwner = { pid: process.pid, host: hostname(), token: randomToken(), at: Date.now() }
   const deadline = Date.now() + timeoutMs
+  let lease: HomeFileLease | undefined
   for (;;) {
-    if (await createLockWithOwner(lockPath, owner)) break
+    lease = tryAcquireHomeFileLeaseSync(filePath)
+    if (lease !== undefined) {
+      try {
+        if (await createLockWithOwner(lockPath, owner)) break
+        if (await reclaimIfStale(lockPath, staleMs) && await createLockWithOwner(lockPath, owner)) break
+      } catch (error) { lease.dispose(); throw error }
+      lease.dispose()
+      lease = undefined
+    }
     if (Date.now() >= deadline) throw new HomeFileLockTimeoutError(lockPath, timeoutMs)
-    if (await reclaimIfStale(lockPath, staleMs)) continue
     await delay(RETRY_MS)
   }
 
@@ -230,12 +240,15 @@ export async function withHomeFileLock<T>(
 
   // 心跳：临界区比陈旧阈值长时刷新 mtime；只有锁仍归本实例才刷——被顶替后不再碰
   // 别人的锁。
+  const heartbeatJobs = new Set<Promise<void>>()
   const heartbeat = setInterval(() => {
-    void (async () => {
+    const job = (async () => {
       if (!(await stillOurs())) return
       const now = new Date()
       await utimes(lockPath, now, now).catch(() => {})
     })()
+    heartbeatJobs.add(job)
+    void job.finally(() => { heartbeatJobs.delete(job) })
   }, Math.max(1_000, Math.floor(staleMs / 3)))
   heartbeat.unref?.()
 
@@ -249,6 +262,8 @@ export async function withHomeFileLock<T>(
     return await work(lock)
   } finally {
     clearInterval(heartbeat)
+    await Promise.all(heartbeatJobs)
+    try {
     // 释放按 token 归属判断：只删自己的锁，绝不删新 owner 的锁（否则互斥失效）。
     if (await stillOurs()) {
       await unlink(lockPath).catch(() => {})
@@ -257,5 +272,6 @@ export async function withHomeFileLock<T>(
         `[dsh-home] home file lock ${lockPath} was reclaimed or replaced while held by pid ${owner.pid}; leaving the current owner's lock in place`,
       )
     }
+    } finally { lease.dispose() }
   }
 }
