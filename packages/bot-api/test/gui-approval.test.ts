@@ -419,6 +419,31 @@ describe('GUI 实盘动作的逐动作审批（真宿主 loop 轮次）', () => 
     expect(seqsOf(runtime.session, 'agent/error')).toEqual([])
   })
 
+  it('user placing a live order while injected step context is pending keeps that context for its own step boundary', async () => {
+    // Given: 另一个插件往 next-step 注入了上下文（官方语义：inject 不唤醒 driver），会话仍空闲
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+    const context = createUserMessage({ content: [{ type: 'text', text: 'INJECTED-STEP-CONTEXT' }], source: { kind: 'user' } })
+    runtime.agent.inject(context)
+    expect(runtime.agent.status).toBe('idle')
+    expect(runtime.agent.inbox.nextTurn).toEqual([])
+
+    // When: 用户提交实盘单——控制消息与这份上下文会落进同一个被 claim 的批次
+    const { payload } = await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
+    await settle(runtime)
+
+    // Then: 审批照常在这一轮内完成，他人的步上下文被还回 next-step（不吞掉，也不进这一轮）
+    expect(payload).toMatchObject({ ok: true })
+    expect(trade.placed).toHaveLength(1)
+    expectApprovalRoundShape(runtime)
+    expect(runtime.agent.inbox.nextStep.map(message => message.id)).toEqual([context.id])
+    expect(runtime.agent.inbox.nextTurn).toEqual([])
+  })
+
   it('user whose approval round is rejected by an earlier pre-step listener gets the fail-closed denial instead of a hang', async () => {
     // Given: 一个更早注册的 pre-step 监听者直接拒绝（hooks deny / 归档会话一类）
     const runtime = await bootRuntime()
