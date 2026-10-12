@@ -266,7 +266,7 @@ Status: implemented
 4. **富卡片覆盖不全**：仅 `*_place_order`、`watchlist_add/select`、`strategy_backtest/author` 有 toolview；holdings / knowledge / indicators 工具无卡片（§5.5 未列为强制项，属范围缺口）。
 5. **base 行情工具的平面归属与文档不一致**：§4.3 把通用工具列 host 平面，而 `base/research-tools` 由 preset 生成行挂载（base/src/presets.ts:109）——语义上 preset 面更合理（按市场隔离），待确认是否刻意。
 6. **工具面「一次成型后冻结」需要重开一次窗口**：§5.6 要求 host 平面工具面稳定以保 KV cache；本次建议新增 6 至 8 个工具，必须在文档层显式记录一次冻结窗口重开。
-7. **「实盘下单唯一通道是 Agent 会话」与实际实现矛盾——已裁决**：2026-10-12 用户选择保留 GUI 实盘并接入官方逐动作审批。GUI 的 `placeOrderFromGui`/`cancelOrderFromGui`（`packages/bot-api/src/bridge.ts`）在触达交易服务前调用宿主真实 `ctx.approval.request`（`packages/bot-api/src/gui-approval.ts`），只认 `allowed-once`；客户端请求体（`client-ui-trading/src/client/api.ts`）带 `sessionId`（审批绑定）与稳定 `intentId`，GUI 控制台默认 `dryRun: false` 不变。GUI 路径与 agent 工具路径自此同门槛（审批 + 服务缝 `liveTrading` 三态）。**遗留事实**：界面文案 `trade.liveHint`（client-ui-trading/src/client/locales.ts，旧行号 408）仍宣称「本面板只做模拟与只读查询」，与现状不符，属未清文案债。
+7. **「实盘下单唯一通道是 Agent 会话」与实际实现矛盾——已裁决**：2026-10-12 用户选择保留 GUI 实盘并接入官方逐动作审批。GUI 的 `placeOrderFromGui`/`cancelOrderFromGui`（`packages/bot-api/src/bridge.ts`）在触达交易服务前调用宿主真实 `ctx.approval.request`（`packages/bot-api/src/gui-approval.ts`），只认 `allowed-once`；客户端请求体（`client-ui-trading/src/client/api.ts`）带 `sessionId`（审批绑定）与稳定 `intentId`，GUI 控制台默认 `dryRun: false` 不变。GUI 路径与 agent 工具路径自此同门槛（审批 + 服务缝 `liveTrading` 三态）。审计对必须被 turn 包住，而开轮只在官方 agent-loop 内，因此 GUI 座位用自有 source 唤起一轮、在轮内 ask 并 reject 收尾（空闲会话因此可用）；**代价是每笔动作留下一个空的持久 turn**（无 step、无模型调用）。界面文案 `trade.liveHint` 已同步为逐动作审批口径（2026-10-12）。
 8. **返回形态纪律不统一**：holdings 用「人读文本 + `[tool] …` 失败前缀」，router/watchlist/strategies 用 JSON 文本，indicators/knowledge 混合。建议新工具跟随所在包既有形态，不强行统一。
 
 ## Context & Efficiency Impact
