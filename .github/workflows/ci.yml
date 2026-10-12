@@ -46,6 +46,9 @@ jobs:
       # 与输出形状是模型可见的公共契约；此前只有打印报告、无基线断言。
       # 判据文件 scripts/tool-contract-freeze.json（新增/改名必须显式 --update）。
       - run: pnpm tool-contract:check
+      # 实盘下单不变量：已挂载且真能下单的连接器必须声明 intentId（幂等键）
+      # 与 dryRun（显式模拟出口）；未实现实盘分支的桩连接器不计入。
+      - run: pnpm live-order:check
       # 实盘开关门禁：不变量 §13.3「实盘开关不在 agent 可写路径上」——preset 资产里的
       # liveTrading 只是非权威镜像（只许 false），实盘授权由 @dshtrading/authority 的
       # 人工签署平面裁定；运行期不得引用签署侧。

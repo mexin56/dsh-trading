@@ -85,6 +85,7 @@ const MUST_BE_WIRED = [
   'i18n:check',
   'patch-id:check',
   'tool-contract:check',
+  'live-order:check',
   'live-trading:check',
   'test:audit',
   'test:scripts',
