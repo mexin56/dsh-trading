@@ -141,6 +141,14 @@ export function ScheduledTasksPanel({ t, openSession, close }: ScheduledTasksPan
                         : undefined}
                     </>
                   )}
+                  {task.schedule?.lastSkip !== undefined && (
+                    <span
+                      className={css.badgePending}
+                      title={fmtTime(task.schedule.lastSkip.triggerPoint) + ' · ' + t('tasks.skip.' + task.schedule.lastSkip.reason)}
+                    >
+                      {t('tasks.skip.label') + ' · ' + t('tasks.skip.' + task.schedule.lastSkip.reason)}
+                    </span>
+                  )}
                   {permissionPending(task, defaultPermission) && <span className={css.badgePending}>{t('tasks.permission.pending')}</span>}
                   {task.executions.some(execution => execution.endedAt === undefined) && <span className={css.badgeRunning}>{t('tasks.action.running')}</span>}
                 </div>
@@ -196,6 +204,9 @@ export function ScheduledTasksPanel({ t, openSession, close }: ScheduledTasksPan
                                   : t('tasks.exec.cancelled')}
                           </span>
                           {execution.error !== undefined && <span className={css.execError} title={execution.error}>{execution.error}</span>}
+                          {/* 读取异常诊断（未收敛的观察备注）：让「为什么还挂着」在面板上可解释，
+                              而不是只躺在账本字段里。 */}
+                          {execution.note !== undefined && <span className={css.execError} title={execution.note}>{execution.note}</span>}
                           {execution.sessionId !== undefined && execution.endedAt !== undefined && (
                             <button type="button" className={css.miniBtn} onClick={() => { openSession(execution.sessionId ?? '') }}>
                               {t('tasks.exec.openSession')}
