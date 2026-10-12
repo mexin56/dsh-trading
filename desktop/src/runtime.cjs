@@ -101,6 +101,79 @@ function readStampFile(stampFile) {
   }
 }
 
+/**
+ * Root entries the packaged profile seed carries. vendor/ holds the packed
+ * workspace tarballs the generated manifest references as file:./vendor/*.tgz,
+ * so the seed installs plugins inside $DSH_HOME without the repository.
+ */
+const PROFILE_SEED_FILES = [
+  'package.json',
+  'pnpm-workspace.yaml',
+  'cordis.patch.yml',
+  'vendor',
+  'node_modules',
+];
+
+/**
+ * pnpm bookkeeping the build machine wrote, relative to the seed's
+ * node_modules. .modules.yaml records absolute storeDir/virtualStoreDir,
+ * .pnpm-workspace-state-v1.json the absolute project path and .pnpm the
+ * generated lock state, so pnpm on the user's machine rejects the tree
+ * (ERR_PNPM_UNEXPECTED_STORE / ERR_PNPM_UNEXPECTED_VIRTUAL_STORE). Dropping
+ * the storeDir and virtualStoreDir keys alone still fails with "linked from
+ * the store at undefined" — the whole entry has to go; the first install
+ * regenerates all of them locally.
+ */
+const PROFILE_SEED_BUILD_HOST_STATE = [
+  '.modules.yaml',
+  '.pnpm-workspace-state-v1.json',
+  '.package-map.json',
+  '.pnpm',
+];
+
+/**
+ * Strip the build machine's pnpm state from a profile seed directory.
+ * @param {string} seedDir
+ * @returns {string[]} the entries removed, for logging.
+ */
+function pruneProfileSeedBuildHostState(seedDir) {
+  const removed = [];
+  for (const relative of PROFILE_SEED_BUILD_HOST_STATE) {
+    const target = path.join(seedDir, 'node_modules', relative);
+    if (!fs.existsSync(target)) continue;
+    fs.rmSync(target, { recursive: true, force: true });
+    removed.push(relative);
+  }
+  return removed;
+}
+
+/**
+ * Assert a staged profile seed can install plugins on its own: it carries no
+ * build machine pnpm state and every file:./vendor/*.tgz its manifest points at
+ * is present. The packaged seed is the only copy the user's $DSH_HOME gets, so
+ * build-runtime.mjs fails the build instead of shipping an unusable one.
+ * @param {string} seedDir
+ * @returns {number} how many vendored tarballs the manifest references.
+ */
+function assertProfileSeedSelfContained(seedDir) {
+  for (const relative of PROFILE_SEED_BUILD_HOST_STATE) {
+    if (fs.existsSync(path.join(seedDir, 'node_modules', relative))) {
+      throw new Error('profile seed carries build-host pnpm state: node_modules/' + relative);
+    }
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(seedDir, 'package.json'), 'utf8'));
+  const vendored = [...new Set(Object.values(manifest.dependencies ?? {})
+    .filter((spec) => typeof spec === 'string' && spec.startsWith('file:./vendor/'))
+    .map((spec) => spec.slice('file:./vendor/'.length)))];
+  if (vendored.length === 0) throw new Error('profile seed references no vendor tarball');
+  for (const file of vendored) {
+    if (!fs.existsSync(path.join(seedDir, 'vendor', file))) {
+      throw new Error('profile seed is missing vendor/' + file + ' (referenced by its package.json)');
+    }
+  }
+  return vendored.length;
+}
+
 /** Hash the staged profile contents, independent of file timestamps and location. */
 function profileSeedFingerprint(seedDir) {
   const hash = createHash('sha256');
@@ -514,6 +587,10 @@ module.exports = {
   resolveDshHome,
   resolvePrimaryRuntime,
   readStampFile,
+  PROFILE_SEED_FILES,
+  PROFILE_SEED_BUILD_HOST_STATE,
+  pruneProfileSeedBuildHostState,
+  assertProfileSeedSelfContained,
   profileSeedFingerprint,
   runtimeSeedStamp,
   profileAction,

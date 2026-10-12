@@ -12,7 +12,8 @@
  *    pnpm-install it with a hoisted, multi-platform layout;
  * 4. pnpm-install the pinned @deepseek-ai/dsh host closure;
  * 5. stage both trees into desktop/resources/runtime/ for electron-builder's
- *    extraResources;
+ *    extraResources, dropping the build machine's pnpm state from the profile
+ *    seed (the tarballs and the seed manifest travel with it);
  * 6. write the dsh CLI shims back into the staged host tree (the plugin-manager
  *    gateway resolves the official CLI through node_modules/.bin, which step 5
  *    strips as pnpm symlinks).
@@ -31,7 +32,14 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { hostCliShimPath, writeHostCliShims, profileSeedFingerprint } = require('../src/runtime.cjs');
+const {
+  hostCliShimPath,
+  writeHostCliShims,
+  profileSeedFingerprint,
+  PROFILE_SEED_FILES,
+  pruneProfileSeedBuildHostState,
+  assertProfileSeedSelfContained,
+} = require('../src/runtime.cjs');
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(desktopDir, '..');
@@ -309,6 +317,10 @@ function assertRuntimeEntrypoints() {
     const patch = path.join(stagingRoot, 'profile-trading', 'node_modules', ...bundle.split('/'), 'cordis.patch.yml');
     if (!fs.existsSync(patch)) throw new Error('staged profile is missing the ' + bundle + ' bundle patch');
   }
+  // 打包的 seed 是用户 $DSH_HOME 拿到的唯一一份：漏带 vendor（issue #105）或
+  // 带着构建机的 pnpm 绝对路径都会让插件安装失败，缺失即构不出载荷。
+  const vendored = assertProfileSeedSelfContained(path.join(stagingRoot, 'profile-trading'));
+  console.log('[build-runtime] profile seed self-contained: ' + vendored + ' vendored tarball(s), no build-host pnpm state');
 }
 
 /**
@@ -380,9 +392,13 @@ function main() {
   pnpmInstall(path.join(runtimeSrc, 'host'));
   assertHostCohort(hostVersion);
 
-  stage(path.join(runtimeSrc, 'profile-trading'), path.join(stagingRoot, 'profile-trading'), [
-    'package.json', 'pnpm-workspace.yaml', 'cordis.patch.yml', 'node_modules',
-  ]);
+  const profileSeed = path.join(stagingRoot, 'profile-trading');
+  stage(path.join(runtimeSrc, 'profile-trading'), profileSeed, PROFILE_SEED_FILES);
+  // The seed is copied into a user's $DSH_HOME verbatim: the build machine's
+  // pnpm bookkeeping (absolute storeDir/virtualStoreDir/project path) must not
+  // travel with it, or every plugin install there fails.
+  const pruned = pruneProfileSeedBuildHostState(profileSeed);
+  console.log('[build-runtime] pruned build-host pnpm state from the profile seed: ' + (pruned.join(', ') || 'none'));
   stage(path.join(runtimeSrc, 'host'), path.join(stagingRoot, 'host'), HOST_FILES);
   writeHostCliShims(path.join(stagingRoot, 'host'), { log: console.log });
   assertRuntimeEntrypoints();

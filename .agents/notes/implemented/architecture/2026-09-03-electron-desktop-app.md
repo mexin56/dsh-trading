@@ -14,6 +14,8 @@ dsh-trading 以插件包形态分发，且不发布 npm：用户要先装 Node 2
 
 **不发布 npm 的载荷用本地打包 tgz 解决。** `build-runtime.mjs` 先 `pnpm -r build` 全仓，再对每个 workspace 包 `pnpm pack` 进 `runtime/profile-trading/vendor/`，生成 profile 清单：直接依赖与 overrides 全部指向 `file:./vendor/<pkg>.tgz`。生成的清单与 lockfile 不入库，可重现性由本仓库版本承担；拉取更新后重跑构建即可把连接器/策略更新带进安装包。
 
+**播种的 seed 与清单同契，且不带构建机的 pnpm 状态。** 暂存的 profile seed 就是清单引用的那份树，所以 stage 清单含 `vendor`（`runtime.cjs` 的 `PROFILE_SEED_FILES`），`build-runtime.mjs` 在暂存后剔除构建机写下的 pnpm 状态（`node_modules/.modules.yaml`、`.pnpm-workspace-state-v1.json`、`.package-map.json`、`.pnpm`，见 `PROFILE_SEED_BUILD_HOST_STATE`）并核对 seed 引用的每个 tgz 都在，缺件即构建失败。理由：那四个文件记着构建机的绝对 store / 虚拟 store / 项目路径，播到用户 home 后插件安装报 `ERR_PNPM_UNEXPECTED_STORE` 或 `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE`（只删 `storeDir`/`virtualStoreDir` 两个键不算修——残留的 undefined 仍触发同一错误）；漏带 `vendor/` 则报 `ENOENT vendor/*.tgz`（issue #105，两处都在用户机上实测复现）。剔除后首次 install 由 pnpm 在本机重新生成这些状态文件。
+
 **一次安装覆盖多平台载荷。** 两棵运行时树都用 pnpm `nodeLinker: hoisted` 加 `supportedArchitectures`（darwin/win32 × x64/arm64）安装，使 sharp、lightningcss 等按平台解析的可选依赖覆盖全部目标，落进同一棵无符号链接的真实文件树——无符号链接是硬性要求，构建脚本会断言暂存树内不存在任何符号链接（`.bin` 命令垫片在暂存时递归剔除）。
 
 **`~/.dsh-trading` 是内置缺省，标记制归属。** 应用缺省管理 trading home（`$DSH_HOME` 显式设置时优先，否则 `~/.dsh-trading`；宿主 dsh CLI 自身的缺省仍是 `~/.dsh`，两者语义不同是刻意的——2026-09-08 分离，见 [独立 home note](../process/2026-09-08-separate-dsh-home.md)）。trading-web profile 仅在缺失时播种；本应用播种的 profile 带 `.dsh-desktop-seed.json` 标记，内置运行时戳变化时重新播种并保留用户的 `cordis.patch.yml` 层；无标记的 profile 视为用户自管，永不触碰——CLI 经 `file:` 链接维护的那份 profile 正是无标记的自管 profile，桌面壳只加载它、不重播种（本机 2026-10-10 实测：`dsh home: /Users/zcl/.dsh-trading`、无 profile action 行）。宿主自身的启动期修复（`$DSH_HOME/profiles/node_modules` 回退链接）让 profile 内插件代码复用宿主的 `@deepseek-ai/*` 模块实例，不存在 cohort 重复。
@@ -34,13 +36,14 @@ dsh-trading 以插件包形态分发，且不发布 npm：用户要先装 Node 2
 
 - 安装包体积大（运行时载荷约 800MB 未压缩，安装包压缩后数百 MB）：Node 发行版 × 3 目标 + 宿主闭包。内部分发可接受；裁剪留作后续有实测依据的优化。
 - 未签名构建触发 Gatekeeper / SmartScreen 提示；签名、公证与自动更新是明确后续，不在本期。（2026-09-05 跟进：自动更新已落地为 @dshtrading/client-ui-updater 插件 + 发布资产增量通道，见 [2026-09-05-auto-update-plugin](../feature/2026-09-05-auto-update-plugin.md)；签名/公证仍属后续。）
-- 依赖 pnpm 的应用内插件安装不可用（内置环境无 pnpm）；资产式安装不受影响。
+- 应用内插件安装由内置 pnpm 承担（2026-09-05 内置完整工具链落地，见 [内置 pnpm 工具链 note](../process/2026-09-05-desktop-bundled-pnpm-toolchain.md)）：它在 profile 目录里按 `file:./vendor/*.tgz` 解析插件，所以 seed 必须自洽（见上文 tgz 决策）。资产式安装不受影响。
 - 载荷由 workspace 检出状态构建：仓库更新后需重跑 `npm run build-runtime` 才会进入安装包。
 - dsh-web 仓库保留了同构骨架（其 dev 分支）作为 Web GUI 全家桶桌面版的地基；两侧的 profile 播种与打包脚本各自维护。
 
 ## Testing
 
-- `desktop/tests/runtime.test.mjs`（node --test，7 例）覆盖路径解析（打包/未打包布局）、DSH_HOME 查找顺序、seed/reseed/leave 判定与补丁层保留、token URL 行解析、SHASUMS 解析。
+- `desktop/tests/runtime.test.mjs`（node --test）覆盖路径解析（打包/未打包布局）、DSH_HOME 查找顺序、seed/reseed/leave 判定与补丁层保留、token URL 行解析、SHASUMS 解析。
+- `desktop/tests/profile-seed.test.mjs`（node --test，真跑 pnpm，无 mock）：seed 清单含 `vendor`、剔除项就是那四个构建机状态；播种后的 profile 里没有任何文件提到构建机绝对路径（全量扫内容）；构建时的自洽断言对漏件与残留状态都失败；staged seed 剔除后 `pnpm install` 与 `pnpm add` 成功；带构建机绝对 store / 虚拟 store 时报对应两个 `ERR_PNPM_UNEXPECTED*`（只删 `storeDir`/`virtualStoreDir` 键仍报）；漏带 `vendor` 时报 `ENOENT`。
 - 实机验证（2026-09-03，隔离 `DSH_HOME`）：dev 模式启动播种 → 宿主拉起 → token URL 加载 → trading GUI 完整渲染（行情/策略/知识库/自选/K线指标，截图多模态验证）；宿主 stdout token 行、移交检查、错误页与日志文件按当前实现工作。
 
 > **【重大决策推翻声明（2026-10-07）】**
