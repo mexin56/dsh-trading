@@ -7,6 +7,7 @@ import { entryListProblem } from '@deepseek-ai/dsh-agent-preset-registry'
 import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
 import { composePresets, installFromLoader, marketRowsOf, MARKETS, Config } from '../src/presets.js'
 import type { MarketContribution } from '../src/presets.js'
+import { providerForSkills } from '../src/role-skills.js'
 import { getPresetContribution as crypto } from '../../crypto/src/index.js'
 import { getPresetContribution as us } from '../../us/src/index.js'
 import { getPresetContribution as cn } from '../../cn/src/index.js'
@@ -133,11 +134,19 @@ it('composes all 16 installed-market subsets deterministically as registry defin
       // Role skill distribution (#70): the mounted base-skill row follows the persona discipline.
       const roleSkills = preset.plugins.find(row => row.id === 'dsh-trading-role-skills')
       if (preset.id === 'master') {
-        expect(roleSkills).toEqual({ id: 'dsh-trading-role-skills', name: '@dshtrading/base/role-skills' }) // full pair, no whitelist
+        expect(roleSkills).toEqual({ id: 'dsh-trading-role-skills', name: '@dshtrading/base/role-skills' }) // full catalog, no whitelist
       } else if (preset.id === 'trader') {
         expect(roleSkills).toBeUndefined() // no base skills for the execution role
       } else if (preset.id === 'instrument-researcher') {
         expect(roleSkills!.config).toEqual({ skills: ['company-analysis'] })
+      }
+      // The row's own config decides the catalog it mounts: the no-whitelist master row
+      // exposes every bundled candidate including content-insight, while the researcher
+      // whitelist keeps content-insight out (its pipeline is master-side work).
+      if (preset.id === 'master' || preset.id === 'instrument-researcher') {
+        const whitelist = (roleSkills!.config as { skills?: string[] } | undefined)?.skills
+        const mounted = (await providerForSkills(whitelist).list()).map(c => c.name)
+        expect(mounted.includes('content-insight'), preset.id).toBe(preset.id === 'master')
       }
       for (const kit of kitIds) {
         const market = kit.id.replace('dsh-trading-', '').replace('-kit', '')

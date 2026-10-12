@@ -12,7 +12,7 @@ Status: implemented
 ## Decision
 
 - `packages/base/src/presets.ts`：四个角色预设统一追加 `dsh-trading-skill-filesystem`（`@deepseek-ai/dsh-skill-filesystem`）与 `dsh-trading-tool-skill`（`@deepseek-ai/dsh-tool-skill`）两行——官方 preset 同款、注册进宿主注册表、无 isolate realm。master 另加 `dsh-trading-master-bash`（`@deepseek-ai/dsh-tool-bash`）：master 是编排者，content-insight 等会话技能要跑 python/uv 管线；交易面已有 base 审批闸门兜底，bash 不新增交易执行面。trader 保持最小执行面，研究员/风控只读不挂 shell。
-- content-insight 仓库版对齐全局演进版：SKILL.md 恢复 S4 默认入库节（`knowledge_ingest` 优先、直写回退协议、批量对账、缓存重启提示）、V2 主路径改为本地 mlx-whisper、故障排查表同步；`whisper_asr.py` 头注释改为「V2 唯一 ASR 路径」。`pnpm build` 经 sync-skills 自动分发到 `packages/base/assets/skills/content-insight.md`（SSOT 单向：`.agents/skills/` → 包资产）。
+- content-insight 仓库版对齐全局演进版：SKILL.md 恢复 S4 默认入库节（`knowledge_ingest` 优先、直写回退协议、批量对账、缓存重启提示）、V2 主路径改为本地 mlx-whisper、故障排查表同步；`whisper_asr.py` 头注释改为「V2 唯一 ASR 路径」。`pnpm build` 经 sync-skills 自动分发到 `packages/base/assets/skills/content-insight{,.md}`（SSOT 单向：`.agents/skills/` → 包资产）。
 
 ## Alternatives considered
 

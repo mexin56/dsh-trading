@@ -52,7 +52,7 @@ python <skill目录>/scripts/bili_fetch.py "<视频链接或BV号>" <工作目�
 
 ### V2: 本地 ASR 转写（仅当无官方字幕）
 
-一次性环境准备（`.venv` 建在工作目录，不污染 skill 与系统 Python）：
+一次性环境准备（Apple Silicon；`.venv` 建在工作目录，不污染 skill 与系统 Python）：
 
 ```bash
 uv venv <工作目录>/.venv --python 3.12
@@ -73,6 +73,13 @@ uv pip install --python <工作目录>/.venv/bin/python mlx-whisper
   `transcript_full.json + transcript_full.txt`，V3 零改动直接消费。
 - 同音字误差需人工修正（实测："美委"写成"美美"、"成住坏空"写成"沉/筑坏空"、
   片尾 BGM 会产出幻觉乱码段），引用原文前按上下文改写，必要时回听原视频。
+- 有官方字幕的视频不走 V2：V1 返回 `SUBTITLES_FOUND` 时直接跳 V3，与平台无关。
+- **非 Apple Silicon（Windows / Linux / Intel Mac）**：MLX 只在 Apple Silicon 上跑，
+  `whisper_asr.py` 在这类机器上起不来（`import mlx_whisper` 就失败）。此时自备本地转写——
+  挑一个本机能跑的 ASR（例如 CTranslate2 后端的 faster-whisper，纯 CPU 也能跑），
+  把结果落成同格式的 `transcript_full.json`（`[{index, start:"HH:MM:SS", text}]`）与
+  `transcript_full.txt`，V3 原样消费，不用改任何脚本。本仓的 mlx-whisper 路径只在
+  Apple Silicon 上实测过；其它平台的 ASR 选型、安装与参数请自行确认，别照抄本节的 mlx 命令。
 
 ### V3: 字幕文稿交付
 
@@ -161,7 +168,7 @@ python <skill目录>/scripts/wechat_fetch.py "<文章链接>" <工作目录>
 | knowledge_ingest 报 store.list is not a function | 会话绑定了旧构建或 dsh 进程未重载：报告失败并保留待导入卡片，不直写 cards.json、不擅自重启 |
 | knowledge_search 看不到新入库卡片 | 先确认入库是否真正通过工具完成；store 内存缓存问题报告用户，由用户决定是否重载实例 |
 | whisper 模型下载失败（HF 直连超时） | 设 `HF_ENDPOINT=https://hf-mirror.com` 重跑 |
-| mlx-whisper 安装或运行失败 | 本脚本依赖 MLX，仅支持 Apple Silicon；其他平台需另配本地 ASR（如 faster-whisper）后再跑 |
+| mlx-whisper 安装或运行失败 | 本脚本依赖 MLX，仅支持 Apple Silicon；Windows/Linux/Intel Mac 按 V2 末尾「非 Apple Silicon」一段自备本地 ASR，产出同格式 transcript 后 V3 照旧跑 |
 | 微信"环境异常"三次重试仍拦截 | 风控冷却未结束，等5-10分钟重跑；或请用户粘贴正文；或试 agent-browser |
 | 微信"文章已删除/违规" | 无法获取，如实告知 |
 | 微信正文过短且图片多 | 图片型文章，提示用户可选图片解读路径 |

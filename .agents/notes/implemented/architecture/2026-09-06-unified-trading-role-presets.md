@@ -10,7 +10,7 @@ Status: implemented
 
 base 新增唯一角色安装器，从 loader 的有效启用市场 bundle 行获取能力资产，生成 master（大师）、trader（交易员）、instrument-researcher（标的分析研究员）、risk-reviewer（风险审查员）。原市场 host 行保留配置兼容，但不再写旧预设。市场 connector realm 与路由、安全默认值继续由市场资产拥有；共享知识库、持仓等 host 行不复制入角色。
 
-master 是全能型多 agent 团队主导者：组合形态 = trader 的市场连接器/kit 行 + base 捆绑技能（company-analysis、dynamic-capabilities）+ 三个 `@deepseek-ai/dsh-tool-subagent` 委派实例（provider: fork，backgroundMode: one-shot）。每个实例绑定一个专员 persona——`researcher_subagent` 携带标的分析研究员纪律、`trader_subagent` 携带交易员纪律、`risk_reviewer_subagent` 携带风险审查员纪律——并统一追加一次性子代理边界（只产分析与建议文本，不下单不撤单，执行由大师会话过审批闸门完成）。owner 要求细分问题（标的分析、交易计划草拟、方案复核）委派给对应子代理，交叉核对后整合单一结论；交易执行仍走 dry-run 默认与审批闸门。委派行不 provide 服务，无需 realm；宿主 base 层已常驻 `subagents` 服务与 fork 后端，工具行默认禁用、由预设按需挂载（同官方 standard 的分工）。
+master 是全能型多 agent 团队主导者：组合形态 = trader 的市场连接器/kit 行 + base 捆绑技能（company-analysis、weekly-trading-plan、content-insight、dynamic-capabilities）+ 三个 `@deepseek-ai/dsh-tool-subagent` 委派实例（provider: fork，backgroundMode: one-shot）。每个实例绑定一个专员 persona——`researcher_subagent` 携带标的分析研究员纪律、`trader_subagent` 携带交易员纪律、`risk_reviewer_subagent` 携带风险审查员纪律——并统一追加一次性子代理边界（只产分析与建议文本，不下单不撤单，执行由大师会话过审批闸门完成）。owner 要求细分问题（标的分析、交易计划草拟、方案复核）委派给对应子代理，交叉核对后整合单一结论；交易执行仍走 dry-run 默认与审批闸门。委派行不 provide 服务，无需 realm；宿主 base 层已常驻 `subagents` 服务与 fork 后端，工具行默认禁用、由预设按需挂载（同官方 standard 的分工）。
 
 master persona 编排四步（2026-09-06 编排升级）：①资金持仓先行——凡交易计划/仓位/敞口/复盘任务先 `holdings_list` 读统一资产台账（含待确认区），实盘资金用各市场 `*_get_balance` / `crypto_get_positions` 核实，不足即询问用户，绝不编造；持仓截图走 `holdings_stage` 入待确认区并提醒确认。②知识先行——任务书携带已命中知识卡片 id 与时效，让子代理共享同一情报基础。③技能与工具调度——按任务类型点名 company-analysis / crypto-instrument-analysis / 对应市场 risk-checklist / trading-strategy-paradigms（配 `strategy_backtest` 验证）/ indicator-authoring / knowledge-curation，一次性跨标的聚合按 dynamic-capabilities 开 dsh-tool-cordis 动态包（禁止绕闸），自选股维护用 watchlist 工具；技能名以会话技能目录实际挂载为准。④交叉裁决——核对行情、台账与公告后整合，交付单一结论并标注来源归属与数据时间。
 
@@ -26,7 +26,7 @@ master persona 编排四步（2026-09-06 编排升级）：①资金持仓先行
 
 ## Consequences
 
-角色按安装市场稳定合成，静态证据纪律置于 persona，实时业务数据不写入组合。定向测试覆盖16种市场子集、顺序稳定、realm保留、仅一个persona、实际kit工具注册、只读行情执行、路由变化、不可用降级、幂等、卸载市场刷新、修改戳保护、旧目录迁移和symlink拒绝；master 断言三个委派实例、交易员 persona 内嵌、一次性子代理边界三现，以及台账先行（holdings_list/holdings_stage）与技能调度（dynamic-capabilities、strategy_backtest、knowledge-curation）关键词。role-skills provider 以独立测试覆盖双技能清单、正文可读与未知技能拒绝；dynamic-capabilities 资产本已随 base 分发但此前未注册进技能面，属补齐而非新增资产（content-insight.md 仍不注册：其脚本与引用资源未随包分发，注册会形成不可执行技能）。
+角色按安装市场稳定合成，静态证据纪律置于 persona，实时业务数据不写入组合。定向测试覆盖16种市场子集、顺序稳定、realm保留、仅一个persona、实际kit工具注册、只读行情执行、路由变化、不可用降级、幂等、卸载市场刷新、修改戳保护、旧目录迁移和symlink拒绝；master 断言三个委派实例、交易员 persona 内嵌、一次性子代理边界三现，以及台账先行（holdings_list/holdings_stage）与技能调度（dynamic-capabilities、strategy_backtest、knowledge-curation）关键词。role-skills provider 以独立测试覆盖候选名册、正文可读与未知技能拒绝；dynamic-capabilities 资产本已随 base 分发但此前未注册进技能面，属补齐而非新增资产。**2026-10-12 更新**：content-insight 同样注册进候选（仅 master 与无白名单方可见），原先的否决理由「其脚本与引用资源未随包分发，注册会形成不可执行技能」已不成立——`sync-skills.mjs` 的 `PORTABLE_SKILLS` 收入该技能后 `scripts/`、`references/`、`evals/` 随 base 分发，SKILL.md 另补了非 Apple Silicon 的 V2 降级路径（见 [技能分配](2026-09-06-role-skill-distribution.md)）。
 
 源码级检查确认 loader Entry.disabled 包含祖先禁用。最初使用的 SDK 原生 inject.loader.await 拦截配置随后实测会将安装器自身异步初始化计入待办；现改为普通 loader 注入，按已登记的启用市场行显式导入贡献，见 [2026-09-12 启动修正](../bug-fix/2026-09-12-builtin-plugin-inventory-and-upgrade.md)。真实 standingKeyFor/新会话挂载未在本轮子任务验证，仍需宿主验收。共享 host 动态能力仍存在，因此“不挂订单工具”不是独立安全沙箱。newsRegistry 改为每次注册独立 token，注销仅删除自身注册，最后注册退出时恢复前一聚合器；相同函数的多角色注册不再互相注销，测试覆盖重复dispose及恢复。未改已安装目录或运行中宿主。
 

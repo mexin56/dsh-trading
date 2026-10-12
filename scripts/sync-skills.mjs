@@ -42,6 +42,11 @@ const MARKET_PACKAGES = {
 // 仅供维护者会话使用的技能，不随 npm 包分发
 const DISTRIBUTION_EXCLUDED = new Set(['dsh-trading-release'])
 
+/** 带资源目录（scripts/ / references/ / evals/）的技能：除扁平 md 外整目录随包分发。
+ *  命中的技能把 `.agents/skills/<name>/` 原样拷进 base 资产（跳过 `.` 开头的条目）；
+ *  未命中者行为不变，只有扁平文件——注册进技能面就会形成缺脚本的残废技能。 */
+export const PORTABLE_SKILLS = new Set(['company-analysis', 'weekly-trading-plan', 'content-insight'])
+
 /** 单条技能内容的可分发判定。
  *
  * 两类内容绝不允许写进包资产：Windows 侧无 symlink 时 git 把符号链接落成的纯路径
@@ -112,7 +117,6 @@ async function main() {
 
     // Skills that carry extra resources (references/templates/scripts) keep the flattened
     // compatibility asset AND distribute the complete portable directory.
-    const PORTABLE_SKILLS = new Set(['company-analysis', 'weekly-trading-plan'])
     if (PORTABLE_SKILLS.has(skillName)) {
       await cp(path.join(AGENTS_SKILLS_DIR, skillName), path.join(MARKET_PACKAGES.base, skillName), {
         recursive: true,

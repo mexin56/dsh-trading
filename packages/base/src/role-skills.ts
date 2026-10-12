@@ -8,6 +8,7 @@ export const inject = ['skills']
 const companyResourceBase = { kind: 'directory', path: fileURLToPath(new URL('../assets/skills/company-analysis/', import.meta.url)) } as const
 const flatResourceBase = { kind: 'directory', path: fileURLToPath(new URL('../assets/skills/', import.meta.url)) } as const
 const weeklyPlanResourceBase = { kind: 'directory', path: fileURLToPath(new URL('../assets/skills/weekly-trading-plan/', import.meta.url)) } as const
+const contentInsightResourceBase = { kind: 'directory', path: fileURLToPath(new URL('../assets/skills/content-insight/', import.meta.url)) } as const
 /** Concrete candidate: this provider always supplies resourceBase and a URL locator. */
 type RoleCandidate = SkillCandidate & { resourceBase: SkillResourceBase; locator: URL }
 const CANDIDATES: RoleCandidate[] = [
@@ -40,6 +41,18 @@ const CANDIDATES: RoleCandidate[] = [
     resourceBase: flatResourceBase,
     rank: BUNDLED_SKILL_RANK,
     locator: new URL('../assets/skills/dynamic-capabilities.md', import.meta.url),
+  },
+  {
+    // 带 scripts/references/evals 的便携技能：随包分发整目录，resourceBase 指向目录本身，
+    // 会话才能按 skill 目录找到 python/js 管线入口（见 sync-skills 的 PORTABLE_SKILLS）。
+    name: 'content-insight',
+    description: '提取并总结 B 站视频或微信公众号文章；转写、深度报告和知识库入库按用户请求选择。其他网站使用当前可用的网页读取工具。',
+    invocation: { modelInvocable: true, userInvocable: true },
+    provider: name,
+    source: 'bundled',
+    resourceBase: contentInsightResourceBase,
+    rank: BUNDLED_SKILL_RANK,
+    locator: new URL('../assets/skills/content-insight/SKILL.md', import.meta.url),
   },
 ]
 export const provider: SkillProvider = {

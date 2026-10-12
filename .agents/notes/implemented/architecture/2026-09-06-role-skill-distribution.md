@@ -13,6 +13,7 @@ Status: implemented
 | 技能 | 大师 | 交易员 | 标的研究员 | 风险审查员 |
 |---|---|---|---|---|
 | company-analysis (base) | ✓ | | ✓ | |
+| content-insight (base，便携目录) | ✓ | | | |
 | dynamic-capabilities (base) | ✓ | | | |
 | crypto-instrument-analysis (kit-crypto) | ✓ | | ✓ | |
 | \<market\>-risk-checklist | ✓ | ✓ | | ✓ |
@@ -23,7 +24,7 @@ Status: implemented
 
 机制：
 - kit provider（kit-crypto/us/cn/hk）增加可选 `config.skills` 白名单：缺省（未配置）保持全量目录向后兼容；白名单含未知名 fail-fast 抛错，不静默缩面；白名单外的 `get` 拒绝分发（`providerForSkills` 导出供测试）。
-- base role-skills 同样配置化：master 全量对、instrument-researcher 仅 company-analysis、trader 与 risk-reviewer 不再挂该行。
+- base role-skills 同样配置化：master 全量对、instrument-researcher 仅 company-analysis、trader 与 risk-reviewer 不再挂该行。master 的「全量」= provider 当时注册的候选；content-insight 于 2026-10-12 补入候选，master 自动可见。
 - trader 与 master 共用 market contribution 的 traderRows（连接器行 + kit 行整块），而两者技能面不同：`presets.ts` 用 `connectorRowsOf` 把 kit 行从块尾拆出（找不到 kit 行即抛错，fail-conservative），trader 重写 kit 行注入白名单；master 保留整块原文（kit 行无 skills = 全量）。market 包契约与资产不动。
 - 研究员保留 knowledge-curation：交易会话守则要求分析者沉淀知识卡片（knowledge-curation 流程），研究员是主要知识生产角色。
 
@@ -36,7 +37,8 @@ Status: implemented
 
 ## Consequences
 
-- 16 市场子集组合测试断言各角色 kit 白名单与 role-skills 行形态（trader 无 base 行、researcher 无 risk-checklist 字样、risk-reviewer 无策略/指标条目、master 全量无白名单）；kit-crypto skills 测试新增白名单用例；base role-skills 新增 providerForSkills 用例。
+- content-insight 注册（2026-10-12）：base role-skills 候选由 3 个增为 4 个，`packages/base/src/role-skills.ts` 用目录型 `resourceBase` 指向 `assets/skills/content-insight/`，locator 指向目录内 `SKILL.md`。仅 master（无白名单）与不设白名单的消费方可见；instrument-researcher 白名单仍是 `['company-analysis']`，trader / risk-reviewer 仍不挂该行。原先「脚本与引用资源未随包分发」的否决理由已失效，见 [便携技能资产](../feature/2026-09-13-weekly-trading-plan-skill-and-portable-skill-assets.md)。
+- 16 市场子集组合测试断言各角色 kit 白名单与 role-skills 行形态（trader 无 base 行、researcher 无 risk-checklist 字样、risk-reviewer 无策略/指标条目、master 全量无白名单），并按挂载行的白名单实查 base 目录：master 面含 content-insight、researcher 面不含；kit-crypto skills 测试新增白名单用例；base role-skills 新增 providerForSkills 用例。
 - 门禁全绿：`pnpm -r build`、`typecheck-gate`（498 < 基线 504，顺带清 6 个存量错误）、`i18n:check`、`pnpm -r test`（43 包 exit 0）与根 vitest（1112 passed）。
 - `SkillProvider.get` 契约实为 `(candidate, options: SkillLookupOptions)` 双参：本次把 5 个 provider.get 放宽签名并转发 options，消除新增转发调用的 TS2554，也清掉潜在存量隐患。
 - 已安装托管预设带管理戳 hash，宿主重启后安装器幂等重写自动生效；运行中实例不受影响（禁止运行中 `dsh plugin install`）。

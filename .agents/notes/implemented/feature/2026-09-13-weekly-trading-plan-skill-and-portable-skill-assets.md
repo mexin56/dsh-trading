@@ -9,7 +9,7 @@ Status: implemented
 ## Decision
 
 - 新增 `.agents/skills/weekly-trading-plan/`（SKILL.md + `scripts/kdas.py`）。脚本与 `~/.dsh-trading/indicators/custom.json` 的 `kdas` 指标**同算法、同锚定口径**（TP=(H+L+C)/3 按量加权；锚点 = 首根 `openTime` UTC 日 ≥ 关键日的 K 线）；锚点被截断或关键日未生效时 fail-closed 不出数。
-- `scripts/sync-skills.mjs`：把 company-analysis 的目录分发特例提升为 **`PORTABLE_SKILLS` 集合**（`company-analysis`、`weekly-trading-plan`）。命中的技能同时产出扁平兼容资产与完整目录；未命中的技能行为不变。
+- `scripts/sync-skills.mjs`：把 company-analysis 的目录分发特例提升为 **`PORTABLE_SKILLS` 集合**（本次为 `company-analysis`、`weekly-trading-plan`；2026-10-12 起含 `content-insight`）。命中的技能同时产出扁平兼容资产与完整目录；未命中的技能行为不变。
 - `packages/base/src/role-skills.ts`：注册 `weekly-trading-plan` 候选，使用独立 `resourceBase` 指向目录（不是扁平文件）。master 因无白名单自动可见；其它角色若需要，须在其白名单里显式放行（白名单语义见 [角色技能分配](../architecture/2026-09-06-role-skill-distribution.md)）。
 - `packages/base/test/role-skills.test.ts`：名册期望更新，并新增打包断言——正文必须含 `KDAS` 与 `六道闸门`，防止「注册在、正文丢」的半状态。
 
@@ -30,6 +30,7 @@ Status: implemented
 
 ## Consequences
 
+- content-insight 登记（2026-10-12）：该技能自带 `scripts/`（bili_fetch.py、whisper_asr.py、bili_transcript.py、wechat_fetch.py）、`references/analysis-framework.md` 与 `evals/`，故列入 `PORTABLE_SKILLS`，整目录随 base 分发（`npm pack` 可见 `assets/skills/content-insight/**`）；`PORTABLE_SKILLS` 从 `sync-skills.mjs` 导出，单测递归比对 SSOT 与包资产目录的文件清单，防止 filter 或漏登记把资源吃掉。注册进技能面见 [技能分配](../architecture/2026-09-06-role-skill-distribution.md)。
 - 规则：**带脚本或 references 的技能必须登记进 `PORTABLE_SKILLS`**，否则打包副本缺文件而扁平资产看不出问题；新增此类技能时同步补一条打包断言（正文关键串）比人工核对更可靠。
 - 扁平兼容资产继续产出，既有消费方（按 `<name>.md` 读技能体）不受影响；只有 provider 用目录 `resourceBase` 时才解析得到脚本。
 - master 预设自动获得该技能；其余角色的可见性由白名单决定，需要时改 `presets.ts` 的白名单常量即可。

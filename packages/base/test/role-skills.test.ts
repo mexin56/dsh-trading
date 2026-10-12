@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { Config, provider, providerForSkills } from '../src/role-skills.js'
 
 describe('dsh-trading-role-skills provider', () => {
-  it('bundles company-analysis, weekly-trading-plan and dynamic-capabilities with readable bodies', async () => {
+  it('bundles company-analysis, weekly-trading-plan, dynamic-capabilities and content-insight with readable bodies', async () => {
     const candidates = await provider.list()
-    expect(candidates.map(c => c.name)).toEqual(['company-analysis', 'weekly-trading-plan', 'dynamic-capabilities'])
+    expect(candidates.map(c => c.name)).toEqual(['company-analysis', 'weekly-trading-plan', 'dynamic-capabilities', 'content-insight'])
     for (const candidate of candidates) {
       const skill = await provider.get(candidate)
       expect(skill.name).toBe(candidate.name)
@@ -19,6 +19,14 @@ describe('dsh-trading-role-skills provider', () => {
     const plan = await provider.get({ name: 'weekly-trading-plan' })
     expect(plan.content).toContain('KDAS')
     expect(plan.content).toContain('六道闸门')
+
+    // content-insight is portable too: the body loads from its own directory and the
+    // resourceBase must point there so the pipeline scripts resolve inside the package.
+    const insight = await provider.get({ name: 'content-insight' })
+    expect(insight.content).toContain('whisper_asr.py')
+    const insightBase = insight.resourceBase
+    expect(insightBase?.kind).toBe('directory')
+    expect(insightBase && insightBase.kind === 'directory' ? insightBase.path : '').toMatch(/assets[\\/]skills[\\/]content-insight[\\/]?$/)
   })
 
   it('rejects unknown role skills', async () => {
