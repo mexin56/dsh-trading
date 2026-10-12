@@ -18,6 +18,10 @@
       "types": "./lib/testing.d.ts",
       "default": "./lib/testing.js"
     },
+    "./order-intents": {
+      "types": "./lib/order-intents.d.ts",
+      "default": "./lib/order-intents.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -27,6 +31,9 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@dshtrading/dsh-home": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
