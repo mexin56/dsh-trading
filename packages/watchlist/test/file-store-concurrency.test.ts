@@ -39,6 +39,22 @@ describe('自选行 file store 跨实例并发写', () => {
     expect(onDisk.us.map(r => r.symbol)).toEqual(['AAPL', 'TSLA'])
     expect(onDisk.hk.map(r => r.symbol)).toEqual(['00700.HK', '02714.HK'])
   })
+
+  it('用户两个实例都读过之后，桌面端新增的行对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份表（CLI 的读缓存已建立）
+    const file = await freshFile('watchlists.json')
+    const seed = createFileWatchlistStore(file)
+    await seed.add('us', { market: 'us', symbol: 'AAPL' })
+    const desktop = createFileWatchlistStore(file)
+    const cli = createFileWatchlistStore(file)
+    expect((await cli.list()).us.map(r => r.symbol)).toEqual(['AAPL'])
+
+    // When 桌面端新增一行
+    await desktop.add('us', { market: 'us', symbol: 'TSLA' })
+
+    // Then CLI 的下一次读取看到这行（读取不永久命中缓存）
+    expect((await cli.list()).us.map(r => r.symbol)).toEqual(['AAPL', 'TSLA'])
+  })
 })
 
 describe('分组注册表 file store 跨实例并发写', () => {

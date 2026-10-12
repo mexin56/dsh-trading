@@ -147,4 +147,18 @@ describe('快照持久化（真实文件）', () => {
     expect(meetings[0]?.buckets[0]?.changeSincePrevious).toBeUndefined()
     expect(parseSnapshotTable(JSON.parse(readFileSync(filePath, 'utf8'))).meetings.m1?.k0?.probability).toBe(0.5)
   })
+
+  it('运营在两个实例之间取数时，第二个实例读到第一个实例落盘的基线并算出真实差值', async () => {
+    // Given 两个实例共用同一路径，桌面端先记下 0.225
+    const filePath = tempFile()
+    const desktop = new SnapshotStore({ filePath })
+    await desktop.annotate([meeting('m1', [0.225])], '2026-10-11T00:00:00.000Z')
+    const cli = new SnapshotStore({ filePath })
+
+    // When CLI 用新读数 0.215 标注
+    const seen = await cli.annotate([meeting('m1', [0.215])], '2026-10-11T01:00:00.000Z')
+
+    // Then CLI 拿到与桌面端落盘基线之间的真实差（读取没有停在本地旧快照）
+    expect(seen[0]?.buckets[0]?.changeSincePrevious).toBe(-0.01)
+  })
 })

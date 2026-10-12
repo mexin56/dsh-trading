@@ -9,13 +9,12 @@
  */
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
 import type { CustomScreenerRecord, CustomScreenerStore } from './custom-screener.ts'
 
 const LOG_PREFIX = '[dsh-trading/strategies] failed to atomic flush custom screeners to'
 
 export function createFileCustomScreenerStore(filePath: string): CustomScreenerStore {
-  let cache: Map<string, CustomScreenerRecord> | null = null
 
   /** 新鲜读盘（坏 JSON/坏形同既有 load 口径降级空表）；供 load 与锁内重读共用。 */
   async function readFromDisk(): Promise<Map<string, CustomScreenerRecord>> {
@@ -37,26 +36,23 @@ export function createFileCustomScreenerStore(filePath: string): CustomScreenerS
     }
   }
 
-  async function load(): Promise<Map<string, CustomScreenerRecord>> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   async function commit(
     mutate: (onDisk: Map<string, CustomScreenerRecord>) => Map<string, CustomScreenerRecord> | typeof SKIP_WRITE,
   ): Promise<Map<string, CustomScreenerRecord>> {
-    cache = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list() {
-      const map = await load()
+      const map = await cache.load()
       return [...map.values()]
     },
     async get(id) {
-      const map = await load()
+      const map = await cache.load()
       return map.get(id)
     },
     async save(record) {

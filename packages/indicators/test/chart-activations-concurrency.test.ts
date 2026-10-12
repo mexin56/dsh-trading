@@ -38,4 +38,18 @@ describe('file store 跨实例并发写', () => {
     expect((await createFileChartActivationStore(file).list()).map(i => i.id).sort())
       .toEqual(['active_buy_real', 'ema'])
   })
+
+  it('用户两个实例都读过之后，桌面端激活的指标对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空名册（CLI 的读缓存已建立）
+    const file = await freshFile()
+    const desktop = createFileChartActivationStore(file)
+    const cli = createFileChartActivationStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端激活一个指标
+    await desktop.activate({ id: 'active_buy_real', params: { n: 1 } })
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect((await cli.list()).map(i => i.id)).toEqual(['active_buy_real'])
+  })
 })

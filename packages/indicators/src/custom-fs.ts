@@ -6,13 +6,12 @@
  * 纪律不变。
  */
 import { readFile } from 'node:fs/promises'
-import { SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
 import type { CustomIndicatorRecord, CustomIndicatorStore } from './custom.ts'
 
 const LOG_PREFIX = '[dsh-trading/indicators] failed to atomic flush custom indicators to'
 
 export function createFileCustomIndicatorStore(filePath: string): CustomIndicatorStore {
-  let cache: Map<string, CustomIndicatorRecord> | null = null
 
   /** 新鲜读盘（坏 JSON/坏形同既有 load 口径降级空表）；供 load 与锁内重读共用。 */
   async function readFromDisk(): Promise<Map<string, CustomIndicatorRecord>> {
@@ -34,26 +33,23 @@ export function createFileCustomIndicatorStore(filePath: string): CustomIndicato
     }
   }
 
-  async function load(): Promise<Map<string, CustomIndicatorRecord>> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   async function commit(
     mutate: (onDisk: Map<string, CustomIndicatorRecord>) => Map<string, CustomIndicatorRecord> | typeof SKIP_WRITE,
   ): Promise<Map<string, CustomIndicatorRecord>> {
-    cache = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list() {
-      const map = await load()
+      const map = await cache.load()
       return [...map.values()]
     },
     async get(id) {
-      const map = await load()
+      const map = await cache.load()
       return map.get(id)
     },
     async save(record) {

@@ -51,6 +51,20 @@ describe('自定义策略 file store 跨实例并发写', () => {
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Array<{ id: string }>
     expect(onDisk.map(r => r.id).sort()).toEqual(['strat-cli', 'strat-desktop'])
   })
+
+  it('用户两个实例都读过之后，桌面端保存的策略对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空快照（CLI 的读缓存已建立）
+    const file = await freshFile('custom.json')
+    const desktop = createFileCustomStrategyStore(file)
+    const cli = createFileCustomStrategyStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端保存一条策略
+    await desktop.save(strategy('strat-desktop'))
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect((await cli.list()).map(r => r.id)).toEqual(['strat-desktop'])
+  })
 })
 
 describe('自定义选股器 file store 跨实例并发写', () => {
@@ -70,6 +84,20 @@ describe('自定义选股器 file store 跨实例并发写', () => {
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Array<{ id: string }>
     expect(onDisk.map(r => r.id).sort()).toEqual(['scr.cli', 'scr.desktop'])
   })
+
+  it('用户两个实例都读过之后，桌面端保存的选股器对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空快照（CLI 的读缓存已建立）
+    const file = await freshFile('custom-screeners.json')
+    const desktop = createFileCustomScreenerStore(file)
+    const cli = createFileCustomScreenerStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端保存一个选股器
+    await desktop.save(screener('scr.desktop'))
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect((await cli.list()).map(r => r.id)).toEqual(['scr.desktop'])
+  })
 })
 
 describe('内置墓碑 file store 跨实例并发写', () => {
@@ -88,5 +116,19 @@ describe('内置墓碑 file store 跨实例并发写', () => {
     // Then 磁盘两条墓碑都在
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as { deleted: string[] }
     expect([...onDisk.deleted].sort()).toEqual(['donchian-breakout', 'scr.ma-bull-align'])
+  })
+
+  it('用户两个实例都读过之后，桌面端写入的墓碑对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空墓碑表（CLI 的读缓存已建立）
+    const file = await freshFile('builtin-tombstones.json')
+    const desktop = createFileBuiltinTombstonesStore(file)
+    const cli = createFileBuiltinTombstonesStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端加入一条墓碑
+    expect(await desktop.add('donchian-breakout')).toBe(true)
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect(await cli.list()).toEqual(['donchian-breakout'])
   })
 })

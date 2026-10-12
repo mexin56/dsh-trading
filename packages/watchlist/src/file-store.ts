@@ -7,7 +7,7 @@
  * 保留（它保证同一进程内的读改写顺序），跨进程部分由锁承担。
  */
 import { readFile } from 'node:fs/promises'
-import { transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, transactStore } from '@dshtrading/dsh-home'
 import type { SelectionRecord, SelectionStore, WatchlistGroup, WatchlistGroupsStore, WatchlistGroupWriteResult, WatchlistStore, WatchlistsMap } from './index.ts'
 import { newWatchlistGroupId, normalizeWatchlistRow } from './index.ts'
 import { WATCHLIST_SEEDS } from './seeds.ts'
@@ -15,7 +15,6 @@ import { WATCHLIST_SEEDS } from './seeds.ts'
 const LOG_PREFIX = '[dsh-trading/watchlist] failed to atomic flush watchlists to'
 
 export function createFileWatchlistStore(filePath: string): WatchlistStore {
-  let cache: WatchlistsMap | null = null
   let pendingWrite = Promise.resolve()
 
   const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -38,19 +37,15 @@ export function createFileWatchlistStore(filePath: string): WatchlistStore {
     }
   }
 
-  async function load(): Promise<WatchlistsMap> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   return {
     async list() {
-      return { ...(await load()) }
+      return { ...(await cache.load()) }
     },
     async save(next) {
       await enqueue(async () => {
-        cache = await transactStore(filePath, readFromDisk, () => ({ ...next }), (map) => map, LOG_PREFIX)
+        cache.replace(await transactStore(filePath, readFromDisk, () => ({ ...next }), (map) => map, LOG_PREFIX))
       })
     },
     // 读改写全程入队串行化（issue #58）并落在跨进程锁内：此前只有写盘排队，两个并发
@@ -58,27 +53,27 @@ export function createFileWatchlistStore(filePath: string): WatchlistStore {
     async add(market, instrument) {
       let added = false
       await enqueue(async () => {
-        cache = await transactStore(filePath, readFromDisk, (onDisk) => {
+        cache.replace(await transactStore(filePath, readFromDisk, (onDisk) => {
           const rows = onDisk[market] ?? []
           if (rows.some(row => row.symbol === instrument.symbol)) return onDisk
           // 与内存版同款归一（审查 L6）：groups 空数组不落键、去重，落盘形状一致。
           added = true
           return { ...onDisk, [market]: [...rows, normalizeWatchlistRow(instrument)] }
-        }, (map) => map, LOG_PREFIX)
+        }, (map) => map, LOG_PREFIX))
       })
       return added
     },
     async remove(market, symbol) {
       let removed = false
       await enqueue(async () => {
-        cache = await transactStore(filePath, readFromDisk, (onDisk) => {
+        cache.replace(await transactStore(filePath, readFromDisk, (onDisk) => {
           const existing = onDisk[market]
           const rows = Array.isArray(existing) ? existing : (WATCHLIST_SEEDS[market] ?? [])
           const nextRows = rows.filter(row => row.symbol !== symbol)
           if (nextRows.length === rows.length) return onDisk
           removed = true
           return { ...onDisk, [market]: nextRows }
-        }, (map) => map, LOG_PREFIX)
+        }, (map) => map, LOG_PREFIX))
       })
       return removed
     },
@@ -86,7 +81,7 @@ export function createFileWatchlistStore(filePath: string): WatchlistStore {
     async assignGroup(market, symbol, groupId, member) {
       let assigned = false
       await enqueue(async () => {
-        cache = await transactStore(filePath, readFromDisk, (onDisk) => {
+        cache.replace(await transactStore(filePath, readFromDisk, (onDisk) => {
           const rows = onDisk[market]
           if (!Array.isArray(rows)) return onDisk
           const index = rows.findIndex(row => row.symbol === symbol)
@@ -108,14 +103,14 @@ export function createFileWatchlistStore(filePath: string): WatchlistStore {
           })
           assigned = true
           return { ...onDisk, [market]: nextRows }
-        }, (map) => map, LOG_PREFIX)
+        }, (map) => map, LOG_PREFIX))
       })
       return assigned
     },
     async stripGroup(groupId) {
       let cleaned = 0
       await enqueue(async () => {
-        cache = await transactStore(filePath, readFromDisk, (onDisk) => {
+        cache.replace(await transactStore(filePath, readFromDisk, (onDisk) => {
           const next: WatchlistsMap = {}
           for (const [market, rows] of Object.entries(onDisk)) {
             if (!Array.isArray(rows)) continue
@@ -138,7 +133,7 @@ export function createFileWatchlistStore(filePath: string): WatchlistStore {
             next[market] = changed ? nextRows : rows
           }
           return cleaned > 0 ? next : onDisk
-        }, (map) => map, LOG_PREFIX)
+        }, (map) => map, LOG_PREFIX))
       })
       return cleaned
     },
@@ -151,7 +146,6 @@ interface WatchlistGroupsFile {
 }
 
 export function createFileWatchlistGroupsStore(filePath: string): WatchlistGroupsStore {
-  let cache: WatchlistGroup[] | null = null
   let pendingWrite = Promise.resolve()
 
   const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -179,25 +173,21 @@ export function createFileWatchlistGroupsStore(filePath: string): WatchlistGroup
     }
   }
 
-  async function load(): Promise<WatchlistGroup[]> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
-
+  const cache = createStoreCache(filePath, readFromDisk)
   const serialize = (groups: WatchlistGroup[]): WatchlistGroupsFile => ({ groups })
 
   /** 跨进程读改写；返回 null 表示无变化（不落盘），缓存仍取锁内新鲜值。 */
   async function commit(
     mutate: (onDisk: WatchlistGroup[]) => WatchlistGroup[] | null,
   ): Promise<WatchlistGroup[]> {
-    cache = await transactStore(filePath, readFromDisk, (onDisk) => mutate(onDisk) ?? onDisk, serialize, LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, (onDisk) => mutate(onDisk) ?? onDisk, serialize, LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list() {
-      return [...(await load())]
+      return [...(await cache.load())]
     },
     async create(name) {
       let result: WatchlistGroupWriteResult | undefined
@@ -249,7 +239,6 @@ export function createFileWatchlistGroupsStore(filePath: string): WatchlistGroup
 }
 
 export function createFileSelectionStore(filePath: string): SelectionStore {
-  let cache: SelectionRecord | null = null
   let pendingWrite = Promise.resolve()
 
   const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -274,26 +263,22 @@ export function createFileSelectionStore(filePath: string): SelectionStore {
     }
   }
 
-  async function load(): Promise<SelectionRecord> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   return {
     async get() {
-      const record = await load()
+      const record = await cache.load()
       return { instrument: record.instrument === null ? null : { ...record.instrument } }
     },
     async set(record) {
       await enqueue(async () => {
-        cache = await transactStore(
+        cache.replace(await transactStore(
           filePath,
           readFromDisk,
           () => ({ instrument: record.instrument === null ? null : { ...record.instrument } }),
           (value) => value,
           LOG_PREFIX,
-        )
+        ))
       })
     },
   }
