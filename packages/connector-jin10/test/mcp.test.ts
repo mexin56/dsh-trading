@@ -237,7 +237,7 @@ describe('Jin10McpClient 结果读取（structuredContent 优先）', () => {
 })
 
 describe('jin10 MCP initialize 契约协商', () => {
-  it('契约定点：冻结 fixture 的协商版本与能力声明逐值等于仓内 spike 原始证据', async () => {
+  it('user 复核冻结 fixture 的协商版本与能力声明逐值等于仓内 spike 原始证据', async () => {
     // Given: 仓内 spike 抓取的 initialize 原始响应与包内冻结 fixture 两份数据
     const fixture = JSON.parse(await readFile(new URL('./fixtures/initialize-result.json', import.meta.url), 'utf8')) as Record<string, any>
     const spike = JSON.parse(await readFile(new URL('../../../spikes/impl-jin10-mcp/EVIDENCE/01-initialize.json', import.meta.url), 'utf8')) as { result: Record<string, any> }
