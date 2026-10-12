@@ -4,6 +4,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -54,6 +61,15 @@ export const Config: Schema<Config> = Schema.object({
 export const TRADING_HK_MARKET_DATA_KEY = 'tradingHkMarketData'
 export const TRADING_HK_TRADE_KEY = 'tradingHkTrade'
 
+/**
+ * Longbridge `submit_order` 的 `remark` 规则：官方 SDK/文档的下单参数里有 `remark`
+ * （open.longbridge.com「Submit Order」：`submit_order(..., remark="Hello from Python SDK")`），
+ * 但官方**没有**承诺按 remark 去重——它只是能带出去、能读回来的标签。
+ * 因此 remark 只用于对账，不构成 venue 幂等；exactly-once 由本地意图台账保证。
+ * 官方未给长度上限，取 32 保持短小。
+ */
+export const LONGBRIDGE_REMARK_RULE = { prefix: 'dsht', maxLength: 32 } as const
+
 export class LongbridgeMarketDataService extends Service implements MarketDataService {
   private readonly client: LongbridgeRestClient
 
@@ -90,6 +106,9 @@ export class LongbridgeTradeService extends Service implements TradeService {
   /** 插件配置（服务缝闸门 P0：dryRun 强制模拟 / liveTrading 非权威镜像——实盘授权由 @dshtrading/authority 的人工签署平面裁定）。 */
   private readonly config: Config
 
+  /** 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。 */
+  private readonly intents: OrderIntentLedger
+
   constructor(
     ctx: Context,
     options: LongbridgeRestOptions & { config: Config },
@@ -98,6 +117,13 @@ export class LongbridgeTradeService extends Service implements TradeService {
     super(ctx, serviceName)
     this.client = new LongbridgeRestClient(options)
     this.config = options.config
+    // 作用域含环境；Longbridge 的账户由 appKey/accessToken 决定（凭据不进身份，
+    // 轮换 token 不会让未知意图看起来是新意图），账户定位用稳定占位。
+    this.intents = new OrderIntentLedger({
+      provider: 'longbridge',
+      environment: options.config.env,
+      account: 'default',
+    })
   }
 
   async getBalance(): Promise<AccountBalance> {
@@ -130,7 +156,24 @@ export class LongbridgeTradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实下单。
-    return this.client.placeOrder(undefined, order)
+    const payload: OrderIntentPayload = {
+      symbol: order.symbol,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity,
+      ...(order.price !== undefined ? { price: order.price } : {}),
+    }
+    // 持久意图台账：**先落盘、后触网**（remark 只作对账，不是 venue 幂等键）。
+    const decision = await this.intents.begin({ intentId: order.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    const remark = deriveVenueClientKey(decision.intentId, LONGBRIDGE_REMARK_RULE)
+    const placed = await this.client.placeOrder(undefined, order, remark)
+    // rest 层在缺 order_id 时抛错（不编 id），所以能走到这里的都是真实 venue 句柄。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(placed) })
+    return placed
   }
 
   async cancelOrder(orderId: string): Promise<{ orderId: string; status: 'canceled' }> {
@@ -214,6 +257,11 @@ export function apply(ctx: Context, config: Config): void {
         quantity: { type: 'number', required: true, description: 'Quantity (shares)' },
         price: { type: 'number', description: 'Limit price' },
         dryRun: { type: 'boolean', default: true, description: 'Dry run' },
+        intentId: {
+          type: 'string',
+          description:
+            'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+        },
       },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args) {
@@ -252,6 +300,7 @@ export function apply(ctx: Context, config: Config): void {
           type: args.type as 'market' | 'limit',
           quantity: args.quantity,
           price: args.price,
+          ...(typeof args.intentId === 'string' ? { intentId: args.intentId } : {}),
           dryRun: false,
         })
         return JSON.stringify(order)

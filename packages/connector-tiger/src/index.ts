@@ -4,6 +4,12 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -89,6 +95,16 @@ export class TigerTradeService extends Service implements TradeService {
   private readonly client: TigerRestClient
   /** 插件配置（服务缝闸门 P0：dryRun 强制模拟 / liveTrading 非权威镜像——实盘授权由 @dshtrading/authority 的人工签署平面裁定）。 */
   private readonly config: Config
+  /**
+   * 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。
+   *
+   * **不发 venue client key**：Tiger 官方 OpenAPI 的 `trade_order` 业务参数里确实有
+   * `user_mark`（官方 python SDK 的 `PlaceModifyOrderParams.user_mark`），但本连接器现在
+   * 发的是 camelCase 键（`orderType`/`totalQuantity`/`limitPrice`），与官方模型的
+   * snake_case 业务参数**尚未逐字对齐**——按「不猜字段」纪律，实测对齐之前不新增字段；
+   * 幂等完全由本地台账保证（台账已保证未知不重发）。
+   */
+  private readonly intents: OrderIntentLedger
 
   constructor(
     ctx: Context,
@@ -98,6 +114,11 @@ export class TigerTradeService extends Service implements TradeService {
     super(ctx, serviceName)
     this.client = new TigerRestClient(options)
     this.config = options.config
+    this.intents = new OrderIntentLedger({
+      provider: 'tiger',
+      environment: options.config.env,
+      account: options.config.accountId ?? 'default',
+    })
   }
 
   async getBalance(): Promise<AccountBalance> {
@@ -130,7 +151,23 @@ export class TigerTradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实下单。
-    return this.client.placeOrder(undefined, order)
+    const payload: OrderIntentPayload = {
+      symbol: order.symbol,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity,
+      ...(order.price !== undefined ? { price: order.price } : {}),
+    }
+    // 持久意图台账：**先落盘、后触网**（本连接器不发 venue client key，见类头注）。
+    const decision = await this.intents.begin({ intentId: order.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    const placed = await this.client.placeOrder(undefined, order)
+    // rest 层在缺订单 id 时抛错（不编 id），所以能走到这里的都是真实 venue 句柄。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(placed) })
+    return placed
   }
 
   async cancelOrder(orderId: string): Promise<{ orderId: string; status: 'canceled' }> {
@@ -212,6 +249,11 @@ export function apply(ctx: Context, config: Config): void {
         quantity: { type: 'number', required: true, description: 'Quantity (shares)' },
         price: { type: 'number', description: 'Limit price' },
         dryRun: { type: 'boolean', default: true, description: 'Dry run' },
+        intentId: {
+          type: 'string',
+          description:
+            'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+        },
       },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args) {
@@ -250,6 +292,7 @@ export function apply(ctx: Context, config: Config): void {
           type: args.type as 'market' | 'limit',
           quantity: args.quantity,
           price: args.price,
+          ...(typeof args.intentId === 'string' ? { intentId: args.intentId } : {}),
           dryRun: false,
         })
         return JSON.stringify(order)

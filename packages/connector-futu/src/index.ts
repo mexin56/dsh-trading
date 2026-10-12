@@ -5,6 +5,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -59,6 +66,24 @@ export const inject = ['tools']
 
 export const TRADING_HK_MARKET_DATA_KEY = 'tradingHkMarketData'
 export const TRADING_HK_TRADE_KEY = 'tradingHkTrade'
+
+/**
+ * Futu `remark` 规则：官方 place_order 的 `remark` 是**下单备注**（对账锚），
+ * 官方文档**没有**承诺任何重复提交去重语义——它只是我们能带出去、又能从
+ * `/api/trd/get-orders` 读回来的一个标签。因此这里的 remark **只用于对账**，
+ * 绝不宣称 venue 幂等；exactly-once 完全由本地意图台账保证。
+ * 官方未给长度上限，取 32 保持短小且足以区分（本仓桥/OpenD 实测 19 字符可用，
+ * 见 spikes/impl-futu-bridge/trd-place-order.json）。
+ */
+export const FUTU_REMARK_RULE = { prefix: 'dsht', maxLength: 32 } as const
+
+/**
+ * 台账账户定位（非密）：桥的 accId（配置项，缺省 0 = OpenD 默认账户）。
+ * 凭据（unlockPwd）不进身份——轮换口令不会让未知意图看起来是新意图。
+ */
+export function futuIntentAccount(accId: number): string {
+  return accId > 0 ? `acc-${accId}` : 'default'
+}
 
 export class FutuMarketDataService extends Service implements MarketDataService {
   private readonly client: FutuRestClient
@@ -185,6 +210,8 @@ export function toOrder(row: FutuPendingOrder): Order {
 export class FutuTradeService extends Service implements TradeService {
   private readonly client: FutuRestClient
   private readonly config: Config
+  /** 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。 */
+  private readonly intents: OrderIntentLedger
 
   constructor(
     ctx: Context,
@@ -194,6 +221,12 @@ export class FutuTradeService extends Service implements TradeService {
     super(ctx, serviceName)
     this.client = options.client
     this.config = options.config
+    // 作用域含交易环境（SIMULATE/REAL 是两套账户）与 accId：同 ID 跨环境/跨账户必须冲突而不是重发。
+    this.intents = new OrderIntentLedger({
+      provider: 'futu',
+      environment: liveTradingEnabled(options.config.liveTrading) ? 'REAL' : 'SIMULATE',
+      account: futuIntentAccount(options.config.accId),
+    })
   }
 
   async getCredentials(): Promise<FutuCredentials> {
@@ -254,13 +287,31 @@ export class FutuTradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实下单。
-    return this.client.placeOrder(await this.getCredentials(), {
+    const payload: OrderIntentPayload = {
+      symbol: order.symbol,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity,
+      ...(order.price !== undefined ? { price: order.price } : {}),
+    }
+    // 持久意图台账：**先落盘、后触网**（remark 只作对账，不是 venue 幂等键）。
+    const decision = await this.intents.begin({ intentId: order.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    const remark = deriveVenueClientKey(decision.intentId, FUTU_REMARK_RULE)
+    const placed = await this.client.placeOrder(await this.getCredentials(), {
       symbol: order.symbol,
       side: order.side.toUpperCase() as 'BUY' | 'SELL',
       type: order.type.toUpperCase() as 'MARKET' | 'LIMIT',
       quantity: order.quantity,
       price: order.price,
+      remark,
     })
+    // 桥在缺 orderId 时抛错（不编 id），所以能走到这里的都是真实 venue 句柄。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(placed) })
+    return placed
   }
 
   async cancelOrder(orderId: string, _symbol?: string): Promise<void> {
@@ -308,6 +359,13 @@ export interface PlaceOrderArgs {
   readonly quantity: number
   readonly price?: number
   readonly dryRun?: boolean
+  /**
+   * Stable idempotency id for a live order (required when dryRun=false, optional for
+   * simulations). Retrying with the same id and the same normalized request returns the
+   * recorded venue receipt instead of placing a second order; a different payload,
+   * provider, environment or account under the same id is rejected as a conflict.
+   */
+  readonly intentId?: string
 }
 
 export type OrderGateVerdict =
@@ -341,6 +399,11 @@ export function createPlaceOrderTool(deps: { marketData: Pick<MarketDataService,
       quantity: { type: 'number', required: true, description: 'Number of shares (> 0)' },
       price: { type: 'number', description: 'Limit price; required when type=LIMIT' },
       dryRun: { type: 'boolean', default: true, description: 'Simulate order only (default true)' },
+      intentId: {
+        type: 'string',
+        description:
+          'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+      },
     },
     output: {
       schema: { type: 'string' },
@@ -379,6 +442,7 @@ export function createPlaceOrderTool(deps: { marketData: Pick<MarketDataService,
         type: args.type === 'LIMIT' ? 'limit' : 'market',
         quantity: args.quantity,
         price: args.price,
+        ...(args.intentId !== undefined ? { intentId: args.intentId } : {}),
         dryRun: false,
       })
       return JSON.stringify(order)

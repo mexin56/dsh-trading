@@ -93,26 +93,20 @@ export interface OrderIntentPayload {
 }
 
 /**
- * 落盘回执的状态词汇：与 @dshtrading/api 的 `OrderStatus` **同形**。
- *
- * 本模块不 import @dshtrading/api（那是纯类型契约包，而这里是运营数据的形状校验），
- * 所以在这里复述一次；**api 仍是该词汇的归属方**，改那边必须同步这里。
- */
-export type OrderIntentStatus = 'new' | 'partially_filled' | 'filled' | 'canceled' | 'rejected' | 'expired'
-
-/** 落盘回执形状校验用的取值集（与 OrderIntentStatus 同步）。 */
-const ORDER_INTENT_STATUSES: readonly OrderIntentStatus[] = ['new', 'partially_filled', 'filled', 'canceled', 'rejected', 'expired']
-
-/**
  * venue 回执（Order 的持久子集）。`id` 恒为 venue 侧真实订单 id——
  * 没有它就不是回执，本模块拒绝落库。
+ *
+ * `status` 是 **venue 原样状态串**：api 的 `OrderStatus` 是展示词汇，而各 venue 的
+ * 真实状态集更宽（Alpaca 有 accepted/pending_new/…，OKX 有 live/partially_filled/…），
+ * 连接器本就按自己的映射回带。台账**原样保存**、不在这里做窄化或翻译——
+ * 抹掉真实状态串就等于在回执里说假话。
  */
 export interface OrderIntentReceipt {
   readonly id: string
   readonly symbol: string
   readonly side: 'buy' | 'sell'
   readonly type: 'limit' | 'market'
-  readonly status: OrderIntentStatus
+  readonly status: string
   readonly price?: number
   readonly quantity: number
   readonly filledQuantity?: number
@@ -216,8 +210,7 @@ function isReceipt(value: unknown): value is OrderIntentReceipt {
     && typeof receipt.symbol === 'string'
     && typeof receipt.quantity === 'number'
     && typeof receipt.timestamp === 'number'
-    && typeof receipt.status === 'string'
-    && (ORDER_INTENT_STATUSES as readonly string[]).includes(receipt.status)
+    && typeof receipt.status === 'string' && receipt.status.trim() !== ''
 }
 
 /** api `Order` 的最小结构面（本包不依赖 @dshtrading/api，连接器传自己的 Order 即可）。 */
@@ -226,7 +219,8 @@ export interface OrderLike {
   readonly symbol: string
   readonly side: 'buy' | 'sell'
   readonly type: 'limit' | 'market'
-  readonly status: OrderIntentStatus
+  /** venue 原样状态串（api `Order` 的 status 联合更窄，回程由连接器自己窄化）。 */
+  readonly status: string
   readonly price?: number
   readonly quantity: number
   readonly filledQuantity?: number
@@ -249,8 +243,9 @@ export function receiptFromOrder(order: OrderLike): OrderIntentReceipt {
 }
 
 /**
- * 落盘回执 → api `Order` 的同形结构（状态词汇已在落盘时按 api 词汇校验过，
- * 因此这里的窄化是安全的），`dryRun` 恒为 false：能进台账的都是实盘单。
+ * 落盘回执 → api `Order` 的同形结构，`dryRun` 恒为 false：能进台账的都是实盘单。
+ * `status` 保持 venue 原样串，因此它比 api `OrderStatus` 联合更宽——调用方按自己的
+ * 映射收窄（连接器本来就在做这件事）。
  */
 export function orderFromReceipt(receipt: OrderIntentReceipt): OrderLike & { readonly dryRun: false } {
   return {

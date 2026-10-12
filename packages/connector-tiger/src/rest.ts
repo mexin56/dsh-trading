@@ -245,14 +245,21 @@ export class TigerRestClient {
       limitPrice: req.price,
     }, 'trade_order')
 
-    if (res.code !== 0 || (!res.data?.id && !res.data?.orderId)) {
+    if (res.code !== 0) {
       throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Tiger placeOrder failed: ${res.message ?? `code ${res.code}`}`)
     }
-
-    const id = res.data.id ?? res.data.orderId ?? `tiger-${Date.now()}`
+    // 回执缺订单 id 时**抛错**，绝不自己编一个（编出来的 id 会让「这单在不在 venue 上」
+    // 变成一句假话；意图台账只接受真实 venue 句柄）。
+    const id = res.data.id ?? res.data.orderId
+    if (typeof id !== 'string' || id.trim() === '') {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `Tiger placeOrder: response carries no real order id (${JSON.stringify(res.data ?? null)}) — the order is not confirmed`,
+      )
+    }
 
     return {
-      id: String(id),
+      id,
       symbol: canonical,
       side: req.side,
       type: req.type,

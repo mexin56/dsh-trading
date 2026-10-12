@@ -28,6 +28,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -256,12 +263,24 @@ export class __EXCHANGE__TradeService extends Service implements TradeService {
   private readonly client: ExchangeRestClient
   private readonly config: Config
   private readonly getCredentials: () => Promise<ExchangeCredentials>
+  /**
+   * 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。
+   * 作用域 = provider + 环境 + **非密**账户定位：同 intentId 跨 provider/环境/账户
+   * 必须冲突而不是重发；**凭据绝不进作用域**（轮换密钥不是换账户）。
+   */
+  private readonly intents: OrderIntentLedger
 
   constructor(ctx: Context, options: __EXCHANGE__TradeServiceOptions, serviceName: string = TRADING_TRADE_KEY) {
     super(ctx, serviceName)
     this.client = options.client
     this.config = options.config
     this.getCredentials = options.getCredentials
+    this.intents = new OrderIntentLedger({
+      provider: '__EXCHANGE_SLUG__',
+      environment: options.config.env,
+      // TODO: 账户定位用配置里的非密字段（accId/accountId）；确实没有就保留稳定占位。
+      account: 'default',
+    })
   }
 
   /**
@@ -304,6 +323,26 @@ export class __EXCHANGE__TradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实签名下单。
+    //
+    // **幂等纪律（issue 43，资金正确性优先）**：live 必须有 intentId；先落持久意图记录
+    // （unknown）再触网；只有 venue 回执带真实非空订单 id 才写 confirmed；同 ID 同载荷
+    // 重试只重放回执、同 ID 异载荷/provider/环境/账户一律冲突拒绝、结局未知绝不自动重发。
+    const payload: OrderIntentPayload = {
+      symbol: req.symbol,
+      side: req.side,
+      type: req.type,
+      quantity: req.quantity,
+      ...(req.price !== undefined ? { price: req.price } : {}),
+    }
+    const decision = await this.intents.begin({ intentId: req.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    // TODO: 若该 venue 的官方契约里有 client order id 字段（clOrdId / client_order_id /
+    //       cOID / remark / user_mark），用 deriveVenueClientKey(decision.intentId, RULE) 派生
+    //       并在**官方文档核实过字段名与长度/字符集上限**之后透传；官方未承诺去重的字段
+    //       （remark/user_mark）只作对账锚，不得宣称 venue 幂等。无官方字段就不发。
     const credentials = await this.getCredentials()
     const rows = await this.client.placeOrder(
       { /* TODO: 按交易所参数形状构造（含单位换算后的 sz） */ },
@@ -312,9 +351,10 @@ export class __EXCHANGE__TradeService extends Service implements TradeService {
     const first = rows[0] as Record<string, unknown>
     const ordId = typeof first.ordId === 'string' && first.ordId !== '' ? first.ordId : undefined
     if (ordId === undefined) {
+      // 拿不到 venue 句柄就不算成功：记录停在 unknown，人工/读对账推进（绝不造 id）。
       throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `${EXCHANGE} place order for ${req.symbol}: missing ordId in response`)
     }
-    return {
+    const order: Order = {
       id: ordId,
       symbol: req.symbol,
       side: req.side,
@@ -325,6 +365,8 @@ export class __EXCHANGE__TradeService extends Service implements TradeService {
       dryRun: false,
       timestamp: Date.now(),
     }
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(order) })
+    return order
   }
 
   /**
@@ -452,6 +494,13 @@ export interface PlaceOrderArgs {
   readonly price?: number
   /** 缺省视为 true：仅模拟。显式 false 即实盘意图，进入三态闸门 ②/③。 */
   readonly dryRun?: boolean
+  /**
+   * Stable idempotency id for a live order (required when dryRun=false, optional for
+   * simulations). Retrying with the same id and the same normalized request returns the
+   * recorded venue receipt instead of placing a second order; a different payload,
+   * provider, environment or account under the same id is rejected as a conflict.
+   */
+  readonly intentId?: string
 }
 
 /**
@@ -610,6 +659,11 @@ export function createPlaceOrderTool(deps: PlaceOrderToolDeps) {
           'true (default) = simulate only and return a DRY-RUN receipt; false = request real execution (gated by the signed live-trading authority, env and user approval)',
         default: true,
       },
+      intentId: {
+        type: 'string',
+        description:
+          'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+      },
     },
     output: {
       schema: { type: 'string' },
@@ -635,6 +689,7 @@ export function createPlaceOrderTool(deps: PlaceOrderToolDeps) {
         type: args.type,
         quantity: args.quantity,
         ...(args.type === 'limit' ? { price: args.price } : {}),
+        ...(args.intentId !== undefined ? { intentId: args.intentId } : {}),
         dryRun: false,
       })
       return JSON.stringify(order)

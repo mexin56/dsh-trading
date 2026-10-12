@@ -604,7 +604,10 @@ export class OkxTradeService extends Service implements TradeService {
     //   replay  → 同 ID 已有 venue 回执：原样回带，**不重发**；
     //   抛错    → 缺 intentId / 载荷冲突 / 结局未知 / 写盘失败，一律不触网。
     const decision = await this.intents.begin({ intentId: req.intentId, payload })
-    if (decision.action === 'replay') return orderFromReceipt(decision.receipt)
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
     // venue client order key：由 intentId 确定性派生（OKX 官方 clOrdId 契约 ≤32 字母数字）。
     // 它只是第二层防护（仅约束未成交挂单），永不进回执/DTO。
     const clOrdId = deriveVenueClientKey(decision.intentId, OKX_CLIENT_ORDER_ID_RULE)

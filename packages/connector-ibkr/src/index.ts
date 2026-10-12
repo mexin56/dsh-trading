@@ -4,6 +4,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -52,6 +59,14 @@ export const Config: Schema<Config> = Schema.object({
 export const TRADING_US_MARKET_DATA_KEY = 'tradingUsMarketData'
 export const TRADING_US_TRADE_KEY = 'tradingUsTrade'
 
+/**
+ * IBKR Client Portal Web API 的 `cOID`（Customer Order ID）规则：官方 API 文档
+ * 写明它是任意字符串、**24 小时内必须唯一**（IBKR Web API 的 Order 对象 / live orders
+ * 文档：「Value is set using "cOID" field while placing an order」）。24h 唯一性是
+ * 真实的 venue 侧约束，但它会过期，所以仍是第二层防护；跨时间 exactly-once 由本地意图台账保证。
+ */
+export const IBKR_CLIENT_ORDER_ID_RULE = { prefix: 'dsht', maxLength: 40 } as const
+
 export class IbkrMarketDataService extends Service implements MarketDataService {
   private readonly client: IbkrRestClient
 
@@ -87,6 +102,8 @@ export class IbkrTradeService extends Service implements TradeService {
   private readonly client: IbkrRestClient
   /** 插件配置（服务缝闸门 P0：dryRun 强制模拟 / liveTrading 非权威镜像——实盘授权由 @dshtrading/authority 的人工签署平面裁定）。 */
   private readonly config: Config
+  /** 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。 */
+  private readonly intents: OrderIntentLedger
 
   constructor(
     ctx: Context,
@@ -96,6 +113,12 @@ export class IbkrTradeService extends Service implements TradeService {
     super(ctx, serviceName)
     this.client = new IbkrRestClient(options)
     this.config = options.config
+    // 作用域含环境与账户（IBKR 账户 id 是配置项、非密）：同 ID 跨环境/跨账户必须冲突而不是重发。
+    this.intents = new OrderIntentLedger({
+      provider: 'ibkr',
+      environment: options.config.env,
+      account: options.config.accountId ?? 'default',
+    })
   }
 
   async getBalance(): Promise<AccountBalance> {
@@ -128,7 +151,24 @@ export class IbkrTradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实下单。
-    return this.client.placeOrder(undefined, order)
+    const payload: OrderIntentPayload = {
+      symbol: order.symbol,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity,
+      ...(order.price !== undefined ? { price: order.price } : {}),
+    }
+    // 持久意图台账：**先落盘、后触网**。
+    const decision = await this.intents.begin({ intentId: order.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    const clientOrderId = deriveVenueClientKey(decision.intentId, IBKR_CLIENT_ORDER_ID_RULE)
+    const placed = await this.client.placeOrder(undefined, order, clientOrderId)
+    // rest 层在缺 order_id 时抛错（不编 id），所以能走到这里的都是真实 venue 句柄。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(placed) })
+    return placed
   }
 
   async cancelOrder(orderId: string): Promise<{ orderId: string; status: 'canceled' }> {
@@ -209,6 +249,11 @@ export function apply(ctx: Context, config: Config): void {
         quantity: { type: 'number', required: true, description: 'Quantity' },
         price: { type: 'number', description: 'Price' },
         dryRun: { type: 'boolean', default: true, description: 'Dry run' },
+        intentId: {
+          type: 'string',
+          description:
+            'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+        },
       },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args) {
@@ -247,6 +292,7 @@ export function apply(ctx: Context, config: Config): void {
           type: args.type as 'market' | 'limit',
           quantity: args.quantity,
           price: args.price,
+          ...(typeof args.intentId === 'string' ? { intentId: args.intentId } : {}),
           dryRun: false,
         })
         return JSON.stringify(order)

@@ -359,7 +359,19 @@ export class FutuRestClient {
     }
   }
 
-  async placeOrder(credentials: FutuCredentials | undefined, req: { symbol: string; side: 'BUY' | 'SELL'; type: 'MARKET' | 'LIMIT'; quantity: number; price?: number }): Promise<Order> {
+  async placeOrder(credentials: FutuCredentials | undefined, req: {
+    symbol: string
+    side: 'BUY' | 'SELL'
+    type: 'MARKET' | 'LIMIT'
+    quantity: number
+    price?: number
+    /**
+     * 下单备注（Futu 官方 place_order 的 `remark`；桥原样透传给 OpenD）。
+     * **只作对账锚**：官方没有承诺按 remark 去重，所以它不构成 venue 幂等——
+     * 「同 ID 只下一单」由本地意图台账保证。
+     */
+    remark?: string
+  }): Promise<Order> {
     // 交易面仅港股（US 订单需美国账户 trd 上下文，未接）：非港股符号在此显式拒绝
     const canonical = normalizeHkSymbol(req.symbol)
     const security = toFutuSecurity(canonical)
@@ -373,6 +385,7 @@ export class FutuRestClient {
       // 桥要求显式环境（没有"默认实盘"，也不替你挑环境）
       trdEnv: this.trdEnvOf(credentials),
       ...(accId !== undefined ? { accId } : {}),
+      ...(req.remark !== undefined ? { remark: req.remark } : {}),
     })
 
     // 回执缺 id 时**抛错**，绝不自己编一个：执行核拿这个 id 当 venue 句柄写进 intent 账本，
