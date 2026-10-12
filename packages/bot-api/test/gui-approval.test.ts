@@ -1,37 +1,61 @@
 /**
- * GUI 实盘动作的官方逐动作审批用例（user 视角 BDD）。
+ * GUI 实盘动作的官方逐动作审批用例（user 视角 BDD，真宿主 runtime）。
  *
- * 被测缝：`POST/DELETE /trade/order` 的 GUI 实盘路径在触达交易所前，必须经宿主
- * `ctx.approval.request` 拿到**一次**授权（`allowed-once`）。本文件的依赖全部是
- * 真实件，不 mock：
- *   - 真实 cordis `Context`（@deepseek-ai/cordis 4.0.4）；
- *   - 真实 `ApprovalService`（@deepseek-ai/dsh-user-approval 0.2.0-rc.2）——
- *     审计对 `approval/asked` + `approval/decided` 落在请求 agent 的会话日志里，
- *     并且 `request()` 要求会话处于打开的一轮（turn-enclosed），所以夹具默认
- *     `turn/start`；
- *   - 真实 `Session`（@deepseek-ai/dsh-session 0.2.0-rc.2，`Session.create` 的
- *     原生事件日志即审计证据本身）。
+ * 被测缝：`POST/DELETE /trade/order` 的 GUI 实盘路径在触达交易所前，必须拿到宿主
+ * `ApprovalService` 的一次性授权（`allowed-once`）。本文件的依赖全部是真实件，
+ * 零 mock、零 spy、零 sleep、零 LLM 适配器：
+ *   - 真 cordis `Context`，按官方依赖序起 SessionProjectionRegistry + SystemPrompt +
+ *     SessionStore + AgentRegistry + LlmRuntime + ToolRuntime + ApprovalService + AgentLoop；
+ *   - 真 `AgentLoop.create` 造出的 ReactLoopAgent：turn/start..turn/end 由官方 loop
+ *     独占生产，审批审计对必须落在它打开的那一轮里（`ApprovalService.request` 的硬前置）；
+ *   - 真 `ApprovalService`（`@deepseek-ai/dsh-user-approval` 0.2.0-rc.2）：应答者是同一缝
+ *     上的 `approval/request` 监听者，不是 mock；
+ *   - 会话日志（`session.snapshotEvents()`）就是审计证据本体：断言读事件 seq 与夹逼关系。
  *
- * 唯一的边界替身是 Agent：官方 `ApprovalService.request` 只读 `req.agent.session`
- * （见 lib/index.js `const session = req.agent.session`），scoped 派发由
- * `scopeTarget(req.agent, req.agent)` 承载；真实 Agent（agent-loop 拥有）多出的
- * inbox/cancel/ctx 等成员不参与本缝。替身只提供 `{ id, session }`，并由两条断言
- * 核对契约：应答者收到的 agent 与注册表解析出的对象恒等、审计对确实落在该 session
- * 日志中。交易所边界（TradeService）是仓库既有的契约化替身写法（同 bridge.test.ts）。
- *
- * 失败面（省略即漏）：审批缺席 / 无会话上下文 / 会话串号 / 拒绝 / 取消 / 断连 /
- * 缺稳定意图，全部 fail-closed 到 `TRADING_APPROVAL_DENIED`，且交易所侧零动作。
+ * 失败面（省略即漏）：审批服务缺席 / 无会话上下文 / 会话串号 / 无应答者（unavailable）/
+ * 拒绝 / 请求中断（cancelled）/ 空闲等待超时 / 更早的 pre-step 监听者先拒 —— 一律
+ * fail-closed 到 `TRADING_APPROVAL_DENIED`，交易所侧零动作，且轮次照常关闭、不挂死。
  */
 import { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
+import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
-import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import type { ApprovalOutcome, ApprovalRequestEvent } from '@deepseek-ai/dsh-user-approval'
+import { LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { OrderRequest, TradeService } from '@dshtrading/api'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { TradingBridge, dispatchBridgeRequest, errorPayload, type BridgeHost } from '../src/bridge.ts'
-import { GUI_APPROVAL_DENIED, createGuiApprovalSeat, type GuiApprovalHost, type GuiApprovalSeat } from '../src/gui-approval.ts'
+import {
+  GUI_APPROVAL_DENIED,
+  createGuiApprovalSeat,
+  type GuiApprovalEventsLike,
+  type GuiApprovalHost,
+  type GuiApprovalSeat,
+} from '../src/gui-approval.ts'
+
+const SESSION_ID = 'session-gui-1'
+const ORDER_QUERY = new URLSearchParams({ market: 'crypto' })
+
+const LIVE_ORDER_BODY = {
+  symbol: 'BTCUSDT-SWAP',
+  side: 'buy',
+  type: 'limit',
+  quantity: 0.02,
+  price: 42000,
+  dryRun: false,
+  intentId: 'intent-live-1',
+  sessionId: SESSION_ID,
+}
 
 /** 官方审批结果封闭词表（@deepseek-ai/dsh-user-approval/lib/types/types.d.ts）。 */
-type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'
+type WaitAnswer = (ask: AskRecord, index: number) => ApprovalOutcome | Promise<ApprovalOutcome>
 
 interface AskRecord {
   readonly agent: unknown
@@ -39,58 +63,75 @@ interface AskRecord {
   readonly reason: string | undefined
 }
 
-/** 真实会话：审批审计对必须 turn-enclosed，故夹具默认先开一轮。 */
-function sessionWithOpenTurn(id: string): Session {
-  const session = Session.create(SessionId(id))
-  session.append('turn/start', { turn: 1 })
-  return session
-}
-
-interface GuiSeatFixture {
+interface GuiRuntime {
   readonly ctx: Context
+  readonly agent: Agent
   readonly session: Session
-  readonly agent: { id: SessionId; session: Session }
-  readonly asked: AskRecord[]
-  readonly seat: GuiApprovalSeat
 }
 
-/**
- * 真实审批面夹具：真实 Context + 真实 ApprovalService + 真实 Session + 应答者。
- * @param options.mountApproval=false 模拟宿主未挂审批服务（headless）；
- * @param options.mountAnswerer=false 模拟无人在场的应答链（fail-closed）；
- * @param options.registry 控制 agents 注册表解析结果（缺席 / 串到别的会话）。
- */
-function guiSeatFixture(options: {
-  sessionId?: string
-  /** false = 会话空闲（没有打开的一轮）：官方 request() 会抛错，必须同样 fail-closed。 */
-  openTurn?: boolean
-  mountApproval?: boolean
-  mountAnswerer?: boolean
-  registry?: 'live' | 'empty' | 'mismatched'
-  answer?: (ask: AskRecord) => Promise<ApprovalOutcome>
-} = {}): GuiSeatFixture {
-  const sessionId = options.sessionId ?? 'session-gui-1'
+/** 真宿主 runtime：官方四件套（session/agent/loop/审批）+ 它们要求的官方服务。 */
+async function bootRuntime(sessionId: string = SESSION_ID): Promise<GuiRuntime> {
   const ctx = new Context()
-  const approval = new ApprovalService(ctx, { policy: 'ask' })
-  const session = options.openTurn === false ? Session.create(SessionId(sessionId)) : sessionWithOpenTurn(sessionId)
-  const agent = { id: session.id, session }
-  const asked: AskRecord[] = []
-  if (options.mountAnswerer !== false) {
-    ctx.on('approval/request', (request: { agent: unknown; toolName: string; reason?: string }) => {
-      const ask: AskRecord = { agent: request.agent, toolName: request.toolName, reason: request.reason }
-      asked.push(ask)
-      return options.answer === undefined ? Promise.resolve<ApprovalOutcome>('allowed-once') : options.answer(ask)
-    })
+  await ctx.plugin(SessionProjectionRegistry)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(AgentRegistry)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(ApprovalService, { policy: 'ask' })
+  await ctx.plugin(AgentLoop)
+  const agent = await ctx.agentLoop.create(SessionId(sessionId))
+  return { ctx, agent, session: agent.session }
+}
+
+/** 真审批座位：宿主事件面接在真 cordis ctx 上（与 index.ts 的接线段同构）。 */
+function mountSeat(runtime: GuiRuntime, options: { readonly mountApproval?: boolean; readonly idleTimeoutMs?: number } = {}): GuiApprovalSeat {
+  const { ctx } = runtime
+  const events: GuiApprovalEventsLike = {
+    onPreStep: listener => ctx.on('agent/pre-step', listener),
+    onSessionEvent: listener => ctx.on('session/event', listener),
+    onAgentStatus: listener => ctx.on('agent/status', listener),
   }
   const host: GuiApprovalHost = {
-    approval: () => (options.mountApproval === false ? undefined : approval),
-    agent: (id) => {
-      if (options.registry === 'empty') return undefined
-      if (options.registry === 'mismatched') return { id: SessionId('session-elsewhere'), session }
-      return id === sessionId ? agent : undefined
-    },
+    approval: () => (options.mountApproval === false ? undefined : ctx.get('approval', false) as unknown as GuiApprovalHost['approval'] extends () => infer T ? T : never),
+    agent: id => ctx.agents.get(SessionId(id)),
+    events,
+    ...(options.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: options.idleTimeoutMs }),
   }
-  return { ctx, session, agent, asked, seat: createGuiApprovalSeat(host) }
+  return createGuiApprovalSeat(host)
+}
+
+interface Answerer {
+  readonly asked: AskRecord[]
+  /** 应答策略（同一缝的真监听者）：按次序返回 outcome 或悬置的 promise。 */
+  answer(policy: WaitAnswer): void
+  /** 等到第 n 次（1 起）审批被问到；事件驱动，不轮询、不 sleep。 */
+  askedTimes(n: number): Promise<AskRecord>
+}
+
+/** 真应答者：注册在 `approval/request` waterfall 上（不是 mock，也不是替身）。 */
+function mountAnswerer(ctx: Context): Answerer {
+  const asked: AskRecord[] = []
+  const waiters: Array<{ readonly count: number; readonly resolve: (ask: AskRecord) => void }> = []
+  let policy: WaitAnswer = () => 'unavailable'
+  ctx.on('approval/request', (request: ApprovalRequestEvent) => {
+    const record: AskRecord = { agent: request.agent, toolName: request.toolName, reason: request.reason }
+    asked.push(record)
+    for (const waiter of [...waiters]) {
+      if (asked.length < waiter.count) continue
+      waiters.splice(waiters.indexOf(waiter), 1)
+      waiter.resolve(record)
+    }
+    return Promise.resolve(policy(record, asked.length - 1))
+  })
+  return {
+    asked,
+    answer: next => { policy = next },
+    askedTimes: count => new Promise(resolve => {
+      if (asked.length >= count) { resolve(asked[count - 1]!); return }
+      waiters.push({ count, resolve })
+    }),
+  }
 }
 
 interface RecordingTrade {
@@ -139,27 +180,6 @@ function guiBridgeHost(seat: GuiApprovalSeat | undefined, trade: TradeService): 
   }
 }
 
-/** 会话日志里审批审计对的投影（durable log 观察，不是内部调用计数）。 */
-function auditTrail(session: Session): Array<{ type: string; data: Record<string, unknown> }> {
-  return session
-    .snapshotEvents()
-    .filter(event => event.type === 'approval/asked' || event.type === 'approval/decided')
-    .map(event => ({ type: event.type, data: event.data as Record<string, unknown> }))
-}
-
-const LIVE_ORDER_BODY = {
-  symbol: 'BTCUSDT-SWAP',
-  side: 'buy',
-  type: 'limit',
-  quantity: 0.02,
-  price: 42000,
-  dryRun: false,
-  intentId: 'intent-live-1',
-  sessionId: 'session-gui-1',
-}
-
-const ORDER_QUERY = new URLSearchParams({ market: 'crypto' })
-
 /**
  * 桥拒绝 → 前端实际看到的 payload 形状：路由层把非协议错误映射成
  * HTTP 200 + { ok:false, code, message }（bridge/index.ts 的 errorPayload 通路）。
@@ -173,139 +193,71 @@ async function denialPayload(pending: Promise<{ status: number; payload: unknown
   }
 }
 
-describe('GUI 实盘动作的逐动作审批（ctx.approval.request）', () => {
-  it('user approving a live GUI order releases exactly that order with the exact parameters', async () => {
-    // Given: 真实审批面（授权一次）+ 记录用交易所边界 + GUI 桥
-    const fixture = guiSeatFixture()
+/** 会话日志的扁平投影（seq + type + data）：审计断言只读真事件。 */
+interface LoggedEvent {
+  readonly seq: number
+  readonly type: string
+  readonly data: Record<string, unknown>
+}
+
+function logOf(session: Session): LoggedEvent[] {
+  return session.snapshotEvents().map(event => ({ seq: event.seq, type: event.type, data: event.data as unknown as Record<string, unknown> }))
+}
+
+function seqsOf(session: Session, type: string): number[] {
+  return logOf(session).filter(event => event.type === type).map(event => event.seq)
+}
+
+/** 一次审批轮次的形状断言：turn 内只有审计对，没有 step、没有模型可见消息、没有错误。 */
+function expectApprovalRoundShape(runtime: GuiRuntime): void {
+  const log = logOf(runtime.session)
+  const starts = log.filter(event => event.type === 'turn/start').map(event => event.seq)
+  const ends = log.filter(event => event.type === 'turn/end').map(event => event.seq)
+  const asked = log.filter(event => event.type === 'approval/asked').map(event => event.seq)
+  const decided = log.filter(event => event.type === 'approval/decided').map(event => event.seq)
+  expect(starts).toHaveLength(1)
+  expect(ends).toHaveLength(1)
+  expect(asked).toHaveLength(1)
+  expect(decided).toHaveLength(1)
+  expect(starts[0]! < asked[0]!).toBe(true)
+  expect(asked[0]! < decided[0]!).toBe(true)
+  expect(decided[0]! < ends[0]!).toBe(true)
+  expect(seqsOf(runtime.session, 'step/start')).toEqual([])
+  expect(seqsOf(runtime.session, 'user/message')).toEqual([])
+  expect(seqsOf(runtime.session, 'agent/error')).toEqual([])
+}
+
+/** 一轮跑完后的收尾：等官方 loop 回到空闲（事件驱动，不 sleep）。 */
+async function settle(runtime: GuiRuntime): Promise<void> {
+  await runtime.agent.whenIdle()
+}
+
+describe('GUI 实盘动作的逐动作审批（真宿主 loop 轮次）', () => {
+  it('user approving a live GUI order gets one official approval round in its own turn and the order reaches the exchange', async () => {
+    // Given: 真宿主 runtime + 真应答者（授权一次）+ 记录用交易所边界 + GUI 桥
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
     const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
 
-    // When: 用户在当前会话的行情面板提交一笔实盘限价单
+    // When: 用户在看盘时提交一笔实盘限价单（宿主此刻空闲）
     const { status, payload } = await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
+    await settle(runtime)
 
-    // Then: 订单带完整参数与稳定意图到达交易所，且审批审计对落在此会话日志
+    // Then: 订单带完整参数与稳定意图到达交易所；审批审计对落在官方 loop 自己开的那一轮里
     expect(status).toBe(200)
     expect(payload).toMatchObject({ ok: true, order: { symbol: 'BTCUSDT-SWAP', dryRun: false } })
     expect(trade.placed).toEqual([
       { symbol: 'BTCUSDT-SWAP', side: 'buy', type: 'limit', quantity: 0.02, price: 42000, dryRun: false, intentId: 'intent-live-1' },
     ])
-    expect(auditTrail(fixture.session).map(entry => entry.type)).toEqual(['approval/asked', 'approval/decided'])
-    expect(auditTrail(fixture.session)[1]!.data).toMatchObject({ outcome: 'allowed-once' })
-  })
-
-  it('user rejecting the approval keeps the exchange untouched and sees TRADING_APPROVAL_DENIED', async () => {
-    // Given: 应答者明确拒绝
-    const fixture = guiSeatFixture({ answer: async () => 'rejected' })
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 用户提交实盘单
-    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
-
-    // Then: 没有订单（也不伪造 dry-run 回执），拒绝被记进该会话审计
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-    expect(auditTrail(fixture.session).find(entry => entry.type === 'approval/decided')?.data).toMatchObject({ outcome: 'rejected' })
-  })
-
-  it('user whose HTTP request goes away while the approval is pending gets no order', async () => {
-    // Given: 审批悬置未决，客户端连接随后断开（超时/关标签页）
-    const fixture = guiSeatFixture({ answer: () => new Promise<ApprovalOutcome>(() => {}) })
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-    const disconnect = new AbortController()
-
-    // When: 请求带着连接信号发出，并在审批未决时被取消
-    const pending = dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY, disconnect.signal)
-    disconnect.abort()
-    const payload = await denialPayload(pending)
-
-    // Then: 明确拒绝，交易所零动作
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-  })
-
-  it('user with no session context is denied and the other live sessions are never asked', async () => {
-    // Given: 面板拿不到当前会话 id（或会话已不在宿主）
-    const fixture = guiSeatFixture()
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 提交实盘单（无 sessionId / 未知 sessionId）
-    const withoutSession = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, {
-      ...LIVE_ORDER_BODY, sessionId: undefined,
-    }))
-    const unknownSession = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, {
-      ...LIVE_ORDER_BODY, sessionId: 'session-from-another-window',
-    }))
-
-    // Then: 两次都明确拒绝，交易所零动作，且没有任何审批被问到别的会话
-    expect(withoutSession).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(unknownSession).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-    expect(auditTrail(fixture.session)).toEqual([])
-    expect(fixture.asked).toEqual([])
-  })
-
-  it('user on a host without the approval service is denied rather than silently trading', async () => {
-    // Given: 宿主未挂 ctx.approval（headless / 老部署）
-    const fixture = guiSeatFixture({ mountApproval: false })
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 提交实盘单
-    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
-
-    // Then: 拒绝，交易所零动作
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-  })
-
-  it('user on an idle session (no open turn) is denied rather than silently trading', async () => {
-    // Given: 会话存在但当前没有打开的一轮（ApprovalService 的审计对必须 turn-enclosed，
-    //        官方 request() 在空闲会话直接抛错）
-    const fixture = guiSeatFixture({ openTurn: false })
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 用户提交实盘单
-    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
-
-    // Then: 明确拒绝、交易所零动作、日志里没有任何半截审计
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-    expect(auditTrail(fixture.session)).toEqual([])
-  })
-
-  it('user on a host with no answerer receives the fail-closed denial', async () => {
-    // Given: 审批服务在场但应答链为空（无人在场）
-    const fixture = guiSeatFixture({ mountAnswerer: false })
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 提交实盘单
-    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
-
-    // Then: 归属 unavailable 的 fail-closed 拒绝
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.placed).toEqual([])
-    expect(auditTrail(fixture.session).find(entry => entry.type === 'approval/decided')?.data).toMatchObject({ outcome: 'unavailable' })
-  })
-
-  it('user is asked with the full normalized action snapshot bound to the asking agent and session', async () => {
-    // Given: 真实审批面（应答者记录被问到的内容）
-    const fixture = guiSeatFixture()
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 提交实盘限价单
-    await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
-
-    // Then: 审批绑定实际 agent，且展示快照含完整 market/symbol/side/type/quantity/price/intentId
-    expect(fixture.asked).toHaveLength(1)
-    const ask = fixture.asked[0]!
-    expect(ask.agent).toBe(fixture.agent)
-    expect(ask.toolName).toBe('crypto_place_order')
+    expectApprovalRoundShape(runtime)
+    expect(logOf(runtime.session).find(event => event.type === 'approval/decided')?.data).toMatchObject({ outcome: 'allowed-once' })
+    // 审批展示快照与绑定：工具名同 base 词汇，reason 覆盖用户批的那一行，绑定实际 agent
+    expect(answerer.asked).toHaveLength(1)
+    expect(answerer.asked[0]!.agent).toBe(runtime.agent)
+    expect(answerer.asked[0]!.toolName).toBe('crypto_place_order')
     for (const field of [
       'market=crypto',
       'symbol=BTCUSDT-SWAP',
@@ -316,77 +268,305 @@ describe('GUI 实盘动作的逐动作审批（ctx.approval.request）', () => {
       'intentId=intent-live-1',
       'sessionId=session-gui-1',
     ]) {
-      expect(ask.reason).toContain(field)
+      expect(answerer.asked[0]!.reason).toContain(field)
     }
+    // 收件箱不留半截控制消息
+    expect([...runtime.agent.inbox.nextTurn, ...runtime.agent.inbox.nextStep]).toEqual([])
   })
 
-  it('user approving once is asked again for the next action (a grant never carries over)', async () => {
-    // Given: 授权一次的审批面
-    const fixture = guiSeatFixture()
+  it('user rejecting the approval keeps the exchange untouched and sees TRADING_APPROVAL_DENIED', async () => {
+    // Given: 应答者明确拒绝
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'rejected')
     const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
 
-    // When: 用户连做两笔实盘动作（同一会话、两个意图）
-    await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
-    await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, { ...LIVE_ORDER_BODY, intentId: 'intent-live-2' })
+    // When: 用户提交实盘单
+    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
+    await settle(runtime)
 
-    // Then: 两笔各自到达交易所，且审计对是两组（授权只覆盖它批准的那一次动作）
-    expect(trade.placed.map(order => order.intentId)).toEqual(['intent-live-1', 'intent-live-2'])
-    expect(auditTrail(fixture.session).map(entry => entry.type)).toEqual([
-      'approval/asked', 'approval/decided', 'approval/asked', 'approval/decided',
-    ])
-  })
-
-  it('user placing a live order without a stable intent is refused before any approval is asked', async () => {
-    // Given: 真实审批面
-    const fixture = guiSeatFixture()
-    const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
-
-    // When: 提交缺少意图 id 的实盘单
-    const rejected = await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, {
-      ...LIVE_ORDER_BODY, intentId: undefined,
-    }).catch((error: unknown) => error as { status?: number })
-
-    // Then: 协议层 400，交易所零动作，也没有对无人认领的动作发起审批
-    expect(rejected).toMatchObject({ status: 400 })
+    // Then: 没有订单（也不伪造 dry-run 回执），拒绝被记进该会话审计，轮次照常关闭
+    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
     expect(trade.placed).toEqual([])
-    expect(auditTrail(fixture.session)).toEqual([])
+    expectApprovalRoundShape(runtime)
+    expect(logOf(runtime.session).find(event => event.type === 'approval/decided')?.data).toMatchObject({ outcome: 'rejected' })
   })
 
-  it('user approving a GUI cancel cancels exactly that order', async () => {
-    // Given: 真实审批面与一个已挂单
-    const fixture = guiSeatFixture()
+  it('user on a host with no answerer receives the fail-closed denial instead of a silent trade', async () => {
+    // Given: 审批服务在场但应答链为空（无人在场）
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
     const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 提交实盘单
+    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
+    await settle(runtime)
+
+    // Then: 归属 unavailable 的 fail-closed 拒绝，且这一轮仍然带完整审计对关闭
+    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(trade.placed).toEqual([])
+    expectApprovalRoundShape(runtime)
+    expect(logOf(runtime.session).find(event => event.type === 'approval/decided')?.data).toMatchObject({ outcome: 'unavailable' })
+  })
+
+  it('user whose HTTP request goes away while the approval is pending gets no order and the round still closes', async () => {
+    // Given: 审批悬置未决（应答者不表态），客户端连接随后断开
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => new Promise<ApprovalOutcome>(() => {}))
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+    const disconnect = new AbortController()
+
+    // When: 请求带着连接信号发出，并在审批未决时被取消
+    const pending = dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY, disconnect.signal)
+    await answerer.askedTimes(1)
+    disconnect.abort()
+    const payload = await denialPayload(pending)
+    await settle(runtime)
+
+    // Then: 明确拒绝、交易所零动作，取消被记进审计，turn 仍然关闭
+    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(trade.placed).toEqual([])
+    expectApprovalRoundShape(runtime)
+    expect(logOf(runtime.session).find(event => event.type === 'approval/decided')?.data).toMatchObject({ outcome: 'cancelled' })
+  })
+
+  it('user placing two live actions at once gets two serialized approval rounds and both orders', async () => {
+    // Given: 第一笔的审批被用户悬置未决（应答者持着不表态）
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    let grantFirst: (() => void) | undefined
+    answerer.answer((_ask, index) => (index === 0
+      ? new Promise<ApprovalOutcome>(resolve => { grantFirst = () => { resolve('allowed-once') } })
+      : 'allowed-once'))
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 用户连点两笔实盘单（两个意图），第一笔的审批还挂着
+    const first = dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
+    await answerer.askedTimes(1)
+    const second = dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, { ...LIVE_ORDER_BODY, intentId: 'intent-live-2' })
+    await Promise.resolve()
+
+    // Then: 第二笔排队等第一笔收尾——此刻只有一轮开着，只有一次审批被问
+    expect(seqsOf(runtime.session, 'turn/start')).toHaveLength(1)
+    expect(answerer.asked).toHaveLength(1)
+    grantFirst!()
+    const [firstResult, secondResult] = await Promise.all([first, second])
+    await settle(runtime)
+
+    // Then: 两笔都到达交易所，两轮各自带一组完整审批对（授权只覆盖它批准的那一次动作）
+    expect(firstResult.status).toBe(200)
+    expect(secondResult.status).toBe(200)
+    expect(trade.placed.map(order => order.intentId)).toEqual(['intent-live-1', 'intent-live-2'])
+    expect(answerer.asked.map(ask => ask.toolName)).toEqual(['crypto_place_order', 'crypto_place_order'])
+    const log = logOf(runtime.session)
+    expect(log.filter(event => event.type === 'approval/asked')).toHaveLength(2)
+    expect(log.filter(event => event.type === 'approval/decided')).toHaveLength(2)
+    expect(log.filter(event => event.type === 'turn/start')).toHaveLength(2)
+    expect(log.filter(event => event.type === 'turn/end')).toHaveLength(2)
+    expect(seqsOf(runtime.session, 'step/start')).toEqual([])
+    expect(seqsOf(runtime.session, 'user/message')).toEqual([])
+    expect(seqsOf(runtime.session, 'agent/error')).toEqual([])
+    const firstTurnEnd = log.find(event => event.type === 'turn/end')!.seq
+    const secondTurnStart = log.filter(event => event.type === 'turn/start')[1]!.seq
+    expect(firstTurnEnd < secondTurnStart).toBe(true)
+  })
+
+  it('user typing in the chat while an approval is pending keeps that message for its own turn', async () => {
+    // Given: 一个实盘动作的审批挂着，用户同时在对话里发了一句话
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    let grant: (() => void) | undefined
+    answerer.answer(() => new Promise<ApprovalOutcome>(resolve => { grant = () => { resolve('allowed-once') } }))
+    // 会话自己的轮次处理（这里以拒绝收尾：没有 LLM 适配器，本用例只证明消息回到了它自己的轮次）
+    const claimed: Array<{ readonly turn: number; readonly text: string }> = []
+    runtime.ctx.on('agent/pre-step', payload => {
+      for (const message of payload.messages) {
+        claimed.push({ turn: payload.turn, text: message.content.map(block => (block.type === 'text' ? block.text : '')).join('') })
+      }
+      return { kind: 'reject' as const }
+    })
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 实盘单的审批还没裁决，用户先发了一句话
+    const order = dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
+    await answerer.askedTimes(1)
+    runtime.agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'USER-CHAT-MESSAGE' }],
+      source: { kind: 'user' },
+    }))
+    expect(runtime.agent.inbox.nextTurn).toHaveLength(1)
+    grant!()
+    await order
+    await settle(runtime)
+
+    // Then: 那句话在审批轮之后的自己那一轮被认领，没有被审批轮吞掉，收件箱也不留残骸
+    const approvalTurn = logOf(runtime.session).find(event => event.type === 'turn/start')!.data.turn
+    const chatTurn = claimed.find(entry => entry.text.includes('USER-CHAT-MESSAGE'))
+    expect(chatTurn).toBeDefined()
+    expect(chatTurn!.turn).toBeGreaterThan(Number(approvalTurn))
+    expect([...runtime.agent.inbox.nextTurn, ...runtime.agent.inbox.nextStep]).toEqual([])
+    expect(seqsOf(runtime.session, 'user/message')).toEqual([])
+    expect(seqsOf(runtime.session, 'agent/error')).toEqual([])
+  })
+
+  it('user whose approval round is rejected by an earlier pre-step listener gets the fail-closed denial instead of a hang', async () => {
+    // Given: 一个更早注册的 pre-step 监听者直接拒绝（hooks deny / 归档会话一类）
+    const runtime = await bootRuntime()
+    runtime.ctx.on('agent/pre-step', () => ({ kind: 'reject' as const }))
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 用户提交实盘单（我们的 handler 根本没机会跑）
+    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
+    await settle(runtime)
+
+    // Then: 明确拒绝、交易所零动作、没有任何审批被问，且轮次照常关闭（不无限 await）
+    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(trade.placed).toEqual([])
+    expect(answerer.asked).toEqual([])
+    expect(seqsOf(runtime.session, 'turn/start')).toHaveLength(1)
+    expect(seqsOf(runtime.session, 'turn/end')).toHaveLength(1)
+    expect(seqsOf(runtime.session, 'user/message')).toEqual([])
+  })
+
+  it('user on a session busy with another turn is denied when the idle wait runs out', async () => {
+    // Given: 会话正忙（另一轮挂在 pre-step 上），宿主空闲窗口超时上限
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime, { idleTimeoutMs: 30_000 })
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+    let releaseBusy: ((decision: { kind: 'reject' }) => void) | undefined
+    runtime.ctx.on('agent/pre-step', () => new Promise<{ kind: 'reject' }>(resolve => { releaseBusy = resolve }))
+    runtime.agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'BUSY-TURN' }],
+      source: { kind: 'user' },
+    }))
+    expect(runtime.agent.status).toBe('running')
+
+    // When: 用户在忙碌会话里提交实盘单，等待窗口用尽
+    vi.useFakeTimers()
+    try {
+      const pending = denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
+      const denial = expect(pending).resolves.toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+      await vi.advanceTimersByTimeAsync(30_000)
+      await denial
+    } finally {
+      vi.useRealTimers()
+    }
+    releaseBusy!({ kind: 'reject' })
+    await settle(runtime)
+
+    // Then: 拒绝、交易所零动作、审批从未被问，忙碌会话自己的轮次仍正常收尾
+    expect(trade.placed).toEqual([])
+    expect(answerer.asked).toEqual([])
+    expect(seqsOf(runtime.session, 'approval/asked')).toEqual([])
+    expect(seqsOf(runtime.session, 'turn/start')).toHaveLength(1)
+    expect(seqsOf(runtime.session, 'turn/end')).toHaveLength(1)
+  })
+
+  it('user with no live session for the requested id is denied before any approval is asked', async () => {
+    // Given: 面板拿不到当前会话 id，或会话已不在宿主
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 提交实盘单（无 sessionId / 未知 sessionId）
+    const withoutSession = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, {
+      ...LIVE_ORDER_BODY, sessionId: undefined,
+    }))
+    const unknownSession = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, {
+      ...LIVE_ORDER_BODY, sessionId: 'session-from-another-window',
+    }))
+
+    // Then: 两次都明确拒绝，交易所零动作，宿主会话日志里连一轮都没开过
+    expect(withoutSession).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(unknownSession).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(trade.placed).toEqual([])
+    expect(answerer.asked).toEqual([])
+    expect(seqsOf(runtime.session, 'turn/start')).toEqual([])
+    expect(seqsOf(runtime.session, 'approval/asked')).toEqual([])
+  })
+
+  it('user on a host without the approval service is denied rather than silently trading', async () => {
+    // Given: 宿主未挂 ctx.approval（headless / 老部署）
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime, { mountApproval: false })
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
+
+    // When: 提交实盘单
+    const payload = await denialPayload(dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY))
+
+    // Then: 拒绝、交易所零动作，会话日志零审计
+    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
+    expect(trade.placed).toEqual([])
+    expect(seqsOf(runtime.session, 'turn/start')).toEqual([])
+    expect(seqsOf(runtime.session, 'approval/asked')).toEqual([])
+  })
+
+  it('user approving a GUI cancel cancels exactly that order under the same gate', async () => {
+    // Given: 真宿主 runtime + 授权一次的应答者 + 一个已挂单
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
+    const trade = recordingTrade()
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
 
     // When: 用户撤单
     const { payload } = await dispatchBridgeRequest(
       bridge, 'DELETE', '/trade/order',
-      new URLSearchParams({ market: 'crypto', id: 'ord-1', symbol: 'BTCUSDT-SWAP', sessionId: 'session-gui-1', intentId: 'intent-cancel-1' }),
+      new URLSearchParams({ market: 'crypto', id: 'ord-1', symbol: 'BTCUSDT-SWAP', sessionId: SESSION_ID, intentId: 'intent-cancel-1' }),
     )
+    await settle(runtime)
 
-    // Then: 撤单到达交易所，审批记录同样绑定该会话
+    // Then: 撤单到达交易所，审批同样落在一轮真轮次里，工具名同 base 词汇
     expect(payload).toEqual({ ok: true, canceled: true })
     expect(trade.canceled).toEqual(['ord-1'])
-    expect(auditTrail(fixture.session).map(entry => entry.type)).toEqual(['approval/asked', 'approval/decided'])
-    expect(fixture.asked[0]?.toolName).toBe('crypto_cancel_order')
+    expectApprovalRoundShape(runtime)
+    expect(answerer.asked[0]?.toolName).toBe('crypto_cancel_order')
+    expect(answerer.asked[0]?.reason).toContain('orderId=ord-1')
   })
 
-  it('user rejecting the cancel approval leaves the order live', async () => {
-    // Given: 应答者拒绝撤单审批
-    const fixture = guiSeatFixture({ answer: async () => 'rejected' })
+  it('user approving once is asked again for the next action (a grant never carries over)', async () => {
+    // Given: 授权一次的审批面
+    const runtime = await bootRuntime()
+    const seat = mountSeat(runtime)
+    const answerer = mountAnswerer(runtime.ctx)
+    answerer.answer(() => 'allowed-once')
     const trade = recordingTrade()
-    const bridge = new TradingBridge(guiBridgeHost(fixture.seat, trade.service))
+    const bridge = new TradingBridge(guiBridgeHost(seat, trade.service))
 
-    // When: 用户撤单
-    const payload = await denialPayload(dispatchBridgeRequest(
-      bridge, 'DELETE', '/trade/order',
-      new URLSearchParams({ market: 'crypto', id: 'ord-1', symbol: 'BTCUSDT-SWAP', sessionId: 'session-gui-1', intentId: 'intent-cancel-1' }),
-    ))
+    // When: 用户连做两笔实盘动作（同一会话、两个意图）
+    await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, LIVE_ORDER_BODY)
+    await settle(runtime)
+    await dispatchBridgeRequest(bridge, 'POST', '/trade/order', ORDER_QUERY, { ...LIVE_ORDER_BODY, intentId: 'intent-live-2' })
+    await settle(runtime)
 
-    // Then: 明确拒绝，订单仍在交易所挂着
-    expect(payload).toMatchObject({ ok: false, code: GUI_APPROVAL_DENIED })
-    expect(trade.canceled).toEqual([])
+    // Then: 两笔各自到达交易所，审计对是两组（授权只覆盖它批准的那一次动作）
+    expect(trade.placed.map(order => order.intentId)).toEqual(['intent-live-1', 'intent-live-2'])
+    expect(logOf(runtime.session).filter(event => event.type === 'approval/asked' || event.type === 'approval/decided').map(event => event.type)).toEqual([
+      'approval/asked', 'approval/decided', 'approval/asked', 'approval/decided',
+    ])
+    expect(seqsOf(runtime.session, 'turn/start')).toHaveLength(2)
+    expect(seqsOf(runtime.session, 'step/start')).toEqual([])
   })
 })

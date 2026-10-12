@@ -36,7 +36,7 @@ import {
   type MarketDataRegistryLike,
   type TradeRegistryLike,
 } from './bridge.ts'
-import { createGuiApprovalSeat, type GuiAgentRegistryLike, type GuiApprovalHost, type GuiApprovalSeat } from './gui-approval.ts'
+import { createGuiApprovalSeat, type GuiAgentRegistryLike, type GuiApprovalEventsLike, type GuiApprovalHost, type GuiApprovalSeat } from './gui-approval.ts'
 import { attachEventStream } from './sse.ts'
 import { TaskActionError } from './tasks/ledger.ts'
 import { registerTasksTools } from './tasks/tools.ts'
@@ -188,11 +188,30 @@ export function apply(ctx: Context): void {
     // GUI 实盘动作的逐动作审批座位（2026-10-12）：真实实现是宿主 ctx.approval
     // （@deepseek-ai/dsh-user-approval 的 ApprovalService）+ agents 注册表按会话解析
     // agent。apply 期不解析（服务可能尚未激活），每次动作惰性取。
+    //
+    // 事件面（2026-10-12 修复）：rc.2 的 `ApprovalService.request` 硬前置是会话日志
+    // 处于打开的一轮（审计对必须 turn-enclosed），空闲会话直接抛错；而开轮的权力只在
+    // dsh-agent-loop 手里。座位因此自己声明控制消息 source、经 `agent.send` 唤醒 loop，
+    // 只认它打开的那一轮——这需要宿主事件面（agent/pre-step、session/event、
+    // agent/status）。作用域上普通 ctx.on 收全部 agent 事件，过滤由座位自己做。
+    // 能力探测（与上面 res.on/off 同款）：单测的 ctx 替身只实现 get/inject/effect，
+    // 真实 cordis Context 恒有 on。事件面缺席 = 开不出官方轮次 → 座位对实盘 fail-closed
+    // （老部署同款降级），构造期绝不在这里抛。
+    const eventSeam = ctx as unknown as { on?: (event: string, listener: (...args: never[]) => unknown) => () => void }
+    const guiApprovalEvents: GuiApprovalEventsLike | undefined = typeof eventSeam.on === 'function'
+      ? {
+          onPreStep: listener => ctx.on('agent/pre-step', listener),
+          onSessionEvent: listener => ctx.on('session/event', listener),
+          onAgentStatus: listener => ctx.on('agent/status', listener),
+        }
+      : undefined
     const guiApprovalHost: GuiApprovalHost = {
       approval: () => resolveHostService('approval') as import('./gui-approval.ts').ApprovalServiceLike | undefined,
       agent: sessionId => (resolveHostService('agents') as GuiAgentRegistryLike | undefined)?.get(sessionId),
+      ...(guiApprovalEvents === undefined ? {} : { events: guiApprovalEvents }),
     }
     const guiApproval: GuiApprovalSeat = createGuiApprovalSeat(guiApprovalHost)
+    ctx.effect(() => () => { guiApproval.dispose() }, 'dsh-trading-client-ui-trading: GUI live-action approval listeners')
     // registry-first（2026-08-30 注册表模式）：每请求经注册表按路由当前值解析——
     // settings 切换交易所 GUI 即刻生效（热切换）；注册表缺席回退旧市场键直读。
     const host = createBridgeHost({
