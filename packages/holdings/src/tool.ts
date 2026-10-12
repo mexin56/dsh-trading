@@ -182,10 +182,10 @@ export function createHoldingsStageTool(store: HoldingsStore, options: HoldingsW
       + 'account/kind/currency defaults and the cash-row convention.',
     parameters: {
       itemsJson: {
-        type: 'string',
+        type: 'json',
         required: true,
         description:
-          'JSON array of position items, e.g. '
+          'JSON array of position items (also accepted as a JSON string), e.g. '
           + '[{"market":"us","symbol":"AAPL","size":10,"entryPrice":178.5,"name":"苹果","account":"富途"},...]. '
           + 'Required market/symbol/size; optional name/entryPrice/currency/account/kind/note. '
           + 'market is crypto|us|cn|hk; symbol uses connector vocabulary (AAPL / 002714.SZ / BTCUSDT / 00700.HK) with the screenshot '

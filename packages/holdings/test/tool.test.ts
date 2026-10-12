@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import { createMemoryHoldingsStore } from '../src/store-memory.ts'
 import {
   createHoldingsAddTool,
@@ -317,4 +318,29 @@ describe('Holdings Ledger Write Tools', () => {
     expect(mixed).toContain('未找到（已跳过）')
     expect((await store.snapshot()).holdings).toHaveLength(0)
   })
+  it('用户直传结构化数组暂存持仓时 holdings_stage 通过框架参数校验并写入待确认区', async () => {
+    // Given: 一个不做 JSON 序列化、itemsJson 直接传数组的暂存调用
+    const store = createMemoryHoldingsStore()
+    const tool = createHoldingsStageTool(store)
+    const args = {
+      itemsJson: [{ market: 'us', symbol: 'AAPL', size: 10, name: '苹果', account: '富途' }],
+    }
+
+    // When: 先走 defineTool 的同一套参数校验，再真正暂存
+    const violations = validateJsonSchemaValue(tool.parameters as JsonSchemaNode, args, '')
+    const result = await (tool as any).execute(args)
+
+    // Then: 校验零违规，待确认区拿到该条目并完成市场默认值推导
+    expect(violations).toEqual([])
+    expect(result).toContain('已暂存 1 条持仓到待确认区')
+    expect((await store.snapshot()).staged[0]).toMatchObject({
+      market: 'us',
+      symbol: 'AAPL',
+      size: 10,
+      currency: 'USD',
+      account: '富途',
+      name: '苹果',
+    })
+  })
 })
+

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import { createMemoryKnowledgeCardStore } from '../src/store-memory.ts'
 import {
   createKnowledgeDeleteTool,
@@ -309,4 +310,40 @@ describe('Knowledge Agent Tools', () => {
     expect(await (deleteTool as any).execute({ id: 'kc_missing' })).toContain('未找到卡片')
     await expect((deleteTool as any).execute({})).rejects.toThrow()
   })
+  it('用户直传结构化数组与对象实参时 knowledge_ingest 通过框架参数校验并照常落库', async () => {
+    // Given: 一个不做 JSON 序列化的入库调用——7 个 Json 参数里 6 个传数组、1 个传对象
+    const store = createMemoryKnowledgeCardStore()
+    const tool = createKnowledgeIngestTool(store)
+    const args = {
+      title: '结构化实参入库',
+      summary: '验证声明为 json 的参数不再被框架参数校验拒绝。',
+      sourceType: 'manual',
+      sourceUrl: 'https://example.com/structured-args',
+      sourceAuthor: '行业研究员',
+      credibility: 'high',
+      coreClaimsJson: ['资本开支连续三年负增长通常构筑供给侧底'],
+      factCheckJson: { verified: ['历史三次大宗周期均符合此资本开支规律'], discrepancies: [], unverifiable: [] },
+      takeawaysJson: ['逆向布局重资产周期的核心在于寻找供给侧出清信号'],
+      boundariesJson: ['需求端出现永久性替代技术时供给逻辑失效'],
+      tagsJson: ['周期', '大宗商品', '产能周期'],
+      tickersJson: ['600028.SH'],
+      relatedJson: [],
+    }
+
+    // When: 先走 defineTool 的同一套参数校验（tool.parameters 即编译后的参数 schema），再执行入库
+    const violations = validateJsonSchemaValue(tool.parameters as JsonSchemaNode, args, '')
+    const result = await (tool as any).execute(args)
+
+    // Then: 校验零违规，且结构化实参被完整落库
+    expect(violations).toEqual([])
+    expect(result).toContain('成功创建新知识卡片')
+    const saved = (await store.list())[0]
+    expect(saved?.coreClaims).toEqual(['资本开支连续三年负增长通常构筑供给侧底'])
+    expect(saved?.factCheck.verified).toEqual(['历史三次大宗周期均符合此资本开支规律'])
+    expect(saved?.takeaways).toEqual(['逆向布局重资产周期的核心在于寻找供给侧出清信号'])
+    expect(saved?.boundaries).toEqual(['需求端出现永久性替代技术时供给逻辑失效'])
+    expect(saved?.tags).toEqual(['周期', '大宗商品', '产能周期'])
+    expect(saved?.tickers).toEqual(['600028.SH'])
+  })
 })
+
