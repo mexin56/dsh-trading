@@ -63,3 +63,5 @@ TypeError: Cannot read properties of undefined (reading 'aborted')
 - 教训三：**桌面壳加载 `trading-web`**，`trading-all` 是 CLI/全市场路径；补依赖或资产前先看栈里的 profile 路径。
 - 影响面：`/permission` 仍是 launch 的常规步骤，命令派发依赖未变——`commands` 服务缺席时依旧报 `permission command dispatcher (commands) is unavailable`（见 [任务默认预设与权限](../feature/2026-09-08-tasks-default-master-workspace-write.md)）。
 - 未决：本轮仓库改动尚未提交（本次会话无提交授权）。
+
+> **2026-10-12 补记（启动身份改为按执行 id 派生，重启不盲发）**：`runner.launch(task)` 此前每次用 `crypto.randomUUID()` 造 prompt requestId，重试/重启路径没有稳定身份。现在 `launch(task, executionId)` 由执行 id 派生：会话 id `session-<executionId>` 显式传给 `session/create`（0.2.0-rc.2 的 `ensureSession` 采纳语义：同 id 复用、预设不一致报 `session/preset-conflict`），prompt requestId `dshtrading-tasks-<executionId>`（`hasPromptRequest` 去重）。两者叠加使 SDK 侧 launch 天然幂等：重启对账（`reconcileStartup`）只续观察已绑会话，从不重新创建会话或重发 prompt；服务侧再加 `launching` 去重与「已结算/已绑会话即跳过」护栏。同轮补上「会话空闲 + 完整历史无 turn/end」的按窗口收敛、`ExecutionRecord.note` 读取异常留痕，以及按当前 `TurnEndReasonMap`（completed/aborted/error/其余）分类终局——旧实现把任意非 error 当成功（见 [侧栏定时任务](../feature/2026-09-04-sidebar-scheduled-tasks.md) 的 2026-10-12 加固）。

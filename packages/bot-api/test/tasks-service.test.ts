@@ -13,7 +13,8 @@ interface FakeSession {
   events: Array<{ type: string; seq: number; time: number; data?: unknown }>
 }
 
-/** 假 typertGateway：会话树内存实现 + 调用流水。prompt 即落地 turn/end 并静默。 */
+/** 假 typertGateway：会话树内存实现 + 调用流水。prompt 即落地 turn/end（SDK 的
+ *  TurnEndReasonMap 正常结束成员是 `completed`）并静默。 */
 function makeGateway() {
   const calls: Array<{ namespace: string; method: string }> = []
   const sessions = new Map<string, FakeSession>()
@@ -34,7 +35,7 @@ function makeGateway() {
         if (request.method === 'prompt') {
           const session = sessions.get(sessionId)
           if (session !== undefined) {
-            session.events.push({ type: 'turn/end', seq: session.events.length + 1, time: Date.now(), data: { reason: { kind: 'ok' } } })
+            session.events.push({ type: 'turn/end', seq: session.events.length + 1, time: Date.now(), data: { reason: { kind: 'completed' } } })
             session.running = false
           }
         }

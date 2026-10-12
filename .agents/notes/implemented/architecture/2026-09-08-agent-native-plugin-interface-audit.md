@@ -246,7 +246,7 @@ Status: implemented
 | `liveTrading` 开关 | 仅存在于 connector config 默认 false（base/src/presets.ts:83；connector-binance/src/index.ts:35-40） | 实盘授权的显式声明，必须由用户改配置文件/预设，不进 agent 面，也不做 UI 开关 |
 | paper / live 模式切换 | localStorage `dshtrading:trade:mode`（client-ui-trading/src/client/trade-mode-store.ts:5） | 交易语义开关；UI 唯一通路保持不变 |
 | 模拟盘（paper）下单与 paper 持仓读取 | paper store 在客户端（`dshtrading:paper:account:v1`，client-ui-trading/src/client/paper-trading-store.ts:37,118） | 下单动作归 C 类；若未来要开放，需新命名空间（如 `paper_*`）且明确不命中闸门族（架构 §5.6「任何新工具不得命中或仿冒该命名族」），属独立裁决 |
-| GUI 桥下单路径（`POST /trade/order`，dryRun 缺省 false，bridge.ts:764-790） | 与界面文案「本面板只做模拟与只读查询」（locales.ts:408）矛盾；该路径不经 base 工具层审批，只过服务缝 `liveTrading` 三态检查 | 属 C 类安全语义，**本轮只记录不动代码**；建议用户裁决是改文案还是改路径（见「架构差距」第 7 条） |
+| GUI 桥下单路径（`POST/DELETE /trade/order`，dryRun 缺省 false，`packages/bot-api/src/bridge.ts`） | 与界面文案「本面板只做模拟与只读查询」矛盾；该路径不经 base 工具层审批，只过服务缝 `liveTrading` 三态检查 | **2026-10-12 用户裁决已落地**：保留 GUI 实盘并接入官方逐动作审批（`packages/bot-api/src/gui-approval.ts` 调真实 `ctx.approval.request`，只认 `allowed-once`）。GUI 实盘动作带官方当前会话 id 与稳定意图 id，审批绑定该会话的 agent（`agents.get` + `agent.session.id` 复核）；审批缺席/无会话/拒绝/取消/断连一律 `TRADING_APPROVAL_DENIED`。不再存在绕开审批的 GUI 实盘路径（见「架构差距」第 7 条） |
 | 定时任务权限确认（`confirm-permission`） | 桥 action 存在（client/tasks-protocol.ts:184），工具刻意不注册（tasks/tools.ts:12-14） | 人类唯一通路，刻意保留；agent 只能创建/更新任务并看到「待人工确认」状态 |
 
 **D 类：凭据/密钥，永不进 agent 面**
@@ -266,7 +266,7 @@ Status: implemented
 4. **富卡片覆盖不全**：仅 `*_place_order`、`watchlist_add/select`、`strategy_backtest/author` 有 toolview；holdings / knowledge / indicators 工具无卡片（§5.5 未列为强制项，属范围缺口）。
 5. **base 行情工具的平面归属与文档不一致**：§4.3 把通用工具列 host 平面，而 `base/research-tools` 由 preset 生成行挂载（base/src/presets.ts:109）——语义上 preset 面更合理（按市场隔离），待确认是否刻意。
 6. **工具面「一次成型后冻结」需要重开一次窗口**：§5.6 要求 host 平面工具面稳定以保 KV cache；本次建议新增 6 至 8 个工具，必须在文档层显式记录一次冻结窗口重开。
-7. **「实盘下单唯一通道是 Agent 会话」与实际实现矛盾**：界面文案如此声明（client-ui-trading/src/client/locales.ts:408），桥 `placeOrderFromGui` 默认 `dryRun: false` 直通真实连接器（bridge.ts:760-790），客户端请求体亦硬编码 `dryRun: false`（client-ui-trading/src/client/api.ts:201），GUI 侧只剩服务缝 `liveTrading` 三态检查，没有工具层审批交互。待用户裁决。
+7. **「实盘下单唯一通道是 Agent 会话」与实际实现矛盾——已裁决**：2026-10-12 用户选择保留 GUI 实盘并接入官方逐动作审批。GUI 的 `placeOrderFromGui`/`cancelOrderFromGui`（`packages/bot-api/src/bridge.ts`）在触达交易服务前调用宿主真实 `ctx.approval.request`（`packages/bot-api/src/gui-approval.ts`），只认 `allowed-once`；客户端请求体（`client-ui-trading/src/client/api.ts`）带 `sessionId`（审批绑定）与稳定 `intentId`，GUI 控制台默认 `dryRun: false` 不变。GUI 路径与 agent 工具路径自此同门槛（审批 + 服务缝 `liveTrading` 三态）。审计对必须被 turn 包住，而开轮只在官方 agent-loop 内，因此 GUI 座位用自有 source 唤起一轮、在轮内 ask 并 reject 收尾（空闲会话因此可用）；**代价是每笔动作留下一个空的持久 turn**（无 step、无模型调用）。界面文案 `trade.liveHint` 已同步为逐动作审批口径（2026-10-12）。
 8. **返回形态纪律不统一**：holdings 用「人读文本 + `[tool] …` 失败前缀」，router/watchlist/strategies 用 JSON 文本，indicators/knowledge 混合。建议新工具跟随所在包既有形态，不强行统一。
 
 ## Context & Efficiency Impact

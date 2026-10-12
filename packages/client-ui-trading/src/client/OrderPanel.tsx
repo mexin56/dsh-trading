@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ColorMode } from './color-mode.ts'
 import type { MarketLocaleKey } from './contract.ts'
 import type { GuiOrderInput, GuiOrderResult } from './api.ts'
+import { guiOrderFailureText } from './gui-approval.ts'
 import type { MarketId } from './types.ts'
 import css from './order-panel.module.css'
 
@@ -186,10 +187,9 @@ export function OrderPanel({
           })
           setQuantity('')
         } else {
-          setFeedback({
-            text: res.error ? `${t('trade.submitFailed')}: ${res.error}` : t('trade.submitFailed'),
-            state: 'error',
-          })
+          // 带稳定错误码的结果（如 TRADING_APPROVAL_DENIED）以码开头，不被笼统的
+          // 「提交失败」吞掉；审批没成就明确是没成，绝不显示成成交/模拟回执。
+          setFeedback({ text: guiOrderFailureText(t('trade.submitFailed'), res), state: 'error' })
         }
       })
       .catch((err) => {

@@ -531,6 +531,23 @@ export interface OrderRequest {
   readonly marginMode?: MarginMode
   /** 缺省/true 时仅模拟，不触碰交易所。实盘还受 @dshtrading/authority 的人工签署授权与 approval 约束 [S4]。 */
   readonly dryRun?: boolean
+  /**
+   * Stable caller-assigned idempotency id for this order intent.
+   *
+   * Required for live submissions (`dryRun: false`); a dry-run receipt may omit it.
+   * Reusing the id with the same normalized request (same venue payload, provider,
+   * environment and account) returns the recorded venue receipt instead of
+   * submitting a second order; reusing it with a different payload, provider,
+   * environment or account is rejected as a conflict and the request is never
+   * silently re-parameterised. Only a venue receipt carrying a real non-empty
+   * order id is recorded as confirmed — a timeout, storage failure or crash leaves
+   * the intent unresolved and nothing is resubmitted automatically.
+   *
+   * The venue-facing client order key (`clOrdId` / `client_order_id` / `cOID` /
+   * `remark` / `user_mark`) is derived from this id inside the connector and is
+   * never surfaced: this id is the only handle callers pass in and read back.
+   */
+  readonly intentId?: string
 }
 
 /** 订单回执/状态。 */
@@ -787,6 +804,17 @@ export type TradingErrorCode =
   | 'TRADING_APPROVAL_DENIED'
   /** 本次为 dry-run 模拟结果（非故障语义）。 */
   | 'TRADING_DRY_RUN'
+  /** Order intents（实盘幂等台账）：实盘请求缺稳定 `intentId`（dry-run 可缺省）。 */
+  | 'TRADING_INTENT_REQUIRED'
+  /** Order intents：同一 `intentId` 已被不同规范载荷/provider/环境/账户占用——拒绝，不自动改参数。 */
+  | 'TRADING_INTENT_CONFLICT'
+  /**
+   * Order intents：该 `intentId` 已有持久记录（已提交或结局未知）而**尚无** venue 回执。
+   * 明确告知「未知/在飞」，绝不自动重发；推进只能靠人工或读对账。
+   */
+  | 'TRADING_INTENT_UNKNOWN'
+  /** Order intents：台账写盘失败——本次不调用 venue（宁可不发，也不发一笔没有持久记录的实盘单）。 */
+  | 'TRADING_INTENT_STORE_FAILED'
   | 'TRADING_EXCHANGE_ERROR'
   | 'TRADING_UNKNOWN'
 

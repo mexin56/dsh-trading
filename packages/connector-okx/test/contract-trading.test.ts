@@ -7,6 +7,9 @@
  */
 import { installTestAuthority, type TestAuthority } from '@dshtrading/authority/testing'
 import { Context as CordisContext } from '@deepseek-ai/cordis'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Config } from '../src/index.js'
 import {
@@ -23,8 +26,28 @@ import { OkxRestClient } from '../src/rest.js'
 
 /** 实盘授权夹具：闸门 ③ 只有拿到真实签名的平面才放行（不 mock 授权面）。 */
 let testAuthority: TestAuthority | undefined
-beforeAll(() => { testAuthority = installTestAuthority() })
-afterAll(() => { testAuthority?.uninstall() })
+/** 订单意图台账的家：显式指到临时目录，绝不继承宿主 `$DSH_HOME`。 */
+let homeDir: string | undefined
+let savedHome: string | undefined
+beforeAll(() => {
+  testAuthority = installTestAuthority()
+  savedHome = process.env.DSH_HOME
+  homeDir = mkdtempSync(join(tmpdir(), 'dsh-okx-contract-intents-'))
+  process.env.DSH_HOME = homeDir
+})
+afterAll(() => {
+  testAuthority?.uninstall()
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  if (homeDir !== undefined) rmSync(homeDir, { recursive: true, force: true })
+})
+
+/** 每次实盘提交一个全新的意图 id（同 id 只允许一笔）。 */
+let intentSeq = 0
+function nextIntentId(): string {
+  intentSeq += 1
+  return `okx-contract-intent-${intentSeq}`
+}
 
 function baseConfig(overrides: Partial<Config> = {}): Config {
   return {
@@ -283,7 +306,7 @@ describe('placeOrder 的保证金模式（tdMode 分流）', () => {
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
     // When 下 0.02 BTC 的逐仓永续市价单
-    await trade.placeOrder({ symbol: 'BTCUSDT-SWAP', side: 'buy', type: 'market', quantity: 0.02, marginMode: 'isolated', dryRun: false })
+    await trade.placeOrder({ symbol: 'BTCUSDT-SWAP', side: 'buy', type: 'market', quantity: 0.02, marginMode: 'isolated', dryRun: false, intentId: nextIntentId() })
     // Then 请求体 tdMode=isolated、sz 换算成 2 张
     const post = calls.find(c => c.url.includes('/api/v5/trade/order'))
     expect(JSON.parse(post?.body ?? '{}')).toMatchObject({ tdMode: 'isolated', sz: '2', instId: 'BTC-USDT-SWAP' })

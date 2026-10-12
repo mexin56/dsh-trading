@@ -54,4 +54,18 @@ describe('知识卡片 file store 跨实例并发写', () => {
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Array<{ id: string }>
     expect(onDisk.map(c => c.id).sort()).toEqual(['kc_cli_1', 'kc_desktop_1'])
   })
+
+  it('用户两个实例都读过之后，桌面端入库的卡片对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空快照（CLI 的读缓存已建立）
+    const file = await freshFile()
+    const desktop = createFileKnowledgeCardStore(file)
+    const cli = createFileKnowledgeCardStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端入库一张卡片
+    await desktop.save(card('kc_desktop_1'))
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect((await cli.list()).map(c => c.id)).toEqual(['kc_desktop_1'])
+  })
 })

@@ -8,7 +8,7 @@
  */
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
 import type { CustomStrategyRecord, CustomStrategyStore } from './custom.ts'
 
 const LOG_PREFIX = '[dsh-trading/strategies] failed to atomic flush custom strategies to'
@@ -39,7 +39,6 @@ export async function readArchivedStrategyRecords(archivePath: string): Promise<
 }
 
 export function createFileCustomStrategyStore(filePath: string): CustomStrategyStore {
-  let cache: Map<string, CustomStrategyRecord> | null = null
 
   /** 新鲜读盘（坏 JSON/坏形同既有 load 口径降级空表）；供 load 与锁内重读共用。 */
   async function readFromDisk(): Promise<Map<string, CustomStrategyRecord>> {
@@ -61,26 +60,23 @@ export function createFileCustomStrategyStore(filePath: string): CustomStrategyS
     }
   }
 
-  async function load(): Promise<Map<string, CustomStrategyRecord>> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   async function commit(
     mutate: (onDisk: Map<string, CustomStrategyRecord>) => Map<string, CustomStrategyRecord> | typeof SKIP_WRITE,
   ): Promise<Map<string, CustomStrategyRecord>> {
-    cache = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list() {
-      const map = await load()
+      const map = await cache.load()
       return [...map.values()]
     },
     async get(id) {
-      const map = await load()
+      const map = await cache.load()
       return map.get(id)
     },
     async save(record) {

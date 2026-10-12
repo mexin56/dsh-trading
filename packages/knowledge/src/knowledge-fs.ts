@@ -6,14 +6,13 @@
  * 文件降级纪律不变（逐行对齐 custom-fs.ts 先例）。
  */
 import { readFile } from 'node:fs/promises'
-import { SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
 import type { KnowledgeCard, KnowledgeCardStore } from './types.ts'
 import { canonicalizeCardAuthor } from './authors.ts'
 
 const LOG_PREFIX = '[dsh-trading/knowledge] failed to atomic flush knowledge cards to'
 
 export function createFileKnowledgeCardStore(filePath: string): KnowledgeCardStore {
-  let cache: Map<string, KnowledgeCard> | null = null
 
   /**
    * 新鲜读盘（作者别名归一、坏 JSON 降级空表）；供 load 与锁内重读共用。
@@ -51,30 +50,27 @@ export function createFileKnowledgeCardStore(filePath: string): KnowledgeCardSto
     }
   }
 
-  async function load(): Promise<Map<string, KnowledgeCard>> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   async function commit(
     mutate: (onDisk: Map<string, KnowledgeCard>) => Map<string, KnowledgeCard> | typeof SKIP_WRITE,
   ): Promise<Map<string, KnowledgeCard>> {
-    cache = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, mutate, table => [...table.values()], LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list(): Promise<readonly KnowledgeCard[]> {
-      const map = await load()
+      const map = await cache.load()
       return [...map.values()]
     },
     async get(id: string): Promise<KnowledgeCard | undefined> {
-      const map = await load()
+      const map = await cache.load()
       return map.get(id)
     },
     async getByUrl(url: string): Promise<KnowledgeCard | undefined> {
-      const map = await load()
+      const map = await cache.load()
       const trimmed = url.trim()
       for (const card of map.values()) {
         if (card.source.url.trim() === trimmed) {

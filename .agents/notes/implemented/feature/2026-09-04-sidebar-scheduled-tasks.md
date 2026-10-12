@@ -32,3 +32,14 @@ Status: implemented
 > **2026-10-01 原地修正（目录锁的进程探针，fail-closed 语义恢复）**：本记录第 1 条里的「目录锁防多宿主双写」有一处**保守性反转**的缺陷，已修：`.packages/client-ui-trading/src/tasks/ledger.ts` 的 `processAlive` 原先按 `spawnSync('ps', …)` 的 `status !== 0` 判定「进程已死」——但**探针不可用**（无 `ps`、权限拒绝、超时）与**进程已死**是两件事，前者也被判成死，于是活着的持有者被接管，直接违反不变量 #15（同一份 home 同一时刻只允许一个 dsh host 写者）。
 >
 > 实证：2026-10-01 在文件沙箱下 `ps -o stat= -p $$` 返回 `Operation not permitted`（exit 126），Node 侧 `spawnSync` 得到 `status: null, error.code: 'EPERM'` —— 旧实现据此接管锁，`目录锁：活锁拒绝（报持有者 pid）` 用例红。判据已收口为纯函数 `interpretProcessProbe`（`ledger.ts`）：探针报错 ⇒ 活（保守）；跑完无输出 ⇒ 死；`Z`/`X` ⇒ 死；其余 ⇒ 活。三条分支各有用例（`.packages/client-ui-trading/test/tasks-ledger.test.ts`），该用例在沙箱内恢复绿。
+
+> **2026-10-12 原地加固（执行面六修）**：本特性的宿主半现住在 `@dshtrading/bot-api`（三平面拆分，见 [包拆分](../architecture/2026-10-01-three-plane-package-split.md)），本轮在该包 `src/tasks/{ledger,runner,service}.ts` 修掉六处实缺口：
+>
+> 1. **PID 台账锁原子独占创建**：旧实现先 `existsSync` 读持有者、判死后 `writeFileSync(…, {flag:'w'})`，是「检查后覆盖」——两个并发打开者可能同时判死并各自接管。现在 `openSync(lockPath, 'wx')`（O_CREAT|O_EXCL）创建；EEXIST 才读持有者：活则拒绝（同进程双开同样拒绝），死则删除重建；与并发接管者竞争时输的一方下一轮读到活持有者即拒绝。锁内容仍是裸十进制 pid（旧格式兼容）。
+> 2. **释放校验自身 owner**：只有锁文件仍写着自己的 pid 才删除；被接管后误删会立刻放进第二个写者（`LedgerLockedError` 的持有者语义随之可信）。
+> 3. **commit 先落盘再发布**：原先先 `this.document = next` 再写盘，真实写失败会把内存文档、revision 与 requestId 幂等缓存一起污染，重试被当成重放静默返回旧快照。现在文件 write+fsync → rename → 适用平台父目录 fsync（POSIX；Windows 跳过）全部成功后，才发布内存文档/新 revision 并广播。
+> 4. **全局在飞容量上限**：`TasksLedgerOptions.maxInflightExecutions`（缺省 `DEFAULT_MAX_INFLIGHT_EXECUTIONS` = 4，服务 opts 透传），达上限时手动与 cron 起跑都抛 `TASKS_CAPACITY_EXCEEDED`（429）。cron「错过不补跑」策略不变。
+> 5. **跳过触发点留结构化原因**：`ScheduleRule.lastSkip = { at, triggerPoint, reason }`，reason ∈ `permission-pending | capacity | already-running`，tick 跳过时落盘；磁盘上非法 reason 读取即丢弃（不带病读入）。
+> 6. **失联执行的可配置收敛与读取留痕**：`TradingTasksServiceOptions.staleExecutionMs`（缺省 1 小时）只作用于「会话空闲 + 完整历史扫描确认无 turn/end」的执行，收敛为 `cancelled` 并写明原因；宿主 `AgentStatus` 只有 idle/running，等待审批期间 status 保持 running，因此**仍在运行/待审批的执行不会因年龄被当成功或取消**，也从不重发 prompt。侦查读取异常在 `ExecutionRecord.note` 上留原因（只在内容变化时落盘），不再静默永久 pending。
+>
+> 验证：`packages/bot-api` 194 用例全绿（新增 18：账本加固 7 + 执行面 11，真实 tmp 账本与契约核对网关 fixture、零通用 mock/零真实等待），`packages/api` 15 用例全绿（新增 2 纯函数判据）；两包 `tsc --noEmit` 0 错；`node scripts/test-audit.mjs --check` 无新增测试债。

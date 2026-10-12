@@ -33,6 +33,11 @@
     "test:audit:report": "node scripts/test-audit.mjs --report",
     "test:desktop": "node --test \"desktop/tests/*.test.mjs\"",
     "test:scripts": "vitest run scripts --passWithNoTests",
+    "live-order:check": "node scripts/live-order-invariant-gate.mjs",
+    "live-order:report": "node scripts/live-order-invariant-gate.mjs --report",
+    "tool-contract:check": "node scripts/tool-contract-gate.mjs",
+    "tool-contract:report": "node scripts/tool-contract-gate.mjs --report",
+    "tool-contract:update": "node scripts/tool-contract-gate.mjs --update",
     "ui:check": "node scripts/ui-functional-check.mjs",
     "version-packages": "changeset version"
   },

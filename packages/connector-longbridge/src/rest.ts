@@ -285,7 +285,7 @@ export class LongbridgeRestClient {
     return positions
   }
 
-  async placeOrder(_creds: unknown, req: OrderRequest): Promise<Order> {
+  async placeOrder(_creds: unknown, req: OrderRequest, remark?: string): Promise<Order> {
     if (!this.appKey || !this.accessToken) {
       throw new TradingServiceError('TRADING_AUTH_FAILED', 'Longbridge: appKey and accessToken are required for placeOrder')
     }
@@ -303,6 +303,8 @@ export class LongbridgeRestClient {
         submitted_quantity: String(req.quantity),
         submitted_price: req.price ? String(req.price) : undefined,
         time_in_force: 'Day',
+        // Longbridge 官方 submit_order 的 remark（仅对账标签，不是幂等键）。
+        ...(remark !== undefined ? { remark } : {}),
       }),
     })
 

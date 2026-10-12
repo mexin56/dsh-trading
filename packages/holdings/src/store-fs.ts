@@ -5,18 +5,20 @@
  * 写路径走 `@dshtrading/dsh-home` 的 {@link transactStore}——跨进程排他锁 + 锁内
  * 新鲜读盘 + 原子写（2026-10-09 多进程互相覆盖事故修复）；坏文件（JSON 损坏 /
  * 形状不符）打错误日志并回退空台账——读侧不崩宿主（knowledge-fs 同款纪律）。
+ *
+ * 读新鲜度（2026-10-12 补强）：readFromDisk 是**纯读**，缓存发布只发生在
+ * transactStore 成功之后——写失败时本实例不会把未落盘的账发布进缓存；每次 load()
+ * 先核对磁盘签名，另一个实例（桌面端/CLI）确认落盘的新持仓因此可见。
  */
 import { readFile } from 'node:fs/promises'
 import { createEmptyBook, createHoldingsStore } from './store-core.ts'
-import { transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, transactStore } from '@dshtrading/dsh-home'
 import type { HoldingsBook, HoldingsStore } from './types.ts'
 
 const LOG_TAG = '[dsh-trading/holdings]'
 
 export function createFileHoldingsStore(filePath: string): HoldingsStore {
-  let cache: HoldingsBook | null = null
-
-  /** 新鲜读盘（坏文件回退空台账并打日志）；供 load 与锁内重读共用。 */
+  /** 纯粹的新鲜读盘（坏文件回退空台账并打日志）；供缓存与锁内重读共用，不发布缓存。 */
   async function readFromDisk(): Promise<HoldingsBook> {
     let content: string
     try {
@@ -26,16 +28,14 @@ export function createFileHoldingsStore(filePath: string): HoldingsStore {
         console.error(`${LOG_TAG} failed to read holdings book from ${filePath}; falling back to an empty book:`, err)
       }
       // ENOENT = 首启正常路径，静默起空台账。
-      cache = createEmptyBook()
-      return cache
+      return createEmptyBook()
     }
     let parsed: unknown
     try {
       parsed = JSON.parse(content)
     } catch (err) {
       console.error(`${LOG_TAG} holdings book ${filePath} is not valid JSON; falling back to an empty book:`, err)
-      cache = createEmptyBook()
-      return cache
+      return createEmptyBook()
     }
     const book = parsed as HoldingsBook
     if (
@@ -45,31 +45,32 @@ export function createFileHoldingsStore(filePath: string): HoldingsStore {
       || !Array.isArray(book.holdings)
     ) {
       console.error(`${LOG_TAG} holdings book ${filePath} has unexpected shape; falling back to an empty book`)
-      cache = createEmptyBook()
-      return cache
+      return createEmptyBook()
     }
-    cache = book
-    return cache
+    return book
   }
 
+  const cache = createStoreCache(filePath, readFromDisk)
+
   async function load(): Promise<HoldingsBook> {
-    if (cache !== null) return cache
-    return readFromDisk()
+    return cache.load()
   }
 
   /** 跨进程临界区：plan 在锁内新鲜读到的 book 上就地改；返回前已原子落盘。 */
   async function transact<T>(plan: (book: HoldingsBook) => T | Promise<T>): Promise<T> {
     let result: T | undefined
-    await transactStore(
+    const book = await transactStore(
       filePath,
       readFromDisk,
-      async (book) => {
-        result = await plan(book)
-        return book
+      async (fresh) => {
+        result = await plan(fresh)
+        return fresh
       },
-      book => ({ revision: book.revision, staged: book.staged, holdings: book.holdings }),
+      value => ({ revision: value.revision, staged: value.staged, holdings: value.holdings }),
       `${LOG_TAG} failed to atomic flush to`,
     )
+    // 只有成功落盘才发布：写失败时缓存保持旧值（不提前 publish 未确认的账）。
+    cache.replace(book)
     return result as T
   }
 

@@ -183,7 +183,7 @@ export class IbkrRestClient {
     }))
   }
 
-  async placeOrder(creds: { accountId?: string } | undefined, req: OrderRequest): Promise<Order> {
+  async placeOrder(creds: { accountId?: string } | undefined, req: OrderRequest, clientOrderId?: string): Promise<Order> {
     const acc = creds?.accountId ?? this.accountId
     if (!acc) {
       throw new TradingServiceError('TRADING_AUTH_FAILED', 'IBKR: accountId is required to place order')
@@ -204,6 +204,8 @@ export class IbkrRestClient {
               quantity: req.quantity,
               price: req.price,
               tif: 'DAY',
+              // IBKR 官方 cOID（Customer Order ID）：24h 内必须唯一；由 intentId 确定性派生。
+              ...(clientOrderId !== undefined ? { cOID: clientOrderId } : {}),
             },
           ],
         }),
@@ -227,10 +229,18 @@ export class IbkrRestClient {
     }
 
     const first = res[0]
-    const orderId = first?.order_id ?? `ibkr-${Date.now()}`
+    // 回执缺 order_id 时**抛错**，绝不自己编一个：编出来的 id 会让「这单在不在 venue 上」
+    // 变成一句假话，而意图台账只接受真实 venue 句柄（issue 43 资金正确性）。
+    const orderId = typeof first?.order_id === 'string' && first.order_id.trim() !== '' ? first.order_id : undefined
+    if (orderId === undefined) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `IBKR placeOrder: gateway response carries no real order_id (${JSON.stringify(first ?? null)}) — the order is not confirmed`,
+      )
+    }
 
     return {
-      id: String(orderId),
+      id: orderId,
       symbol: sym,
       side: req.side,
       type: req.type,

@@ -61,4 +61,18 @@ describe('自定义指标 file store 跨实例并发写', () => {
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Array<{ id: string }>
     expect(onDisk.map(r => r.id)).toEqual(['keep_ind'])
   })
+
+  it('用户两个实例都读过之后，桌面端新增的指标对 CLI 的下一次读取可见', async () => {
+    // Given 两个实例都已读入同一份空快照（CLI 的读缓存已建立）
+    const file = await freshFile()
+    const desktop = createFileCustomIndicatorStore(file)
+    const cli = createFileCustomIndicatorStore(file)
+    expect(await cli.list()).toEqual([])
+
+    // When 桌面端保存一个新指标
+    await desktop.save(record('td9'))
+
+    // Then CLI 的下一次读取看到它（读取不永久命中缓存）
+    expect((await cli.list()).map(r => r.id)).toEqual(['td9'])
+  })
 })

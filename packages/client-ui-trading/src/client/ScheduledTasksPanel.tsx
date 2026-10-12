@@ -21,6 +21,16 @@ import {
 } from '@dshtrading/api'
 import { subscribeTradingEvents } from './api.ts'
 import type { MarketLocaleKey } from './contract.ts'
+
+/**
+ * 跳过原因 → 文案键的显式映射（不用字符串拼接：t() 的键是 MarketLocaleKey 联合类型，
+ * 拼接会退化成 string 并失去编译期检查）。新增原因时这里与 contract.ts 一起加。
+ */
+const SKIP_REASON_KEY = {
+  'permission-pending': 'tasks.skip.permission-pending',
+  capacity: 'tasks.skip.capacity',
+  'already-running': 'tasks.skip.already-running',
+} as const satisfies Record<string, MarketLocaleKey>
 import { fetchTasksMeta, fetchTasksSnapshot, postTaskAction, type TasksMeta } from './tasks-api.ts'
 import css from './session-rail.module.css'
 
@@ -141,6 +151,14 @@ export function ScheduledTasksPanel({ t, openSession, close }: ScheduledTasksPan
                         : undefined}
                     </>
                   )}
+                  {task.schedule?.lastSkip !== undefined && (
+                    <span
+                      className={css.badgePending}
+                      title={fmtTime(task.schedule.lastSkip.triggerPoint) + ' · ' + t(SKIP_REASON_KEY[task.schedule.lastSkip.reason])}
+                    >
+                      {t('tasks.skip.label') + ' · ' + t(SKIP_REASON_KEY[task.schedule.lastSkip.reason])}
+                    </span>
+                  )}
                   {permissionPending(task, defaultPermission) && <span className={css.badgePending}>{t('tasks.permission.pending')}</span>}
                   {task.executions.some(execution => execution.endedAt === undefined) && <span className={css.badgeRunning}>{t('tasks.action.running')}</span>}
                 </div>
@@ -196,6 +214,9 @@ export function ScheduledTasksPanel({ t, openSession, close }: ScheduledTasksPan
                                   : t('tasks.exec.cancelled')}
                           </span>
                           {execution.error !== undefined && <span className={css.execError} title={execution.error}>{execution.error}</span>}
+                          {/* 读取异常诊断（未收敛的观察备注）：让「为什么还挂着」在面板上可解释，
+                              而不是只躺在账本字段里。 */}
+                          {execution.note !== undefined && <span className={css.execError} title={execution.note}>{execution.note}</span>}
                           {execution.sessionId !== undefined && execution.endedAt !== undefined && (
                             <button type="button" className={css.miniBtn} onClick={() => { openSession(execution.sessionId ?? '') }}>
                               {t('tasks.exec.openSession')}

@@ -2,6 +2,7 @@
  * 行情桥单测：市场清单、批量报价（逐 symbol 独立成败 + 封顶）、K线透传与
  * 参数校验、请求分发路由与协议错误。宿主面全部用假件（不触网）。
  */
+import type { GuiApprovalSeat } from '../src/gui-approval.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { MarketDataService, NewsAggregator } from '@dshtrading/api'
 import { createMemoryCustomStrategyStore } from '@dshtrading/strategies'
@@ -270,6 +271,13 @@ describe('TradingBridge.orderbook + trades（issue #39 盘口竖栏）', () => {
   })
 })
 
+/**
+ * GUI 实盘路径的审批座位替身：本组用例只关心参数透传与 dry-run 缺省，
+ * 「审批没成就没有订单」的完整行为在 test/gui-approval.test.ts（真实
+ * ApprovalService + 真实 Session + 真实 cordis ctx）。
+ */
+const approvingSeat: GuiApprovalSeat = { authorize: async () => {} }
+
 describe('TradingBridge.trade/*（issue #40 交易台：只读 + 强制 dry-run）', () => {
   function tradeService(overrides: Partial<import('@dshtrading/api').TradeService> = {}): import('@dshtrading/api').TradeService {
     return {
@@ -286,11 +294,15 @@ describe('TradingBridge.trade/*（issue #40 交易台：只读 + 强制 dry-run�
     }
   }
 
-  function tradeHost(service: import('@dshtrading/api').TradeService | undefined): BridgeHost {
+  function tradeHost(
+    service: import('@dshtrading/api').TradeService | undefined,
+    guiApproval?: GuiApprovalSeat,
+  ): BridgeHost {
     return {
       getMarketService: market => market === 'crypto' ? fakeService() : undefined,
       activeProvider: () => 'okx',
       getTradeService: market => market === 'crypto' ? service : undefined,
+      ...(guiApproval === undefined ? {} : { guiApproval }),
     }
   }
 
@@ -316,11 +328,14 @@ describe('TradingBridge.trade/*（issue #40 交易台：只读 + 强制 dry-run�
       id: 'ord-live-1', symbol: req.symbol, side: req.side, type: req.type,
       status: 'filled' as const, quantity: req.quantity, dryRun: req.dryRun ?? false, timestamp: 1,
     }))
-    const bridge = new TradingBridge(tradeHost(tradeService({ placeOrder: placeOrder as never })))
+    const bridge = new TradingBridge(tradeHost(tradeService({ placeOrder: placeOrder as never }), approvingSeat))
     const { payload } = await dispatchBridgeRequest(
       bridge, 'POST', '/trade/order',
       new URLSearchParams({ market: 'crypto' }),
-      { symbol: 'BTCUSDT-SWAP', side: 'buy', type: 'limit', quantity: 0.02, price: 42000 },
+      {
+        symbol: 'BTCUSDT-SWAP', side: 'buy', type: 'limit', quantity: 0.02, price: 42000,
+        sessionId: 'session-gui-1', intentId: 'intent-gui-1',
+      },
     )
     expect(payload).toMatchObject({ ok: true, order: { dryRun: false, symbol: 'BTCUSDT-SWAP' } })
     expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ symbol: 'BTCUSDT-SWAP', dryRun: false, price: 42000 }))
@@ -353,10 +368,13 @@ describe('TradingBridge.trade/*（issue #40 交易台：只读 + 强制 dry-run�
 
   it('DELETE /trade/order：调用 cancelOrder 成功返回 { ok: true, canceled: true }', async () => {
     const cancelOrder = vi.fn(async (_id: string, _sym?: string) => {})
-    const bridge = new TradingBridge(tradeHost(tradeService({ cancelOrder })))
+    const bridge = new TradingBridge(tradeHost(tradeService({ cancelOrder }), approvingSeat))
     const { status, payload } = await dispatchBridgeRequest(
       bridge, 'DELETE', '/trade/order',
-      new URLSearchParams({ market: 'crypto', id: 'ord-123', symbol: 'BTCUSDT' }),
+      new URLSearchParams({
+        market: 'crypto', id: 'ord-123', symbol: 'BTCUSDT',
+        sessionId: 'session-gui-1', intentId: 'intent-gui-cancel-1',
+      }),
     )
     expect(status).toBe(200)
     expect(payload).toEqual({ ok: true, canceled: true })

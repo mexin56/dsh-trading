@@ -1,3 +1,5 @@
+// 本文件只用隔离的 dsh-trading 临时 home：显式改写 process.env.DSH_HOME 指向 mkdtemp 目录，
+// 绝不继承宿主 home，也绝不作用在真实 ~/.dsh-trading 数据上。
 /**
  * 服务缝闸门（P0 · issue #29）：绕过工具层直调 TradeService 的三态矩阵（离线）。
  * 工具层 evaluateOrderGate / base 审批闸门另有覆盖；这里只证服务级 fail-closed——
@@ -6,14 +8,30 @@
  */
 import { installTestAuthority, type TestAuthority } from '@dshtrading/authority/testing'
 import { Context as CordisContext } from '@deepseek-ai/cordis'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { QmtTradeService, type Config } from '../src/index.js'
 
 /** 实盘授权夹具：连接器闸门现在要求人工签署授权（@dshtrading/authority），
  *  用例在临时目录里搭一份真实签名的平面并指向它——不这样做，闸门 ③ 只能被 mock 掉。 */
 let testAuthority: TestAuthority | undefined
-beforeAll(() => { testAuthority = installTestAuthority() })
-afterAll(() => { testAuthority?.uninstall() })
+/** 订单意图台账的家：显式指到临时目录，绝不继承宿主 `$DSH_HOME`。 */
+let homeDir: string | undefined
+let savedHome: string | undefined
+beforeAll(() => {
+  testAuthority = installTestAuthority()
+  savedHome = process.env.DSH_HOME
+  homeDir = mkdtempSync(join(tmpdir(), 'dsh-qmt-gate-intents-'))
+  process.env.DSH_HOME = homeDir
+})
+afterAll(() => {
+  testAuthority?.uninstall()
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  if (homeDir !== undefined) rmSync(homeDir, { recursive: true, force: true })
+})
 
 function baseConfig(overrides: Partial<Config> = {}): Config {
   return {
@@ -45,7 +63,9 @@ function makeService(config: Config, routes: Array<{ match: string; body: unknow
   return { trade, urls }
 }
 
-const LIVE_REQ = { symbol: '600519.SH', side: 'buy' as const, type: 'market' as const, quantity: 1, dryRun: false }
+// intentId 是实盘路径的必填幂等锚（issue 43）：闸门 ③ 用例必须带上它，否则只会撞到
+// TRADING_INTENT_REQUIRED，测不到「闸门放行后的真实路径」。
+const LIVE_REQ = { symbol: '600519.SH', side: 'buy' as const, type: 'market' as const, quantity: 1, dryRun: false, intentId: 'gate-live-1' }
 
 describe('QmtTradeService 服务缝闸门（P0，绕过工具层直调）', () => {
   it('① dryRun=false + liveTrading=false（缺省）→ TRADING_LIVE_TRADING_DISABLED，不触网', async () => {

@@ -39,6 +39,17 @@ Status: implemented
    会被运行中实例的旧缓存在下次 save 时覆盖（本轮 trading-web 实例运行中，
    仅完成 dry-run，apply 留待实例关闭后执行）。
 
+## 增补（2026-10-12）：检索结果的时间证据与显式时效筛选
+
+review 指出 `knowledge_search` 返回只有标题/来源/可信度：`updatedAt` 与 `source.publishedAt` 都不出现，agent 无法据结果判断观点时效（会话守则要求核查 `updatedAt` 与素材发布时间），也缺少可按需收紧时效的检索入口。现补齐为可验证契约，不按年龄自动删卡、不改可信度：
+
+- **时间证据对每档 detail 明示**：每条结果新增一行 `时间: 更新 <updatedAt> | 发布 <source.publishedAt>`；缺失或空值写「未知」，不留空位冒充有日期（`detail=summary` 与 `detail=full` 同款）。
+- **显式时效筛选**：新增 `updatedAfter` / `publishedAfter`（ISO 日期或日期时间，含端点）。`updatedAfter` 比 `updatedAt`；`publishedAfter` 只比 `source.publishedAt`——**没有发布日期的卡不满足显式发布日期下限**（未知 ≠ 新鲜），`updatedAt` 解析不了同样不满足。非法日期值回报点名参数的显式错误，不伪装成「没有卡片」。
+- **不越权**：默认无任何年龄过滤；筛选只影响单次结果集，库里卡片数量、`credibility` 与文件内容都不因查询改变（拒绝「按年龄删除所有知识 / 改变可信度」的做法）。
+- **测试 fixture**：`packages/knowledge/test/fixtures/retrieval-cards.json` 5 张冻结卡（标签命中/标题命中、无发布日期、2025 旧卡、唯一主题卡），`test/retrieval.test.ts` 8 例覆盖 fixture schema 一致性、标签权重压过更新时间、两档 detail 的时间明示、两个显式筛选、非法值、无命中、按 id 精确 get；真实内存 store、零 mock、零 sleep、不调用模型，可复跑。
+
+本页 Verification 之外的新证据：`pnpm exec vitest run --maxWorkers=1 --no-file-parallelism`（packages/knowledge）8 文件 / 53 例全绿。
+
 ## Alternatives considered
 
 <!-- agent-note-format: alternatives-not-recorded (pre-format Agent Note) -->

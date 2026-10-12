@@ -331,7 +331,19 @@ export class AlpacaRestClient {
     return fills
   }
 
-  async placeOrder(credentials: AlpacaCredentials, req: { symbol: string; side: 'BUY' | 'SELL'; type: 'MARKET' | 'LIMIT'; quantity: number; price?: number }): Promise<Order> {
+  async placeOrder(credentials: AlpacaCredentials, req: {
+    symbol: string
+    side: 'BUY' | 'SELL'
+    type: 'MARKET' | 'LIMIT'
+    quantity: number
+    price?: number
+    /**
+     * 客户端订单 id（Alpaca 官方 `client_order_id`，maxLength 48）。由 TradeService 从
+     * `OrderRequest.intentId` 确定性派生；官方只在订单**仍活跃**时拒绝重复 id，
+     * 因此它是第二层防护，不是跨时间 exactly-once。
+     */
+    clientOrderId?: string
+  }): Promise<Order> {
     const sym = normalizeUsSymbol(req.symbol)
     const body: Record<string, unknown> = {
       symbol: sym,
@@ -343,19 +355,32 @@ export class AlpacaRestClient {
     if (req.type === 'LIMIT' && req.price !== undefined) {
       body.limit_price = String(req.price)
     }
+    if (req.clientOrderId !== undefined) {
+      body.client_order_id = req.clientOrderId
+    }
     const data = await this.request(this.tradingBaseUrl, '/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }, credentials) as Record<string, unknown>
 
+    // 回执缺 id 时**抛错**，绝不自己编一个：编出来的 id 会让「这单在不在 venue 上」
+    // 变成一句假话，而意图台账只接受真实 venue 句柄（issue 43 资金正确性）。
+    const id = typeof data.id === 'string' && data.id.trim() !== '' ? data.id : undefined
+    if (id === undefined) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `Alpaca place order for ${sym}: response carries no real order id — the order is not confirmed`,
+      )
+    }
+
     return {
-      id: String(data.id ?? `alpaca-${Date.now()}`),
+      id,
       symbol: sym,
       side: req.side.toLowerCase() === 'sell' ? 'sell' : 'buy',
       type: req.type.toLowerCase() === 'limit' ? 'limit' : 'market',
       quantity: req.quantity,
-      price: req.price,
+      ...(req.price !== undefined ? { price: req.price } : {}),
       status: (String(data.status ?? 'pending') as any),
       dryRun: false,
       timestamp: Date.now(),

@@ -8,13 +8,12 @@
  * 无迁移问题（ENOENT 视为空表）。
  */
 import { readFile } from 'node:fs/promises'
-import { SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
+import { createStoreCache, SKIP_WRITE, transactStore } from '@dshtrading/dsh-home'
 import type { BuiltinTombstonesStore } from './builtin-tombstones.ts'
 
 const LOG_PREFIX = '[dsh-trading/strategies] failed to atomic flush builtin tombstones to'
 
 export function createFileBuiltinTombstonesStore(filePath: string): BuiltinTombstonesStore {
-  let cache: Set<string> | null = null
 
   /** 新鲜读盘（坏 JSON 降级空表）；供 load 与锁内重读共用。 */
   async function readFromDisk(): Promise<Set<string>> {
@@ -36,22 +35,19 @@ export function createFileBuiltinTombstonesStore(filePath: string): BuiltinTombs
     }
   }
 
-  async function load(): Promise<Set<string>> {
-    if (cache !== null) return cache
-    cache = await readFromDisk()
-    return cache
-  }
+  const cache = createStoreCache(filePath, readFromDisk)
 
   async function commit(
     mutate: (onDisk: Set<string>) => Set<string> | typeof SKIP_WRITE,
   ): Promise<Set<string>> {
-    cache = await transactStore(filePath, readFromDisk, mutate, set => ({ deleted: [...set] }), LOG_PREFIX)
-    return cache
+    const next = await transactStore(filePath, readFromDisk, mutate, set => ({ deleted: [...set] }), LOG_PREFIX)
+    cache.replace(next)
+    return next
   }
 
   return {
     async list() {
-      const set = await load()
+      const set = await cache.load()
       return [...set]
     },
     async add(id) {

@@ -9,6 +9,7 @@ import type { CustomIndicatorRecord, IndicatorApplyScope, IndicatorInstance } fr
 import type { KnowledgeCard } from '@dshtrading/knowledge'
 import type { CustomStrategyRecord, CustomScreenerRecord } from '@dshtrading/strategies'
 import type { FxSnapshot, HoldingsBaseCurrency, HoldingsBookSnapshot, NewHolding, NewHoldingInput } from './holdings-types.ts'
+import type { GuiOrderApprovalContext } from './gui-approval.ts'
 
 export class BridgeError extends Error {
   constructor(readonly status: number, message: string, readonly code?: string) {
@@ -188,23 +189,40 @@ export interface GuiOrderInput {
 export interface GuiOrderResult {
   order?: Order
   error?: string
+  /**
+   * 宿主回带的稳定业务错误码（如 TRADING_APPROVAL_DENIED）。UI 与意图追踪据此
+   * 区分「动作已定论（审批拒绝/参数被拒）」与「结果未知（网关/网络失败）」。
+   */
+  code?: string
 }
 
 /**
- * GUI 实盘下单（只做真交易）：直接打到连接器报单。返回订单或失败原因。
+ * GUI 实盘下单（只做真交易）：直接打到连接器报单，但**先过宿主逐动作审批**。
+ * 请求体带提交身份（`sessionId` 审批绑定 + `intentId` 稳定意图）；宿主没批就没有
+ * 订单，回执里的稳定错误码（如 TRADING_APPROVAL_DENIED）原样带回 UI。
+ * @param market - 市场。
+ * @param input - 订单参数。
+ * @param context - 提交身份（官方当前会话 + 稳定意图）。
+ * @returns 订单或失败原因（含错误码）。
  */
-export async function placeGuiOrder(market: MarketId, input: GuiOrderInput): Promise<GuiOrderResult> {
+export async function placeGuiOrder(market: MarketId, input: GuiOrderInput, context: GuiOrderApprovalContext): Promise<GuiOrderResult> {
   try {
     const response = await fetch(`/dshtrading/api/trade/order?market=${market}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...input, dryRun: false }),
+      body: JSON.stringify({
+        ...input,
+        dryRun: false,
+        // 无会话时显式送空串：让宿主给出权威拒绝（客户端不自行放行/拒绝）。
+        sessionId: context.sessionId ?? '',
+        intentId: context.intentId,
+      }),
     })
     const wire = await response.json().catch(() => ({})) as { ok?: boolean; order?: Order; code?: string; message?: string }
     if (!response.ok || wire.ok !== true || wire.order === undefined) {
       const msg = wire.message || wire.code || 'Order rejected or service not mounted'
       console.warn('[dsh-trading] gui order rejected:', wire.code, wire.message)
-      return { error: msg }
+      return { error: msg, ...(wire.code === undefined ? {} : { code: wire.code }) }
     }
     return { order: wire.order }
   } catch (err) {
@@ -212,23 +230,45 @@ export async function placeGuiOrder(market: MarketId, input: GuiOrderInput): Pro
   }
 }
 
-/** 兼容别名 */
-export async function placeGuiDryRunOrder(market: MarketId, input: GuiOrderInput): Promise<Order | null> {
-  const res = await placeGuiOrder(market, input)
+/** 兼容别名（历史命名；同样走实盘 + 审批路径，必须带提交身份）。 */
+export async function placeGuiDryRunOrder(market: MarketId, input: GuiOrderInput, context: GuiOrderApprovalContext): Promise<Order | null> {
+  const res = await placeGuiOrder(market, input, context)
   return res.order ?? null
 }
 
-/** GUI 撤单（issue #40）：DELETE /trade/order?market&id&symbol */
-export async function cancelGuiOrder(market: MarketId, orderId: string, symbol?: string): Promise<boolean> {
+/**
+ * GUI 撤单（issue #40）：DELETE /trade/order?market&id&symbol——与下单同门槛，
+ * 同样带会话与稳定意图走宿主逐动作审批。
+ * @param market - 市场。
+ * @param orderId - 订单 id。
+ * @param symbol - 可选（按 (symbol, id) 双键定位订单的交易所必填）。
+ * @param context - 提交身份（官方当前会话 + 稳定意图）。
+ * @returns 是否撤单成功（拒绝归因由宿主决定，前端只显示失败）。
+ */
+export async function cancelGuiOrder(
+  market: MarketId,
+  orderId: string,
+  symbol: string | undefined,
+  context: GuiOrderApprovalContext,
+): Promise<boolean> {
   try {
-    const query = new URLSearchParams({ market, id: orderId, ...(symbol ? { symbol } : {}) })
+    const query = new URLSearchParams({
+      market,
+      id: orderId,
+      ...(symbol ? { symbol } : {}),
+      sessionId: context.sessionId ?? '',
+      intentId: context.intentId,
+    })
     const response = await fetch(`/dshtrading/api/trade/order?${query.toString()}`, {
       method: 'DELETE',
       headers: { accept: 'application/json' },
     })
-    if (!response.ok) return false
-    const wire = await response.json() as { ok?: boolean; canceled?: boolean }
-    return wire.ok === true && wire.canceled === true
+    const wire = await response.json().catch(() => ({})) as { ok?: boolean; canceled?: boolean; code?: string; message?: string }
+    if (!response.ok || wire.ok !== true || wire.canceled !== true) {
+      console.warn('[dsh-trading] gui cancel rejected:', wire.code, wire.message)
+      return false
+    }
+    return true
   } catch {
     return false
   }

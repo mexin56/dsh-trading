@@ -1,0 +1,160 @@
+[
+  {
+    "id": "kc_fix_fed_tag",
+    "title": "流动性框架复盘",
+    "summary": "缩表节奏与银行准备金需求曲线。",
+    "source": {
+      "type": "manual",
+      "url": "manual:kc_fix_fed_tag",
+      "author": "宏观手记",
+      "publishedAt": "2026-08-01"
+    },
+    "credibility": "high",
+    "coreClaims": [
+      "缩表上限下调意味着准备金需求曲线右移"
+    ],
+    "factCheck": {
+      "verified": [
+        "美联储资产负债表周报"
+      ],
+      "discrepancies": [],
+      "unverifiable": []
+    },
+    "takeaways": [
+      "流动性拐点看准备金余额而非政策利率"
+    ],
+    "boundaries": [
+      "隔夜逆回购耗尽后框架失效"
+    ],
+    "tags": [
+      "美联储",
+      "宏观"
+    ],
+    "createdAt": "2026-08-01T00:00:00.000Z",
+    "updatedAt": "2026-08-02T00:00:00.000Z"
+  },
+  {
+    "id": "kc_fix_fed_title",
+    "title": "美联储加息路径研判",
+    "summary": "点阵图与终端利率的中性判断。",
+    "source": {
+      "type": "wechat",
+      "url": "https://mp.weixin.qq.com/s/fixture-fed-title",
+      "author": "策略组",
+      "publishedAt": "2026-09-01"
+    },
+    "credibility": "medium",
+    "coreClaims": [
+      "终端利率高于中性利率"
+    ],
+    "factCheck": {
+      "verified": [],
+      "discrepancies": [
+        "点阵图与期货定价不一致"
+      ],
+      "unverifiable": []
+    },
+    "takeaways": [
+      "用 OIS 定价校验点阵图"
+    ],
+    "boundaries": [],
+    "tags": [
+      "利率"
+    ],
+    "createdAt": "2026-09-01T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z"
+  },
+  {
+    "id": "kc_fix_no_pub",
+    "title": "黄金避险配置笔记",
+    "summary": "实际利率与央行购金的双因子。",
+    "source": {
+      "type": "bilibili",
+      "url": "https://www.bilibili.com/video/BV1fixtureNoPub",
+      "author": "素材笔记"
+    },
+    "credibility": "low",
+    "coreClaims": [
+      "央行购金弱化实际利率定价"
+    ],
+    "factCheck": {
+      "verified": [],
+      "discrepancies": [],
+      "unverifiable": [
+        "来源未给出发布时间"
+      ]
+    },
+    "takeaways": [],
+    "boundaries": [
+      "缺少素材发布日期，时效无法核定"
+    ],
+    "tags": [
+      "黄金",
+      "大宗商品"
+    ],
+    "createdAt": "2026-09-10T00:00:00.000Z",
+    "updatedAt": "2026-09-10T00:00:00.000Z"
+  },
+  {
+    "id": "kc_fix_stale",
+    "title": "旧宏观年度展望",
+    "summary": "年度配置与政策路径。",
+    "source": {
+      "type": "manual",
+      "url": "manual:kc_fix_stale",
+      "author": "旧库",
+      "publishedAt": "2025-01-05"
+    },
+    "credibility": "low",
+    "coreClaims": [
+      "宽松周期贯穿全年"
+    ],
+    "factCheck": {
+      "verified": [],
+      "discrepancies": [],
+      "unverifiable": [
+        "宏观路径未复现"
+      ]
+    },
+    "takeaways": [],
+    "boundaries": [],
+    "tags": [
+      "宏观"
+    ],
+    "createdAt": "2025-01-05T00:00:00.000Z",
+    "updatedAt": "2025-01-06T00:00:00.000Z"
+  },
+  {
+    "id": "kc_fix_unique",
+    "title": "半导体设备国产化率",
+    "summary": "刻蚀与薄膜环节的国产替代节奏。",
+    "source": {
+      "type": "manual",
+      "url": "manual:kc_fix_unique",
+      "author": "研究组",
+      "publishedAt": "2026-07-15"
+    },
+    "credibility": "high",
+    "coreClaims": [
+      "刻蚀与薄膜环节国产化率领先"
+    ],
+    "factCheck": {
+      "verified": [
+        "行业协会招标统计"
+      ],
+      "discrepancies": [],
+      "unverifiable": []
+    },
+    "takeaways": [
+      "跟踪招标数据先于收入确认"
+    ],
+    "boundaries": [
+      "先进制程验证周期长"
+    ],
+    "tags": [
+      "半导体"
+    ],
+    "createdAt": "2026-07-15T00:00:00.000Z",
+    "updatedAt": "2026-07-16T00:00:00.000Z"
+  }
+]

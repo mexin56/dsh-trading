@@ -12,6 +12,10 @@ import {
 } from './api.ts'
 import { setHoldingsPanelOpen } from './holdings-store.ts'
 import { tradeModeStore, writeTradeMode } from './trade-mode-store.ts'
+import {
+  createOrderIntentTracker, submitGuiCancel, submitGuiOrder,
+  type GuiApprovalContextProps, type OrderIntentTracker,
+} from './gui-approval.ts'
 import { TvChart, toBar, toVolume } from './TvChart.tsx'
 import type { TvIndicatorGroup } from './TvChart.tsx'
 import { FundamentalsStage } from './FundamentalsStage.tsx'
@@ -104,7 +108,7 @@ export type Translate = (key: MarketLocaleKey, params?: Record<string, unknown>)
 
 export type UseStoreState<TState> = <TSelected>(selector: (state: TState) => TSelected) => TSelected
 
-export interface QuoteStageProps {
+export interface QuoteStageProps extends GuiApprovalContextProps {
   t: Translate
   useSelection: UseStoreState<SelectionState>
   useChart: UseStoreState<ChartState>
@@ -140,7 +144,7 @@ function inferMarketFromSymbol(symbol?: string): MarketId | undefined {
 /** 信号 reason 的币种符号（按市场；crypto 以 USD 计价近似）。 */
 const CURRENCY_SYMBOL: Record<MarketId, string> = { cn: '¥', hk: 'HK$', us: '$', crypto: '$', futures: '¥', global: '$' }
 
-export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator }: QuoteStageProps) {
+export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId }: QuoteStageProps) {
   const instrument = useSelection(value => value.instrument)
   const market: MarketId | undefined = (instrument?.market && ['crypto', 'us', 'cn', 'hk', 'futures', 'global'].includes(instrument.market))
     ? (instrument.market as MarketId)
@@ -428,6 +432,21 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     await refreshTradeDesk(activeMarket)
   }, TRADE_DESK_POLL_MS, [stageTab, activeMarket])
 
+  /**
+   * 提交意图追踪器（一次挂载各一个）：实盘动作的身份 = 官方当前会话 id +
+   * 稳定意图 id。未知结果/网络失败重试续用同一意图；参数变化、成功或主动新动作轮换。
+   */
+  const orderIntentRef = useRef<OrderIntentTracker | null>(null)
+  const cancelIntentRef = useRef<OrderIntentTracker | null>(null)
+  const orderIntentTracker = (): OrderIntentTracker => {
+    orderIntentRef.current ??= createOrderIntentTracker()
+    return orderIntentRef.current
+  }
+  const cancelIntentTracker = (): OrderIntentTracker => {
+    cancelIntentRef.current ??= createOrderIntentTracker()
+    return cancelIntentRef.current
+  }
+
   const onSubmitGuiOrder = async (input: Parameters<typeof placeGuiOrder>[1]): Promise<Awaited<ReturnType<typeof placeGuiOrder>>> => {
     if (tradeMode === 'paper') {
       try {
@@ -447,7 +466,15 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
         return { error: err instanceof Error ? err.message : String(err) }
       }
     }
-    return placeGuiOrder(activeMarket, input).then((res) => {
+    // 实盘（原产品缺省，dryRun:false 保留）：带当前会话与稳定意图提交；宿主逐动作
+    // 审批没成就没有订单，拒绝码原样回到面板。
+    return submitGuiOrder({
+      market: activeMarket,
+      input,
+      sessionId: guiSessionId?.(),
+      tracker: orderIntentTracker(),
+      place: placeGuiOrder,
+    }).then((res) => {
       // 下单成功（真交易）→ 自动展开资产面板看最新委托，并立即刷新账户面。
       if (res.order) {
         setHoldingsPanelOpen(true)
@@ -464,8 +491,16 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     if (stageTab === 'fundamentals' && market === 'crypto') setStageTab('chart')
   }, [stageTab, market])
 
+  /** GUI 撤单：与下单同门槛（官方当前会话 + 稳定意图 + 宿主逐动作审批）。 */
   const onCancelGuiOrder = async (orderId: string, sym?: string): Promise<boolean> => {
-    const ok = await cancelGuiOrder(activeMarket, orderId, sym)
+    const ok = await submitGuiCancel({
+      market: activeMarket,
+      orderId,
+      symbol: sym,
+      sessionId: guiSessionId?.(),
+      tracker: cancelIntentTracker(),
+      cancel: cancelGuiOrder,
+    })
     if (ok) {
       void refreshTradeDesk(activeMarket)
     }

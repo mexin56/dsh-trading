@@ -55,11 +55,22 @@ export class SessionLaunchError extends Error {
   }
 }
 
+/**
+ * 一次侦查的产出。pending 可携带诊断（为什么这条执行还开着）与
+ * historyExhausted：后者只在「会话在名册中、非运行中，且完整历史扫描确认没有
+ * 任何 turn/end」时为真——那是可收敛的失联执行判据；正常等待与读取异常都不置位，
+ * 服务层据此决定「留原因」还是「按窗口收敛」。
+ */
 export type ExecutionInspection =
-  | { outcome: 'pending' }
+  | { outcome: 'pending'; diagnostic?: string; historyExhausted?: boolean }
   | { outcome: 'succeeded' }
   | { outcome: 'failed'; error: string }
   | { outcome: 'cancelled'; error: string }
+
+/** 人类可读的错误消息（诊断留痕用）。 */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 /** 网关目标服务未激活完的错误码（启动时序竞态要重试而不是判死）。 */
 function isServiceUnavailable(error: unknown): boolean {
@@ -92,15 +103,56 @@ export function executionPrompt(task: RunnerTask): string {
   return task.prompt !== '' ? task.prompt : task.title
 }
 
-function isErrorTurnEnd(data: unknown): boolean {
-  if (typeof data !== 'object' || data === null) return false
-  const reason = (data as { reason?: unknown }).reason
-  return typeof reason === 'object' && reason !== null && (reason as { kind?: unknown }).kind === 'error'
+/**
+ * 按当前 SDK 的 TurnEndReasonMap（dsh-session 0.2.0-rc.2，只读查 schema 得到）
+ * 判定一次 turn 的结局：
+ * - `completed` 才是正常结束；
+ * - `aborted` 是取消（用户/父级/hook/disposed/legacy 的 cancel cause）；
+ * - `error` 是失败（LlmFailure 的 message + code 原样带出）；
+ * - 其余（blocked/max-tokens/interrupted/forked 与未来新增成员）与缺失 reason
+ *   一律判失败——不能把任意非 error 当作成功。
+ */
+export function classifyTurnEnd(data: unknown): { outcome: 'succeeded' } | { outcome: 'failed'; error: string } | { outcome: 'cancelled'; error: string } {
+  const reason = (data as { reason?: unknown } | undefined)?.reason as { kind?: unknown; reason?: unknown; error?: unknown } | undefined
+  const kind = reason?.kind
+  if (kind === 'completed') return { outcome: 'succeeded' }
+  if (kind === 'aborted') {
+    const cause = reason?.reason as { kind?: unknown; reason?: unknown } | undefined
+    const causeKind = typeof cause?.kind === 'string' ? cause.kind : 'unknown'
+    const detail = typeof cause?.reason === 'string' ? ' (' + cause.reason + ')' : ''
+    return { outcome: 'cancelled', error: 'agent turn was aborted (' + causeKind + ')' + detail }
+  }
+  if (kind === 'error') {
+    const failure = reason?.error as { message?: unknown; code?: unknown } | undefined
+    const message = typeof failure?.message === 'string' && failure.message !== '' ? failure.message : 'agent turn failed'
+    const code = typeof failure?.code === 'string' && failure.code !== '' ? ' [' + failure.code + ']' : ''
+    return { outcome: 'failed', error: message + code }
+  }
+  if (typeof kind === 'string') return { outcome: 'failed', error: 'agent turn ended with reason "' + kind + '"' }
+  return { outcome: 'failed', error: 'agent turn ended without a reason' }
+}
+
+/**
+ * 执行身份的稳定派生：同一执行 id 永远映射到同一个会话 id 与同一个 prompt
+ * requestId。于是 SDK 层的 `session/create`（显式 sessionId 走 ensureSession
+ * 采纳）与 `session/prompt`（同 requestId 命中 hasPromptRequest 去重）天然幂等
+ * ——重启/重试不会另开一个会话，也不会把同一条 prompt 发第二遍。
+ */
+function sessionIdForExecution(executionId: string): string {
+  return 'session-' + executionId
+}
+
+function promptRequestIdForExecution(executionId: string): string {
+  return 'dshtrading-tasks-' + executionId
 }
 
 export class TasksRunner {
-  /** 每会话最新已扫事件序号（无终局匹配时避免重复翻历史页）。 */
-  private readonly scanMemos = new Map<string, number>()
+  /**
+   * 每会话的扫描备忘：最新已扫事件序号 + 那次扫描是否已翻到边界。备忘命中时
+   * 不再重复翻历史页，但仍要如实报出「完整历史无 turn/end」——否则服务层会
+   * 永远看不到 historyExhausted，失联执行无法收敛。
+   */
+  private readonly scanMemos = new Map<string, { cursor: number; historyExhausted: boolean }>()
 
   constructor(
     private readonly gateway: () => SessionGateway | undefined,
@@ -122,10 +174,10 @@ export class TasksRunner {
   }
 
   /**
-   * 启动一次执行：校验钉住三元组，建会话，重命名，应用权限，queue 发
-   * prompt。返回会话 id。
+   * 启动一次执行：校验钉住三元组，按执行 id 派生会话/请求身份建会话，重命名，
+   * 应用权限，queue 发 prompt。返回会话 id。身份派生使重复调用幂等。
    */
-  async launch(task: RunnerTask): Promise<string> {
+  async launch(task: RunnerTask, executionId: string): Promise<string> {
     const gateway = this.session()
     const workspaceId = task.workspaceId
     if (workspaceId !== undefined) {
@@ -141,11 +193,13 @@ export class TasksRunner {
       if (preset === undefined) throw new Error('agent preset not found: ' + task.agentPreset)
       if (preset.broken !== undefined) throw new Error('agent preset is unavailable: ' + preset.broken)
     }
+    const requestedSessionId = sessionIdForExecution(executionId)
     const created = await this.invoke(gateway, 'session', 'create', {
+      sessionId: requestedSessionId,
       ...(workspaceId === undefined ? {} : { workspaceId }),
       ...(task.agentPreset === undefined ? {} : { agentPreset: task.agentPreset }),
     }) as { sessionId: string }
-    const sessionId = created.sessionId
+    const sessionId = typeof created.sessionId === 'string' && created.sessionId !== '' ? created.sessionId : requestedSessionId
     try {
       await this.invoke(gateway, 'session', 'rename', { sessionId, title: task.title })
       if (task.permission !== undefined) {
@@ -164,7 +218,7 @@ export class TasksRunner {
       }
       await this.invoke(gateway, 'session', 'prompt', {
         sessionId,
-        requestId: 'dshtrading-tasks-' + crypto.randomUUID(),
+        requestId: promptRequestIdForExecution(executionId),
         mode: 'queue' as const,
         content: [{ type: 'text' as const, text: executionPrompt(task) }],
       })
@@ -176,9 +230,12 @@ export class TasksRunner {
 
 
   /**
-   * 侦查一次执行的结局。会话消失判 cancelled；仍在运行判 pending；会话静默
-   * 后从 follow 快照向前翻有界历史页（100 页封顶，到执行 startedAt 边界停），
-   * 找 startedAt 之后的第一条 turn/end：error 终局判 failed，否则 succeeded。
+   * 侦查一次执行的结局。会话消失判 cancelled；仍在运行判 pending；会话静默后
+   * 从 follow 快照向前翻有界历史页（100 页封顶，到执行 startedAt 边界停），找
+   * startedAt 之后最早的一条 turn/end 并按 SDK reason 分类。
+   *
+   * pending 分两种：正常等待（无诊断）；读取异常或「会话空闲且完整历史没有
+   * turn/end」（带 diagnostic，后者另置 historyExhausted 供服务层按窗口收敛）。
    */
   async inspect(sessionId: string, startedAt: number): Promise<ExecutionInspection> {
     const gateway = this.session()
@@ -190,8 +247,9 @@ export class TasksRunner {
         break
       } catch (error) {
         if (!isServiceUnavailable(error) || attempt >= SERVICE_UNAVAILABLE_ATTEMPTS) {
-          // 名册不可知（含不支持 session/list 的老宿主）判 pending，下轮再试。
-          return { outcome: 'pending' }
+          // 名册不可知（含不支持 session/list 的老宿主）判 pending，下轮再试；
+          // 但必须把原因带出去，长期 pending 不允许静默。
+          return { outcome: 'pending', diagnostic: 'session list unavailable: ' + errorMessage(error) }
         }
         await delay(SERVICE_UNAVAILABLE_BACKOFF_MS)
       }
@@ -203,7 +261,9 @@ export class TasksRunner {
     }
     if (summary.running === true) return { outcome: 'pending' }
 
-    if (gateway.stream === undefined) return { outcome: 'pending' }
+    if (gateway.stream === undefined) {
+      return { outcome: 'pending', diagnostic: 'session follow stream is unavailable on this host' }
+    }
     let opening: { cursor: number; records: Array<{ type?: string; seq?: number; time?: number; data?: unknown }>; hasMore: boolean }
     try {
       const stream = await gateway.stream({ namespace: 'session', method: 'follow', args: { request: { address: sessionAddress(sessionId), maxMessages: 1 } } })
@@ -212,21 +272,21 @@ export class TasksRunner {
       if (typeof iterator.return === 'function') await iterator.return()
       const follow = next.done === true ? undefined : next.value as { type?: string; cursor?: number; records?: readonly { event?: { type?: string; seq?: number; time?: number; data?: unknown } }[]; hasMore?: boolean }
       if (follow === undefined || follow.type !== 'snapshot' || typeof follow.cursor !== 'number' || !Array.isArray(follow.records) || typeof follow.hasMore !== 'boolean') {
-        return { outcome: 'pending' }
+        return { outcome: 'pending', diagnostic: 'session follow returned an unexpected frame' }
       }
       opening = { cursor: follow.cursor, records: follow.records.map(record => record.event ?? {}), hasMore: follow.hasMore }
-    } catch {
-      return { outcome: 'pending' }
+    } catch (error) {
+      return { outcome: 'pending', diagnostic: 'session follow failed: ' + errorMessage(error) }
     }
 
     /** 在一批事件里找 startedAt 之后最早的一条 turn/end。 */
-    const findEnd = (events: typeof opening.records): { seq: number; isError: boolean } | undefined => {
-      let found: { seq: number; isError: boolean } | undefined
+    const findEnd = (events: typeof opening.records): { seq: number; data: unknown } | undefined => {
+      let found: { seq: number; data: unknown } | undefined
       for (const event of events) {
         if (event.type !== 'turn/end') continue
         if (startedAt > 0 && (event.time ?? 0) < startedAt) continue
         const seq = event.seq ?? 0
-        if (found === undefined || seq < found.seq) found = { seq, isError: isErrorTurnEnd(event.data) }
+        if (found === undefined || seq < found.seq) found = { seq, data: event.data }
       }
       return found
     }
@@ -235,15 +295,20 @@ export class TasksRunner {
     const openingEnd = findEnd(opening.records)
     if (openingEnd !== undefined) {
       this.scanMemos.delete(sessionId)
-      return openingEnd.isError ? { outcome: 'failed', error: 'agent turn ended with an error' } : { outcome: 'succeeded' }
+      return classifyTurnEnd(openingEnd.data)
     }
-    if (this.scanMemos.get(sessionId) === opening.cursor) return { outcome: 'pending' }
+    const memo = this.scanMemos.get(sessionId)
+    if (memo !== undefined && memo.cursor === opening.cursor) {
+      return memo.historyExhausted
+        ? { outcome: 'pending', historyExhausted: true, diagnostic: 'session is idle and its complete history records no turn/end' }
+        : { outcome: 'pending' }
+    }
 
     // 翻历史页找执行开始之后的第一条 turn/end（follow 快照的 cursor 是最新
     // 事件序号；page 向更早方向走，到 startedAt 边界或翻完为止）。
     let beforeSeq: number | undefined
     let reachedBoundary = !opening.hasMore
-    let foundEnd: { seq: number; isError: boolean } | undefined
+    let foundEnd: { seq: number; data: unknown } | undefined
     for (let page = 0; page < 100 && !reachedBoundary; page += 1) {
       let history: { records?: readonly { event?: { type?: string; seq?: number; time?: number; data?: unknown } }[]; hasMore?: boolean }
       try {
@@ -253,8 +318,8 @@ export class TasksRunner {
           maxMessages: 100,
           ...(beforeSeq === undefined ? {} : { beforeSeq }),
         }) as typeof history
-      } catch {
-        return { outcome: 'pending' }
+      } catch (error) {
+        return { outcome: 'pending', diagnostic: 'session history page failed: ' + errorMessage(error) }
       }
       const entries = history.records ?? []
       foundEnd = findEnd(entries.map(record => record.event ?? {}))
@@ -274,13 +339,15 @@ export class TasksRunner {
       beforeSeq = oldestSeq
     }
     if (foundEnd === undefined) {
-      this.scanMemos.set(sessionId, opening.cursor)
-      return { outcome: 'pending' }
+      this.scanMemos.set(sessionId, { cursor: opening.cursor, historyExhausted: reachedBoundary })
+      // 只有翻到边界（读完执行开始以来的全部历史）仍没有终局事件，才算
+      // 「完整历史扫描确认无 turn/end」——服务层只对这种情况按窗口收敛。
+      return reachedBoundary
+        ? { outcome: 'pending', historyExhausted: true, diagnostic: 'session is idle and its complete history records no turn/end' }
+        : { outcome: 'pending' }
     }
     this.scanMemos.delete(sessionId)
-    return foundEnd.isError
-      ? { outcome: 'failed', error: 'agent turn ended with an error' }
-      : { outcome: 'succeeded' }
+    return classifyTurnEnd(foundEnd.data)
   }
 
   /**

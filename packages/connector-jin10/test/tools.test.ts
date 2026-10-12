@@ -36,7 +36,7 @@ function stubServer(overrides: Record<string, unknown> = {}) {
   const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as { method: string; params?: { name?: string; arguments?: Record<string, unknown> } }
     const sse = (payload: unknown) => new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, { status: 200, headers: { 'content-type': 'text/event-stream' } })
-    if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: {} } })
+    if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: { logging: {}, resources: {}, tools: {} } } })
     if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
     if (body.method === 'resources/read') return sse({ jsonrpc: '2.0', id: 2, result: { contents: [{ uri: 'quote://codes', mimeType: 'application/json', text: CODES }] } })
     if (body.method === 'tools/call') {
@@ -145,7 +145,7 @@ describe('金十工具面', () => {
     const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string; id?: number }
       const sse = (payload: unknown) => new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, { status: 200, headers: { 'content-type': 'text/event-stream' } })
-      if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: body.id, result: {} })
+      if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: body.id, result: { protocolVersion: '2025-11-25', capabilities: { logging: {}, resources: {}, tools: {} } } })
       if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
       return sse({ jsonrpc: '2.0', id: body.id, result: { structuredContent: { status: 429, message: '今日该工具调用次数已达上限，请明日再试', data: null } } })
     }) as typeof fetch

@@ -8,7 +8,8 @@ function stubFetch(): typeof fetch {
   return (async (_input: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as { method: string; id?: number; params?: { name?: string } }
     const sse = (payload: unknown) => new Response('event: message\ndata: ' + JSON.stringify(payload) + '\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } })
-    if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: body.id, result: {} })
+    // initialize 能力声明与实测出口一致（spikes/impl-jin10-mcp/EVIDENCE/01-initialize.json）。
+    if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: body.id, result: { protocolVersion: '2025-11-25', capabilities: { logging: {}, resources: {}, tools: {} } } })
     if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
     const data = body.params?.name === 'list_calendar'
       ? [

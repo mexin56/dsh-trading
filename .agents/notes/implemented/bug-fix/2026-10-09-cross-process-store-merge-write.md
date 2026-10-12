@@ -17,21 +17,40 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
 
 ## Decision
 
-跨进程写保护收口到 `@dshtrading/dsh-home`，两个导出构成**唯一**实现，各 store 只调用它们：
+跨进程写保护收口到 `@dshtrading/dsh-home`，三个导出构成**唯一**实现，各 store 只调用它们：
 
-- `withHomeFileLock(filePath, work, options)`（`src/file-lock.ts`）：锁文件（`<file>.lock`，
-  `open(lockPath,'wx')` 独占创建）实现跨进程排他；持锁期间心跳刷新 mtime；mtime 超过
-  `staleMs`（缺省 30s）判为崩溃残留，后来者经 **rename 原子抢占用**回收（同一陈旧 inode
-  只可能被一个进程搬走，抢到后发现是新锁则原样搬回）。等锁超时抛 `HomeFileLockTimeoutError`。
+- `withHomeFileLock(filePath, work, options)`（`src/file-lock.ts`）：跨进程排他锁。锁文件
+  （`<file>.lock`）经「把完整身份写进唯一 staging 文件 → `link` 到锁路径」原子创建，所以锁路径
+  一旦存在就带 **owner 身份**（pid + host + 每次获取唯一的 token + 获取时刻），没有「先建空锁、
+  再补身份」的未知窗口（文件系统不支持硬链接时退回 `open('wx')` 独占创建 + 写身份）。持锁期间的
+  心跳只在锁仍归本实例时刷新 mtime。回收判据是**可证明的死亡**：owner 在本机（host 相同）、其 pid
+  经 `process.kill(pid, 0)` 确认已不存在、且 mtime 超过 `staleMs`（缺省 30s）——活着的 owner、
+  异机 owner、读不出身份的锁一律不回收（等锁超时）。抢占用 `rename` 原子裁决，抢到后复核 token；
+  若抢到窗口里被重建的新锁（尤其活 owner）则用 `link` 原样放回（不覆盖已存在的锁路径），绝不误删
+  活锁。等锁超时抛 `HomeFileLockTimeoutError`。
+- 归属复核：`withHomeFileLock` 把句柄交给 work；`lock.assertOwned()` 在提交前按 token 复核「这把锁
+  现在是否仍归本实例」，被顶替抛 `HomeFileLockLostError`；释放时同样按 token 判断，只删自己的锁，
+  绝不按路径盲删新 owner 的锁。
+- `tryAcquireHomeFileLeaseSync(filePath)`（`src/file-lease.ts`）：**内核级 writer lease**，临界区的
+  真正互斥边界。用 Node 内置 `node:sqlite` 对 `<file>.writer-lease.sqlite` 执行
+  `BEGIN IMMEDIATE`——同一文件第二把拿不到（SQLITE_BUSY/LOCKED 即返回 undefined，明确失败），
+  持锁进程退出内核自动释放。锁文件的获取/接管/释放全部在同一 lease 内串行，因此
+  「检查 mtime → rename 抢占 → 复核 token」这段不再跨进程竞争。侧文件在可能有活实例时
+  **不得删除**（删掉即放弃互斥）。运行时缺 `node:sqlite` 时明确报错，不退回不安全路径。
 - `transactStore(filePath, readFromDisk, mutate, serialize, logPrefix)`（`src/store-transaction.ts`）：
-  **锁内新鲜重读磁盘 → mutate 在新鲜值上做本次修改 → 原子写**。mutate 返回 `SKIP_WRITE`
-  表示无内容变化（不落盘，沿用既有「无变化不重写」语义），函数返回锁内新鲜值供调用方刷新缓存。
+  **锁内新鲜重读磁盘 → mutate 在新鲜值上做本次修改 → 提交前 `assertOwned()` → 原子写**。mutate
+  返回 `SKIP_WRITE` 表示无内容变化（不落盘，沿用既有「无变化不重写」语义），函数返回锁内新鲜值
+  供调用方刷新缓存。
+- `createStoreCache(filePath, readFromDisk)`（`src/store-transaction.ts`）：整表 store 的读缓存。
+  `load()` 每次先 `stat` 目标文件核对签名（dev/ino/size/mtimeNs/ctimeNs），签名未变才用缓存，变了
+  就重读——另一个实例确认落盘的写因此在下一次读取可见，缓存不会永久命中。`replace()` 只在
+  `transactStore` 成功返回后调用；写失败不发布本实例缓存。
 
 **冲突语义（选定）：先读回并在对方结果上继续改（读-改-写整体入锁），而不是拒绝第二实例写。**
 本机桌面端与 CLI 长期共用同一 home 是既定用法，粗暴拒绝会让第二实例完全存不了设置；而
 「各持缓存、整表回写」又是丢数据的根源，所以正解是让每次写都先看到对方已落盘的事实。
-明确失败的出路保留给**拿不到锁**这一种情况（`HomeFileLockTimeoutError`）：宁可按明确错误
-失败，也绝不按陈旧快照静默覆盖。
+明确失败的出路保留给两种情况：**拿不到锁**（`HomeFileLockTimeoutError`）与**提交前发现锁已被
+顶替**（`HomeFileLockLostError`）：宁可按明确错误失败，也绝不按陈旧快照静默覆盖。
 
 **不落在 `writeJsonAtomic` 内**的两个理由：(1) 原子写只应负责「一次写入不产生半截文件」，
 让它去重读并合并会把它变成读改写器，职责错位；(2) 它拿不到条目身份，按 id 盲并会**复活
@@ -70,10 +89,11 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
   ——墓碑/删除语义直接破功（`deactivate`/`remove`）。正确形态是删除也在锁内基于新鲜值判定。
 - **只在进程内加锁**：2026-09-08 审查 H1 已否决——锁在同一进程内无法区分两个 store 实例的
   缓存，且跨进程无效；本任务要解的正是跨进程缺口。
-- **flock/fcntl**：Node 无内建 flock 绑定，Windows 与网络盘语义不一致；锁文件三平台一致且
-  崩溃后可由后来者按陈旧阈值回收，不依赖持锁者自己清理。
+- **flock/fcntl**：Node 无内建 flock 绑定，Windows 与网络盘语义不一致。**2026-10-12 修订**：
+  互斥改由 Node 内置 SQLite 的进程锁提供（`BEGIN IMMEDIATE` + 退出自动释放），三平台一致且
+  无新依赖；锁文件仍保留 owner 身份与心跳用于**可解释的失败与人工排查**，但不再由它裁决互斥。
 - **冲突时 fail-closed 拒绝第二实例写**：桌面端 + CLI 共用 home 是既定用法，拒绝会让第二实例
-  完全存不了设置；因此只把「拿不到锁」保留为明确失败。
+  完全存不了设置；因此只把「拿不到锁」与「提交前锁被顶替」保留为明确失败。
 - **改用 SQLite**：对若干张扁平 JSON 表引入新依赖与全部既有 home 的数据迁移，收益与成本不匹配；
   本仓既有磁盘格式与消费方（桥/工具/客户端）都按 JSON 表约定，改动面远超本缺陷。
 - **每个 store 各自复制一份临界区**：正是
@@ -85,9 +105,17 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
 - 两个进程各自新增的行都留在盘上（实测 `A 写 id1 → B 写 id2` 后磁盘含两条）；删除不会被
   对方的新增或本进程旧快照复活，两进程各删一条时两条删除都落盘。
 - 同一 id 被两进程同时改时，后写者在该 id 上的整条值胜出（Residue：无字段级三方合并）。
-- 锁文件是瞬时产物（`<file>.lock`），进程崩溃后由 30s 陈旧阈值回收，不留死锁；正常路径
-  不产生 `.lock`/`.tmp` 残留（并发用例与多进程实测均断言）。
-- 每次写多一次锁 `open`+`unlink` 与一次读盘；写频率是设置级（用户操作触发），代价可忽略。
+- 锁文件是瞬时产物（`<file>.lock`）：owner 崩溃后由后来者按「本机 + pid 已死 + 陈旧阈值」回收；
+  异机或身份未知的陈旧锁不自动回收（只能人工删除）——这是刻意的 fail-closed，宁可停等也不冒
+  双写风险。正常路径不产生 `.lock`/`.owner-*`/`.tmp` 残留。`<file>.writer-lease.sqlite`
+  是常驻侧文件（内核租约的载体），**不随释放删除**。
+- 内核租约不跨机器：`~/.dsh-trading` 被两台机器共享时互斥失效，这种用法不在支持范围；任务账本
+  的写者身份另按 `pid + host + token` 记录，异机身份同样拒绝接管。
+- 同 PID 的不同实例（同进程双开、或 PID 复用）不再互相误删写者身份：释放与提交前都按
+  每次获取唯一的 token 复核，`TASKS_LEDGER_LOCK_LOST` 是失去身份的明确出路。
+- 跨实例读：每次 `list()`/`snapshot()` 先核对磁盘签名，另一实例已确认的写在下一次读取可见；
+  写失败时本实例缓存保持旧值，不会出现「缓存里有、盘上没有」。
+- 每次写多一次锁 staging 文件创建 + `link` + `unlink` 与一次读盘；读路径每次多一次 `stat`；写频率是设置级（用户操作触发），代价可忽略。
 - 无磁盘格式变化、无版本号变化、无迁移；老实例写入的数据仍按原形状读取。
 - `holdings` 的 `HoldingsBookDriver` 新增可选 `transact`：file store 提供、memory store 缺席
   （内存版无跨进程缺口），八条写路径共用同一 plan 闭包，契约 §2 语义（校验顺序、revision
@@ -99,6 +127,12 @@ Service 单实例收口（见 [strategy-store-singleton](2026-09-07-strategy-sto
   `expected [ 'ema' ] to deeply equal [ 'active_buy_real', 'ema' ]`；接入后同用例转绿。
 - 新增用例：dsh-home 层 5 例（排他/超时明确失败/陈旧回收/两次事务追加/无变化不重写）、
   8 个 store 的跨实例并发用例（含删除-删除、加-加两组方向）。
+- 锁归属与读新鲜度（2026-10-12 补强，用例均先红后绿）：`dsh-home/test/store-transaction.test.ts`
+  的活 owner/未知身份不被回收、释放不删新 owner、提交前被顶替明确失败；`dsh-home/test/fs-atomic.test.ts`
+  的目录 fsync 无法完成时明确失败、不可写目录清 tmp 保旧文件；`dsh-home/test/store-cache.test.ts`
+  的磁盘签名变化重读、写失败不发布；7 个 store 并发用例新增「两个实例都读过之后，桌面端新增对
+  CLI 下一次读取可见」，holdings 另加「写盘失败不出现未落盘持仓」。connector-polymarket 的快照表
+  本就没有进程内缓存（读走锁内新鲜读），补一条跨实例回归用例。
 - 多进程实测（隔离 `/tmp` home，非内存双实例）：8 个 store 各起两个真实进程并发写不同 id，
   磁盘最终含双方数据；同条件对照的旧机制（`writeJsonAtomic` + 整表回写）丢数据。见报告。
 - 门禁（HEAD 现场）：`pnpm build`、`pnpm -r test`、`pnpm test:audit`、`pnpm i18n:check`、

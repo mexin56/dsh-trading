@@ -41,6 +41,13 @@ export const DEFAULT_TASK_AGENT_PRESET = 'master' as const
  */
 export const DEFAULT_TASK_PERMISSION: TaskPermission = 'workspace-write'
 
+/**
+ * 全局在飞执行容量上限的保守缺省：同一时刻最多几条真实 dsh 会话在跑。
+ * 每个在飞执行都是一条消耗 API 额度的真实会话，无上限时 cron 同时到点会无界扇出；
+ * 4 允许少量日常任务并行，又不给宿主放大出容量压力（服务 opts 可覆盖）。
+ */
+export const DEFAULT_MAX_INFLIGHT_EXECUTIONS = 4
+
 /** 权限等级比较：高于会话默认的钉住权限必须经人工确认才能运行。 */
 export function permissionRank(permission: TaskPermission): number {
   return TASK_PERMISSIONS.indexOf(permission)
@@ -67,6 +74,12 @@ export interface ExecutionRecord {
   error: string | undefined
   /** 本次执行的触发来源。 */
   trigger: 'cron' | 'manual'
+  /**
+   * 未结算期间的侦查诊断：为什么这条执行还开着（会话读取失败、会话空闲且历史
+   * 无 turn/end、等待收敛窗口等）。只在内容变化时落盘，避免每轮轮询写放大；
+   * 结算时清空。它让「读取异常导致长期 pending」在快照上留痕而不是静默。
+   */
+  note?: string
 }
 
 /**
@@ -87,6 +100,27 @@ export function retainRecentExecutions(executions: readonly ExecutionRecord[]): 
   return [...settled.slice(Math.max(settled.length - keepSettled, 0)), ...open]
 }
 
+/** 定时触发点被跳过的结构化原因（cron 跳过不补跑，但要说明为什么）。 */
+export const TASK_SKIP_REASONS = ['permission-pending', 'capacity', 'already-running'] as const
+
+/** 单个跳过原因。 */
+export type TaskSkipReason = (typeof TASK_SKIP_REASONS)[number]
+
+/** 是否为已知跳过原因（磁盘归一化用）。 */
+export function isTaskSkipReason(value: unknown): value is TaskSkipReason {
+  return typeof value === 'string' && (TASK_SKIP_REASONS as readonly string[]).includes(value)
+}
+
+/** 一次被跳过的定时触发点：到点没跑、以及为什么。 */
+export interface ScheduleSkipRecord {
+  /** 记录时刻（ms epoch）。 */
+  at: number
+  /** 被跳过的那个触发点（原 nextRunAt，ms epoch）。 */
+  triggerPoint: number
+  /** 结构化原因。 */
+  reason: TaskSkipReason
+}
+
 /** 挂在任务上的定时规则；Host 调度器在 nextRunAt 到期时触发。 */
 export interface ScheduleRule {
   /** 是否已启用。 */
@@ -97,6 +131,8 @@ export interface ScheduleRule {
   nextRunAt: number | undefined
   /** 最近一次定时触发点的时刻（ms epoch）。 */
   lastTriggeredAt: number | undefined
+  /** 最近一次被跳过的触发点（权限门/容量/已有执行）；正常起跑不覆盖历史记录。 */
+  lastSkip?: ScheduleSkipRecord
 }
 
 /** 一条定时任务。 */
@@ -156,6 +192,17 @@ export function permissionPending(task: TaskRecord, sessionDefaultPermission: Ta
 /** 任务是否还有未结算的执行（同一任务不并发执行）。 */
 export function hasOpenExecution(task: TaskRecord): boolean {
   return task.executions.some(execution => execution.endedAt === undefined)
+}
+
+/** 全部任务上未结算执行的总数（全局在飞容量的判据）。 */
+export function countOpenExecutions(tasks: readonly TaskRecord[]): number {
+  let open = 0
+  for (const task of tasks) {
+    for (const execution of task.executions) {
+      if (execution.endedAt === undefined) open += 1
+    }
+  }
+  return open
 }
 
 /** 调度器快照（Host 独占字段，浏览器只读）。 */

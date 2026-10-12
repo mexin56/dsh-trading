@@ -5,6 +5,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -61,6 +68,22 @@ export const inject = ['tools']
 
 export const TRADING_US_MARKET_DATA_KEY = 'tradingUsMarketData'
 export const TRADING_US_TRADE_KEY = 'tradingUsTrade'
+
+/**
+ * Alpaca 官方 `client_order_id` 规则：官方 OpenAPI 注明 `maxLength: 48`
+ * （alpaca-docs 仓的 oas/broker/openapi.yaml；"Automatically generated if not sent"）。
+ * 官方文档**没有**承诺重复 client_order_id 幂等：同 id 只在订单仍活跃时被拒（422），
+ * 终态后可以再次使用——所以它只是第二层防护，跨时间 exactly-once 由本地意图台账保证。
+ */
+export const ALPACA_CLIENT_ORDER_ID_RULE = { prefix: 'dsht', maxLength: 48 } as const
+
+/**
+ * 台账账户定位：Alpaca 插件配置里没有非密账户字段（账户由 API key 决定），用稳定占位；
+ * 环境（demo/live）承担账户区分。凭据轮换不进身份，因此不会让未知意图看起来是新意图。
+ * 边界：把同一实例的凭据换到另一个 Alpaca 账户而 env 不变时台账无法区分——此时未知意图
+ * 仍需人工/读对账推进（台账本身依旧拒绝自动重发，最坏结果是保守地不重发）。
+ */
+export const ALPACA_INTENT_ACCOUNT = 'default'
 
 export interface CredentialResolverLike {
   resolve(ref: string): Promise<{ value: string } | undefined>
@@ -187,6 +210,12 @@ export class AlpacaTradeService extends Service implements TradeService {
   private readonly config: Config
   private readonly getCredentials: () => Promise<AlpacaCredentials>
 
+  /**
+   * 订单意图台账（实盘幂等前提；写 agent 自己的 trading home，不写授权平面）。
+   * 环境进作用域：paper 与 live 是两套账户，同一 intentId 跨环境必须冲突而不是重发。
+   */
+  private readonly intents: OrderIntentLedger
+
   constructor(
     ctx: Context,
     options: AlpacaRestOptions & { config: Config },
@@ -197,6 +226,11 @@ export class AlpacaTradeService extends Service implements TradeService {
     this.client = new AlpacaRestClient(options)
     this.config = options.config
     this.getCredentials = getCredentials
+    this.intents = new OrderIntentLedger({
+      provider: 'alpaca',
+      environment: options.config.env,
+      account: ALPACA_INTENT_ACCOUNT,
+    })
   }
 
   async getBalance(): Promise<AccountBalance> {
@@ -232,14 +266,34 @@ export class AlpacaTradeService extends Service implements TradeService {
         timestamp: Date.now(),
       }
     }
+    const canonical = order.symbol.toUpperCase()
+    const payload: OrderIntentPayload = {
+      symbol: canonical,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity,
+      ...(order.price !== undefined ? { price: order.price } : {}),
+    }
+    // 持久意图台账：**先落盘、后触网**。submit 才继续；replay 直接回带；抛错即不触网。
+    const decision = await this.intents.begin({ intentId: order.intentId, payload })
+    if (decision.action === 'replay') {
+      // 回执里的 status 是 venue 原样串（连接器自己的映射口径），这里按 api 词汇收窄。
+      return { ...orderFromReceipt(decision.receipt), status: decision.receipt.status as Order['status'] }
+    }
+    // venue client order key（Alpaca 官方 client_order_id，≤48；永不进回执/DTO）。
+    const clientOrderId = deriveVenueClientKey(decision.intentId, ALPACA_CLIENT_ORDER_ID_RULE)
     const creds = await this.getCredentials()
-    return this.client.placeOrder(creds, {
+    const placed = await this.client.placeOrder(creds, {
       symbol: order.symbol,
       side: order.side.toUpperCase() as 'BUY' | 'SELL',
       type: order.type.toUpperCase() as 'MARKET' | 'LIMIT',
       quantity: order.quantity,
       price: order.price,
+      clientOrderId,
     })
+    // 只有真实非空 venue orderId 才会走到这里（rest 层缺 id 即抛错，不造 id）。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(placed) })
+    return placed
   }
 
   async cancelOrder(orderId: string, _symbol?: string): Promise<void> {
@@ -293,6 +347,13 @@ export interface PlaceOrderArgs {
   readonly quantity: number
   readonly price?: number
   readonly dryRun?: boolean
+  /**
+   * Stable idempotency id for a live order (required when dryRun=false, optional for
+   * simulations). Retrying with the same id and the same normalized request returns the
+   * recorded venue receipt instead of placing a second order; a different payload,
+   * provider, environment or account under the same id is rejected as a conflict.
+   */
+  readonly intentId?: string
 }
 
 export type OrderGateVerdict =
@@ -326,6 +387,11 @@ export function createPlaceOrderTool(deps: { marketData: Pick<MarketDataService,
       quantity: { type: 'number', required: true, description: 'Number of shares (> 0)' },
       price: { type: 'number', description: 'Limit price; required when type=LIMIT' },
       dryRun: { type: 'boolean', default: true, description: 'Simulate order only (default true)' },
+      intentId: {
+        type: 'string',
+        description:
+          'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+      },
     },
     output: {
       schema: { type: 'string' },
@@ -364,6 +430,7 @@ export function createPlaceOrderTool(deps: { marketData: Pick<MarketDataService,
         type: args.type === 'LIMIT' ? 'limit' : 'market',
         quantity: args.quantity,
         price: args.price,
+        ...(args.intentId !== undefined ? { intentId: args.intentId } : {}),
         dryRun: false,
       })
       return JSON.stringify(order)

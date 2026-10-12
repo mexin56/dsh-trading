@@ -34,6 +34,10 @@ const GATES = [
   // iOS 证据跑批脚本的门禁自测（桩驱动，不需要 Xcode）：build 失败必须传播、不许沿用旧 bundle
   { name: 'coverage:check', command: 'pnpm', args: ['coverage:check'] },
   { name: 'patch-id:check', command: 'pnpm', args: ['patch-id:check'] },
+  // 工具契约：模型可见的工具名/必填/类型/输出形状漂移检查（改名或新增必须显式登记）
+  { name: 'tool-contract:check', command: 'pnpm', args: ['tool-contract:check'] },
+  // 实盘下单不变量：已挂载且真能下单的连接器必须带 intentId 与 dryRun
+  { name: 'live-order:check', command: 'pnpm', args: ['live-order:check'] },
   { name: 'live-trading:check', command: 'pnpm', args: ['live-trading:check'] },
   { name: 'i18n:check', command: 'pnpm', args: ['i18n:check'] },
   { name: 'home-guard:check', command: 'pnpm', args: ['home-guard:check'] },

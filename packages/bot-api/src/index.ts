@@ -36,6 +36,7 @@ import {
   type MarketDataRegistryLike,
   type TradeRegistryLike,
 } from './bridge.ts'
+import { createGuiApprovalSeat, type GuiAgentRegistryLike, type GuiApprovalEventsLike, type GuiApprovalHost, type GuiApprovalSeat } from './gui-approval.ts'
 import { attachEventStream } from './sse.ts'
 import { TaskActionError } from './tasks/ledger.ts'
 import { registerTasksTools } from './tasks/tools.ts'
@@ -67,6 +68,8 @@ const HOLDINGS_EVENT_STORE: TradingEventStore = 'holdings'
 
 /** 发送 JSON 响应（禁缓存：行情是易变数据，代理层也不许中间层缓存）。 */
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
+  // 客户端已经断开时不再写（审批被取消/超时后回包无意义，且写死 socket 会抛）。
+  if (res.writableEnded || res.destroyed) return
   const body = JSON.stringify(payload)
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -178,6 +181,37 @@ export function apply(ctx: Context): void {
   const mountOn = (webCtx: Context, webServer: WebServerLike, connection: ConnectionLike): void => {
     if (bridgeMounted) return
     bridgeMounted = true
+    // 宿主服务惰性解析（激活时序不保证）：web 注入面优先，回退插件 ctx（tasks 同款）。
+    const resolveHostService = (name: string): unknown =>
+      (webCtx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.(name, false)
+      ?? (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.(name, false)
+    // GUI 实盘动作的逐动作审批座位（2026-10-12）：真实实现是宿主 ctx.approval
+    // （@deepseek-ai/dsh-user-approval 的 ApprovalService）+ agents 注册表按会话解析
+    // agent。apply 期不解析（服务可能尚未激活），每次动作惰性取。
+    //
+    // 事件面（2026-10-12 修复）：rc.2 的 `ApprovalService.request` 硬前置是会话日志
+    // 处于打开的一轮（审计对必须 turn-enclosed），空闲会话直接抛错；而开轮的权力只在
+    // dsh-agent-loop 手里。座位因此自己声明控制消息 source、经 `agent.send` 唤醒 loop，
+    // 只认它打开的那一轮——这需要宿主事件面（agent/pre-step、session/event、
+    // agent/status）。作用域上普通 ctx.on 收全部 agent 事件，过滤由座位自己做。
+    // 能力探测（与上面 res.on/off 同款）：单测的 ctx 替身只实现 get/inject/effect，
+    // 真实 cordis Context 恒有 on。事件面缺席 = 开不出官方轮次 → 座位对实盘 fail-closed
+    // （老部署同款降级），构造期绝不在这里抛。
+    const eventSeam = ctx as unknown as { on?: (event: string, listener: (...args: never[]) => unknown) => () => void }
+    const guiApprovalEvents: GuiApprovalEventsLike | undefined = typeof eventSeam.on === 'function'
+      ? {
+          onPreStep: listener => ctx.on('agent/pre-step', listener),
+          onSessionEvent: listener => ctx.on('session/event', listener),
+          onAgentStatus: listener => ctx.on('agent/status', listener),
+        }
+      : undefined
+    const guiApprovalHost: GuiApprovalHost = {
+      approval: () => resolveHostService('approval') as import('./gui-approval.ts').ApprovalServiceLike | undefined,
+      agent: sessionId => (resolveHostService('agents') as GuiAgentRegistryLike | undefined)?.get(sessionId),
+      ...(guiApprovalEvents === undefined ? {} : { events: guiApprovalEvents }),
+    }
+    const guiApproval: GuiApprovalSeat = createGuiApprovalSeat(guiApprovalHost)
+    ctx.effect(() => () => { guiApproval.dispose() }, 'dsh-trading-client-ui-trading: GUI live-action approval listeners')
     // registry-first（2026-08-30 注册表模式）：每请求经注册表按路由当前值解析——
     // settings 切换交易所 GUI 即刻生效（热切换）；注册表缺席回退旧市场键直读。
     const host = createBridgeHost({
@@ -213,6 +247,8 @@ export function apply(ctx: Context): void {
       macroFeed: webCtx.get('tradingMacroFeed', false) as import('./bridge.ts').MacroFeedLike | undefined,
       // 预测市场（Polymarket 接入，2026-10-11）：host 面 tradingPredictionFeed 服务（连接器未装即缺席）。
       predictionFeed: webCtx.get('tradingPredictionFeed', false) as import('./bridge.ts').PredictionFeedLike | undefined,
+      // GUI 实盘动作逐动作审批（2026-10-12）：缺席 = 无审批面 → 实盘 fail-closed。
+      guiApproval,
     })
     const bridge = new TradingBridge(host)
 
@@ -220,9 +256,6 @@ export function apply(ctx: Context): void {
     // 专属；目录锁被另一个活宿主持有时降级为 503——特性不挂、宿主照跑）。宿主
     // 服务（typertGateway/commands/workspaceRegistry）全部惰性解析：激活时序
     // 不保证，调度/执行时才取（与 uiWorkspace 惰性纪律同款）。
-    const resolveHostService = (name: string): unknown =>
-      (webCtx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.(name, false)
-      ?? (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.(name, false)
     let tasksService: TradingTasksService | undefined
     try {
       tasksService = new TradingTasksService({
@@ -284,7 +317,23 @@ export function apply(ctx: Context): void {
             await handleTasksRoute(tasks, req, res, sub, body)
             return
           }
-          const { status, payload } = await dispatchBridgeRequest(bridge, req.method ?? 'GET', sub, url.searchParams, body)
+          // GUI 实盘动作的连接语义（2026-10-12）：客户端断连/超时 → AbortSignal
+          // 取消审批，并且不再继续报单（审批座位在裁决后二次检查信号）。
+          // 能力探测：宿主面最小结构面（单测的 res 替身只实现 writeHead/end，
+          // 真实 ServerResponse 恒有 on/off）。
+          const disconnect = new AbortController()
+          const hasSocketEvents = typeof res.on === 'function' && typeof res.off === 'function'
+          const onClientGone = (): void => {
+            if (!res.writableEnded) disconnect.abort()
+          }
+          if (hasSocketEvents) res.on('close', onClientGone)
+          let status: number
+          let payload: unknown
+          try {
+            ({ status, payload } = await dispatchBridgeRequest(bridge, req.method ?? 'GET', sub, url.searchParams, body, disconnect.signal))
+          } finally {
+            if (hasSocketEvents) res.off('close', onClientGone)
+          }
           // 发布点接线（issue #30/#31/#32）：写成功 → 对应 store 失效信号。
           if (status === 200 && (payload as { ok?: unknown } | undefined)?.ok === true) {
             if (req.method === 'DELETE' && sub === '/indicators/custom') eventsOf()?.emit('indicators')

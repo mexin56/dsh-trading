@@ -16,6 +16,40 @@ export class Jin10Error extends Error {
   }
 }
 
+/** MCP initialize 握手中可机器识别的契约违约种类。 */
+export type Jin10McpContractViolationKind =
+  | 'initialize_result_invalid'
+  | 'unsupported_protocol_version'
+  | 'missing_capability'
+
+/** 结构化契约违约载荷：错误码之外，调用方可按 kind 分支处理而不必解析文案。 */
+export interface Jin10McpContractViolation {
+  readonly kind: Jin10McpContractViolationKind
+  readonly method: string
+  /** unsupported_protocol_version：客户端声明/支持的版本。 */
+  readonly requestedVersion?: string
+  readonly negotiatedVersion?: string
+  readonly supportedVersions?: readonly string[]
+  /** missing_capability：缺失的服务端能力与触发它的方法。 */
+  readonly capability?: 'tools' | 'resources'
+  readonly detail?: string
+}
+
+/**
+ * MCP 协议契约违约（initialize 结果非法、协商版本不受支持、方法能力未声明）。
+ * 错误码沿用统一词汇 TRADING_EXCHANGE_ERROR（本包对上游坏形状的既有口径），
+ * 可分支信息放在 violation 上——不新造跨包错误码，也不把契约违约伪装成网络故障。
+ */
+export class Jin10McpContractError extends Jin10Error {
+  readonly violation: Jin10McpContractViolation
+
+  constructor(violation: Jin10McpContractViolation, message: string) {
+    super('TRADING_EXCHANGE_ERROR', message)
+    this.name = 'Jin10McpContractError'
+    this.violation = Object.freeze({ ...violation })
+  }
+}
+
 /**
  * 上游业务错误消息 → 错误码。
  * 限流文案必须单独识别（决定「今天别再试」的语义）；「不支持该品种」= 代码不在

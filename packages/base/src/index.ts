@@ -25,9 +25,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { PreToolDecision, ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { PostToolDecision, PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import Schema from '@deepseek-ai/schemastery'
 import { migrateLegacyTradingHome } from '@dshtrading/dsh-home'
+import { appendToolCallRecord, errorCodeOf, toolCallLogPath } from './tool-call-log.ts'
 
 /**
  * Cordis 插件名 = patch 行 id（TEMPLATES §8）。base 是共享行唯一拥有者，
@@ -38,10 +39,13 @@ export const name = 'dsh-trading-base-gate'
 export interface Config {
   /** 统一审批闸门开关；false 时完全不挂监听器（仅测试/显式降级用）。 */
   enabled: boolean
+  /** 工具调用结构化记录开关；缺省开（D11 诊断面）。 */
+  toolCallLog?: boolean
 }
 
 export const Config: Schema<Config> = Schema.object({
   enabled: Schema.boolean().default(true),
+  toolCallLog: Schema.boolean().default(true),
 })
 
 /**
@@ -138,4 +142,41 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
   ctx.on('tools/pre-execute', createGateListener())
+  if (config.toolCallLog !== false) ctx.on('tools/post-execute', createToolCallLogListener())
+}
+
+/** 工具调用记录开关（部署/测试可关；缺省开）。 */
+const CALL_LOG_ENABLED_DEFAULT = true
+export function toolCallLogEnabled(config: { toolCallLog?: boolean }): boolean {
+  return config.toolCallLog ?? CALL_LOG_ENABLED_DEFAULT
+}
+
+/**
+ * 官方 \`tools/post-execute\` 观测器：记录一次调用后原样 \`next()\`，
+ * 绝不改动结果（观测是旁路，不是策略层）。
+ */
+export function createToolCallLogListener(
+  filePath: string | undefined = undefined,
+  now: () => number = Date.now,
+): (exec: ToolExecution, result: Readonly<ToolExecutionResult>, next: () => Promise<PostToolDecision>) => Promise<PostToolDecision> {
+  // 每次调用的起点由 pre-execute 侧无法提供（工具已在跑），所以这里用
+  // 「本轮记录时刻」而不是精确耗时；精确耗时属宿主执行面，本仓不重复实现。
+  return async (exec, result, next) => {
+    try {
+      appendToolCallRecord({
+        at: now(),
+        tool: exec.name,
+        callId: String(exec.callId),
+        rootCallId: String(exec.rootCallId),
+        isError: result.isError,
+        errorCode: errorCodeOf(result as { isError: boolean; error?: { code?: unknown; name?: unknown } }),
+        durationMs: 0,
+      }, filePath ?? toolCallLogPath())
+    } catch (error) {
+      // 观测失败不影响调用：打一行告警即可（错误信息可能含路径，不含参数）。
+      console.warn('[dsh-trading/base] tool call log write skipped:', error)
+    }
+    // 观测器永不改写官方决策：原样交给下一个策略层。
+    return next()
+  }
 }
