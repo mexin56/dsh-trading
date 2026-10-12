@@ -41,6 +41,21 @@ export interface KnowledgeIngestToolOptions {
   onWritten?: (card: KnowledgeCard) => void
 }
 
+/** 时间字段的可读回显：空值/缺省一律写「未知」，不留空位冒充有日期。 */
+function shownTimestamp(value: string | undefined): string {
+  return value !== undefined && value.trim().length > 0 ? value : '未知'
+}
+
+/** 解析显式时效筛选的 ISO 日期：空值表示不筛，非法值抛错由工具回显而不是静默当无命中。 */
+function parseCutoff(value: unknown, field: string): number | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return undefined
+  const ms = Date.parse(trimmed)
+  if (Number.isNaN(ms)) throw new Error(`[knowledge_search] 参数 ${field} 不是合法日期: ${trimmed}`)
+  return ms
+}
+
 export function createKnowledgeIngestTool(store: KnowledgeCardStore, options: KnowledgeIngestToolOptions = {}) {
   const { onWritten } = options
   return defineTool({
@@ -231,8 +246,10 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
     description:
       'Search knowledge cards in the local library. With a keyword the results rank by field hit weight (tags > title > core claims > '
       + 'summary/author); without one they come newest-updated first. Filters: cluster (the graph clustering key, pair with '
-      + 'knowledge_graph for two-stage retrieval), author, source kind and credibility. detail="full" also returns core claims, the '
-      + 'fact-check buckets and reusable lessons (capped at 20 cards).',
+      + 'knowledge_graph for two-stage retrieval), author, source kind, credibility and explicit freshness cutoffs updatedAfter / '
+      + 'publishedAfter. Every result reports its updatedAt and source publish date (unknown is stated as such); cards are never '
+      + 'dropped or downgraded by age unless an explicit cutoff asks for it. detail="full" also returns core claims, the fact-check '
+      + 'buckets and reusable lessons (capped at 20 cards).',
     parameters: {
       query: {
         type: 'string',
@@ -258,6 +275,14 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
         type: 'string',
         description: 'Credibility filter: "high" | "medium" | "low".',
       },
+      updatedAfter: {
+        type: 'string',
+        description: 'Explicit freshness cutoff: keep only cards updated at or after this ISO date/datetime (e.g. "2026-01-01" or "2026-01-01T00:00:00Z"). Cards with an unparsable updatedAt never match. Omitting it applies no age filter.',
+      },
+      publishedAfter: {
+        type: 'string',
+        description: 'Explicit freshness cutoff on the source publish date: keep only cards whose source.publishedAt is at or after this ISO date. Cards without a source publish date never match an explicit cutoff (unknown is not assumed fresh).',
+      },
       limit: {
         type: 'number',
         description: 'Maximum results to return (default 20).',
@@ -281,6 +306,8 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
         author?: unknown
         sourceType?: unknown
         credibility?: unknown
+        updatedAfter?: unknown
+        publishedAfter?: unknown
         limit?: unknown
         detail?: unknown
       }
@@ -292,6 +319,14 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
       const targetCluster = typeof params.cluster === 'string' ? params.cluster.trim().toLowerCase() : ''
       const targetSourceType = typeof params.sourceType === 'string' ? params.sourceType.trim() : undefined
       const targetCredibility = typeof params.credibility === 'string' ? params.credibility.trim() : undefined
+      let updatedAfterMs: number | undefined
+      let publishedAfterMs: number | undefined
+      try {
+        updatedAfterMs = parseCutoff(params.updatedAfter, 'updatedAfter')
+        publishedAfterMs = parseCutoff(params.publishedAfter, 'publishedAfter')
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
       const limit = typeof params.limit === 'number' && Number.isFinite(params.limit) ? Math.max(1, Math.min(params.limit, 100)) : 20
       const detail = params.detail === 'full' ? 'full' : 'summary'
       // detail=full 时单卡输出约 1-2KB：上限收口到 20，避免一次调用向上下文倾倒百卡全文。
@@ -303,6 +338,15 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
         }
         if (targetCredibility && card.credibility !== targetCredibility) {
           return false
+        }
+        if (updatedAfterMs !== undefined) {
+          const updatedAtMs = Date.parse(card.updatedAt)
+          if (Number.isNaN(updatedAtMs) || updatedAtMs < updatedAfterMs) return false
+        }
+        if (publishedAfterMs !== undefined) {
+          const publishedAt = card.source.publishedAt
+          const publishedAtMs = publishedAt === undefined ? Number.NaN : Date.parse(publishedAt)
+          if (Number.isNaN(publishedAtMs) || publishedAtMs < publishedAfterMs) return false
         }
         if (targetCluster && (card.tags[0] ?? '').trim().toLowerCase() !== targetCluster) {
           return false
@@ -353,6 +397,8 @@ export function createKnowledgeSearchTool(store: KnowledgeCardStore) {
 
       for (const card of results) {
         lines.push(`- [${card.id}] "${card.title}" (${card.source.type} @ ${card.source.author}, 可信度: ${card.credibility})`)
+        // 时效证据是判断「过时降权」的依据：更新时间与素材发布日期对所有 detail 档都明示，缺失写「未知」。
+        lines.push(`  时间: 更新 ${shownTimestamp(card.updatedAt)} | 发布 ${shownTimestamp(card.source.publishedAt)}`)
         lines.push(`  摘要: ${card.summary}`)
         lines.push(`  标签: ${card.tags.join(', ')} | 链接: ${card.source.url}`)
         if (detail === 'full') {
