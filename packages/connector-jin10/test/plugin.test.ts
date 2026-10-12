@@ -77,7 +77,7 @@ describe('connector-jin10 插件行', () => {
       const body = JSON.parse(String(init?.body)) as { method: string; params?: { name?: string } }
       requests.push(body as unknown as Record<string, unknown>)
       const sse = (payload: unknown) => new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, { status: 200, headers: { 'content-type': 'text/event-stream' } })
-      if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25' } })
+      if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: { logging: {}, resources: {}, tools: {} } } })
       if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
       return sse({
         jsonrpc: '2.0', id: 2,

@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-1. **新包 `@dshtrading/connector-jin10`**（`packages/connector-jin10`）：MCP 客户端（`mcp.ts`：`initialize → notifications/initialized → tools/list / resources/list / resources/read → tools/call`，SSE 单行 `data:` 与直出 JSON 双形态，`mcp-session-id` 有则回带，握手失败不缓存以便补配凭证后重试）+ 解析层（`parse.ts`，坏形状抛错、时间解析失败丢弃该条）+ 取数层（`service.ts`，分页统一 `cursor → next_cursor / has_more`）+ 工具面（`tools.ts`）。
+1. **新包 `@dshtrading/connector-jin10`**（`packages/connector-jin10`）：MCP 客户端（`mcp.ts`：`initialize → notifications/initialized → tools/list / resources/list / resources/read → tools/call`，SSE 单行 `data:` 与直出 JSON 双形态，`mcp-session-id` 有则回带，握手失败不缓存以便补配凭证后重试；initialize 结果经版本与能力校验，协商版本上 `MCP-Protocol-Version` 头、方法族按能力闸门放行——见下文增补）+ 解析层（`parse.ts`，坏形状抛错、时间解析失败丢弃该条）+ 取数层（`service.ts`，分页统一 `cursor → next_cursor / has_more`）+ 工具面（`tools.ts`）。
 2. **九个市场无关只读工具**：`flash_list` / `flash_search` / `news_list` / `news_search` / `news_get` / `econ_calendar` / `global_instruments` / `global_quote` / `global_klines`。工具名不带 provider 名（与 `symbol_search`、`knowledge_search` 同族），换快讯源不改工具面。纯只读，不命中下单闸门正则（铁律 #3 不涉及）。
 3. **归属 base（铁律 #1：base 拥有全部市场无关行）**：行 `dsh-trading-connector-jin10` 插在 `packages/base/cordis.patch.yml` 的 host 平面工具行区（与 `dsh-trading-market-tools` 同款形态），依赖进 `packages/base/package.json`（profile 安装闭包，S3 坑 3）。**不进任何市场 preset**——内容是跨市场的，host 行注册一次全会话/全角色可见。
 4. **结果读取按用户契约**：`result.structuredContent` 优先，`result.content[].text` 仅在 structuredContent 缺席时作机器可读兜底；`isError=true` / `status !== 200` / `data === null` 一律抛错（不冒充空数据）；限流文案映射 `TRADING_RATE_LIMITED`（每用户每工具每北京时间自然日 1500 次），未知品种映射 `TRADING_UNSUPPORTED_SYMBOL`。
@@ -67,8 +67,21 @@ Status: implemented
 - **数据面行未导出 `Config`**：patch 行不带 `config:` 时，loader 只认**该模块**导出的 schema 补默认值；`dataplane.ts` 当时只 `import type { Config }`，于是 `apply(ctx, undefined)` → `Cannot read properties of undefined (reading 'enabled')`。**修**：`export { Config } from './plugin.js'`（与主行共用同一份 schema，避免默认值漂移）+ `apply(ctx, config?: Partial<Config>)` 对 undefined 给缺省。
 - 教训写进 `docs/guides/connector-playbook.md` §4.2：包内单测直接 `apply(fakeCtx, config)` 不会暴露 loader 元信息缺失——真实宿主启动是这类改动的必要验证面（本轮正是桌面壳启动抓出的）。
 
+## 增补（2026-10-12）：initialize 契约协商与能力闸门
+
+review 指出首轮握手只发 `initialize` 却不读结果：协议版本、服务端能力、方法族权限全无校验，缺 `tools`/`resources` 能力时仍照发业务请求，且没有任何请求携带官方 Streamable HTTP 的 `MCP-Protocol-Version` 头。现按官方 revision 2025-11-25 / 2025-06-18 与本仓 spike 原始握手证据（`spikes/impl-jin10-mcp/EVIDENCE/01-initialize.json`：`protocolVersion=2025-11-25`、`capabilities={logging,resources,tools}`）收紧为契约，不重造宿主 MCP、不升级 SDK、不新增依赖：
+
+- **校验并保存 initialize 结果**：`protocolVersion` 缺失/非串与 `capabilities` 非对象 → `Jin10McpContractError{kind:'initialize_result_invalid'}`；协商版本不在客户端可说的集合（`2025-11-25`＝本出口实测，`2025-06-18`＝官方首个定义 `MCP-Protocol-Version` 头的 revision）→ `{kind:'unsupported_protocol_version'}`，带 requested/negotiated/supported 三字段，按官方「客户端 SHOULD disconnect」中止而非降级猜协议。
+- **协商版本上链头**：initialize 之后（含 `notifications/initialized`）每个请求都带 `MCP-Protocol-Version: <协商版本>`；initialize 自身不带。
+- **方法族能力闸门**：`tools/*` 需能力表声明 `tools`、`resources/*` 需声明 `resources`，两面分别判定；缺能力时在发请求之前抛 `{kind:'missing_capability', capability, method}`，不靠上游 4xx 兜底（资源面缺权限不会伪装成工具面故障）。
+- **失败不缓存半完成状态**：握手失败时除清空 promise 外，一并重置协商版本/能力表/会话头——initialize 成功而 initialized 通知失败时，旧 `mcp-session-id` 不会带进下一次握手。
+- **超时/取消显式**：新增会话级 `signal`，与单次超时用 `AbortSignal.any` 合并；`TimeoutError` 报 `request timed out after <timeoutMs>ms`、`AbortError` 报 `request aborted before completion`，两者都保留 `TRADING_NETWORK` 码与 cause；`tools/call` 一次失败即原样上抛，不盲目重试业务写。
+- 契约 fixture `packages/connector-jin10/test/fixtures/initialize-result.json` 与仓内 spike 证据逐值对齐（测试直接读 `EVIDENCE/01-initialize.json` 比对 `protocolVersion`/`capabilities`/`serverInfo`），不是手写猜测；上游响应用包内契约化 fake（打桩 fetch），不用真实网络。
+- **副作用清理**：flash-service / macro-service / tools / plugin 四组既有用例的 initialize 打桩原先回 `{}`（无版本、无能力），属不合法的 MCP 握手样板，已补成实测能力集；未放宽任何断言。
+
 ## Verification
 
+- 单测 94 例全绿（`pnpm --filter @dshtrading/connector-jin10 test`，`--maxWorkers=1 --no-file-parallelism`）：其中 `mcp.test.ts` 29 例（含 10 例 initialize 契约协商用例）；包级 `tsc --noEmit -p packages/connector-jin10/tsconfig.json` 0 错。
 - 单测 50 例全绿（`pnpm --filter @dshtrading/connector-jin10 test`）：握手顺序与一次握手、会话头回带、缺凭证不发请求且补配后可重试、401/429/5xx/JSON-RPC error/坏形状映射、structuredContent 优先与文本兜底、限流与未知品种文案识别、解析层（标题提取/东八区时间/分页字段/正文丢弃/坏条目丢弃）、工具渲染与参数透传、插件注册与重名不覆盖、apply→工具 execute 的真实链路（打桩 fetch + 设置中心凭证）。
 - 出网验证 `JIN10_TOKEN=... node spikes/impl-jin10-mcp/verify.mjs`：13/13 通过（约 1–3s；闭市时段上游响应偏慢），跑的是构建产物 `lib/index.js`，覆盖 `quote://codes` 资源 → 快讯两页翻页 → 快讯搜索 → 资讯列表/搜索/详情 → 财经日历 → XAUUSD 报价 → 分钟 K 线 → 缺凭证与非法 code 两条错误语义；原始证据 `spikes/impl-jin10-mcp/EVIDENCE/`（含 `recon.mjs` 的 8 工具/资源原始响应）。
 - `pnpm -r build` 全绿；`node scripts/typecheck-gate.mjs` 棘轮通过（新 tsconfig 入基线，0 错）；`packages/base/test` 46 例全绿。

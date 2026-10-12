@@ -9,12 +9,39 @@
  *
  * 结果读取：`result.structuredContent` 优先，`result.content[].text` 仅在
  * structuredContent 缺席时作可读文本兜底（用户契约 3/4）。
+ *
+ * 握手契约（官方 MCP revision 2025-11-25 / 2025-06-18，本仓 spike 原始证据
+ * `spikes/impl-jin10-mcp/EVIDENCE/01-initialize.json`）：客户端必须校验 initialize
+ * 结果里的 `protocolVersion` 与 `capabilities`；协商版本用于其后每个 HTTP 请求的
+ * `MCP-Protocol-Version` 头；未声明 `tools` / `resources` 能力时对应方法族直接报
+ * 结构化契约错误，不发业务请求（不重造宿主 MCP、不升级 SDK）。
  */
-import { Jin10Error, TOKEN_HINT, codeForUpstreamMessage } from './errors.js'
+import { Jin10Error, Jin10McpContractError, TOKEN_HINT, codeForUpstreamMessage } from './errors.js'
 
 export const DEFAULT_ENDPOINT = 'https://mcp.jin10.com/mcp'
 export const DEFAULT_PROTOCOL_VERSION = '2025-11-25'
 export const DEFAULT_TIMEOUT_MS = 15_000
+
+/**
+ * 本客户端能说的 Streamable HTTP 协议版本（官方 revision）：
+ * - `2025-11-25`：金十本出口 spike 实测协商版本；
+ * - `2025-06-18`：官方首个定义 `MCP-Protocol-Version` 头的 revision。
+ * 上游协商出集合之外的版本时按官方「客户端 SHOULD disconnect」报结构化错误，
+ * 不降级猜测协议语义。
+ */
+export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze(['2025-11-25', '2025-06-18'])
+
+/** initialize 之后每个 HTTP 请求都必须携带的协商版本头（官方 Streamable HTTP）。 */
+export const PROTOCOL_VERSION_HEADER = 'MCP-Protocol-Version'
+
+/** 服务端能力 → 依赖它的 JSON-RPC 方法族（缺能力即拒发，不靠上游 4xx 兜底）。 */
+const METHOD_CAPABILITY: Readonly<Partial<Record<string, 'tools' | 'resources'>>> = Object.freeze({
+  'tools/list': 'tools',
+  'tools/call': 'tools',
+  'resources/list': 'resources',
+  'resources/read': 'resources',
+  'resources/templates/list': 'resources',
+})
 
 export interface McpToolDescriptor {
   name: string
@@ -51,6 +78,8 @@ export interface Jin10McpOptions {
   timeoutMs?: number
   /** 依赖注入的 fetch（测试用 mock；缺省 globalThis.fetch）。 */
   fetchImpl?: typeof globalThis.fetch
+  /** 可选会话级取消信号：与单次请求超时合并，取消报「request aborted」。 */
+  signal?: AbortSignal
   /** 协议版本（缺省 2025-11-25）。 */
   protocolVersion?: string
   clientName?: string
@@ -100,10 +129,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function networkError(method: string, cause: unknown): Jin10Error {
+/**
+ * 传输层失败：超时与取消分别显式标注（前者带超时窗口，后者标明调用方取消），
+ * 不混成一句 network failure，也不在这里重试（重试由调用方显式发起）。
+ */
+function networkError(method: string, cause: unknown, timeoutMs: number): Jin10Error {
   const reason = cause instanceof Error ? cause.message : String(cause)
-  const timedOut = cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')
-  return new Jin10Error('TRADING_NETWORK', `jin10 mcp ${method}: ${timedOut ? 'request timed out' : 'network failure'} — ${reason}`, cause)
+  const name = cause instanceof Error ? cause.name : ''
+  if (name === 'TimeoutError') return new Jin10Error('TRADING_NETWORK', `jin10 mcp ${method}: request timed out after ${timeoutMs}ms`, cause)
+  if (name === 'AbortError') return new Jin10Error('TRADING_NETWORK', `jin10 mcp ${method}: request aborted before completion — ${reason}`, cause)
+  return new Jin10Error('TRADING_NETWORK', `jin10 mcp ${method}: network failure — ${reason}`, cause)
 }
 
 export class Jin10McpClient {
@@ -114,15 +149,21 @@ export class Jin10McpClient {
   private readonly protocolVersion: string
   private readonly clientName: string
   private readonly clientVersion: string
+  private readonly signal: AbortSignal | undefined
   private nextId = 1
   private sessionId: string | undefined
   private handshake: Promise<void> | undefined
+  /** initialize 协商出的协议版本（其后每个请求的 MCP-Protocol-Version 头来源）。 */
+  private negotiatedProtocolVersion: string | undefined
+  /** initialize 声明的服务端能力表（方法族能力闸门的判据）。 */
+  private serverCapabilities: Record<string, unknown> | undefined
 
   constructor(options: Jin10McpOptions) {
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT
     this.token = options.token
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch
+    this.signal = options.signal
     this.protocolVersion = options.protocolVersion ?? DEFAULT_PROTOCOL_VERSION
     this.clientName = options.clientName ?? 'dsh-trading-connector-jin10'
     this.clientVersion = options.clientVersion ?? '0.2.1'
@@ -198,22 +239,96 @@ export class Jin10McpClient {
 
   private async ensureHandshake(): Promise<void> {
     if (this.handshake === undefined) {
-      // 失败即清空：凭证后配/上游恢复后，下一次调用可重新握手（不做失败缓存）。
+      // 失败即清空：凭证后配/上游恢复后，下一次调用可重新完整握手（不做失败缓存）；
+      // 半完成状态（协商版本/能力集/会话头）一并重置，避免拿坏会话发业务请求。
       this.handshake = this.performHandshake().catch((error: unknown) => {
         this.handshake = undefined
+        this.resetHandshakeState()
         throw error
       })
     }
     return this.handshake
   }
 
+  /** 丢弃一次未完成的握手留下的全部状态（initialize 之后、initialized 之前的任何失败）。 */
+  private resetHandshakeState(): void {
+    this.negotiatedProtocolVersion = undefined
+    this.serverCapabilities = undefined
+    this.sessionId = undefined
+  }
+
   private async performHandshake(): Promise<void> {
-    await this.rpc('initialize', {
+    const result = await this.rpc('initialize', {
       protocolVersion: this.protocolVersion,
       capabilities: {},
       clientInfo: { name: this.clientName, version: this.clientVersion },
     }, { skipHandshake: true })
+    // 先校验并落协商版本，initialized 通知本身才带得上 MCP-Protocol-Version 头。
+    this.serverCapabilities = this.acceptInitializeResult(result)
     await this.rpc('notifications/initialized', undefined, { notification: true, skipHandshake: true })
+  }
+
+  /**
+   * 校验 initialize 结果并返回服务端能力表；违反官方 lifecycle 契约时抛结构化错误。
+   * 依据：官方 revision 2025-11-25 lifecycle——服务端 MUST 回 protocolVersion 与
+   * capabilities；客户端不支持的协商版本 SHOULD disconnect。
+   */
+  private acceptInitializeResult(result: unknown): Record<string, unknown> {
+    if (!isRecord(result)) {
+      throw new Jin10McpContractError(
+        { kind: 'initialize_result_invalid', method: 'initialize', detail: 'result is not an object' },
+        'jin10 mcp initialize: result is not an object',
+      )
+    }
+    const negotiated = result.protocolVersion
+    if (typeof negotiated !== 'string' || negotiated.trim().length === 0) {
+      throw new Jin10McpContractError(
+        { kind: 'initialize_result_invalid', method: 'initialize', detail: 'missing protocolVersion' },
+        'jin10 mcp initialize: server did not return a protocolVersion',
+      )
+    }
+    const supported = this.supportedVersions()
+    if (!supported.includes(negotiated)) {
+      throw new Jin10McpContractError(
+        { kind: 'unsupported_protocol_version', method: 'initialize', requestedVersion: this.protocolVersion, negotiatedVersion: negotiated, supportedVersions: supported },
+        `jin10 mcp initialize: server negotiated unsupported protocol version "${negotiated}" (client supports ${supported.join(', ')})`,
+      )
+    }
+    const capabilities = result.capabilities
+    if (!isRecord(capabilities)) {
+      throw new Jin10McpContractError(
+        { kind: 'initialize_result_invalid', method: 'initialize', detail: 'missing capabilities' },
+        'jin10 mcp initialize: server did not return a capabilities object',
+      )
+    }
+    this.negotiatedProtocolVersion = negotiated
+    return capabilities
+  }
+
+  /** 客户端可接受的协商版本：声明的版本 + 官方可说的版本集合。 */
+  private supportedVersions(): readonly string[] {
+    return SUPPORTED_PROTOCOL_VERSIONS.includes(this.protocolVersion)
+      ? SUPPORTED_PROTOCOL_VERSIONS
+      : Object.freeze([this.protocolVersion, ...SUPPORTED_PROTOCOL_VERSIONS])
+  }
+
+  /** 方法族能力闸门：能力未声明时在发请求前抛结构化错误（缺能力 ≠ 上游 4xx）。 */
+  private assertMethodCapability(method: string): void {
+    const capability = METHOD_CAPABILITY[method]
+    if (capability === undefined) return
+    const declared = this.serverCapabilities
+    if (declared !== undefined && isRecord(declared[capability])) return
+    throw new Jin10McpContractError(
+      { kind: 'missing_capability', method, capability },
+      `jin10 mcp ${method}: server did not declare the "${capability}" capability during initialize; refusing to send the request`,
+    )
+  }
+
+  /** 单次请求信号：调用方取消信号与超时窗口合并，任一触发都以 AbortError 结束。 */
+  private requestSignal(): AbortSignal {
+    const timeout = AbortSignal.timeout(this.timeoutMs)
+    if (this.signal === undefined) return timeout
+    return AbortSignal.any([this.signal, timeout])
   }
 
   private async rpc(
@@ -221,7 +336,11 @@ export class Jin10McpClient {
     params: unknown,
     options: { notification?: boolean; skipHandshake?: boolean } = {},
   ): Promise<unknown> {
-    if (options.skipHandshake !== true) await this.ensureHandshake()
+    if (options.skipHandshake !== true) {
+      await this.ensureHandshake()
+      // 能力闸门在建连之后、发请求之前：缺 tools/resources 能力时直接报契约错误。
+      this.assertMethodCapability(method)
+    }
     const token = this.token()
     if (token === undefined || token.trim().length === 0) {
       throw new Jin10Error('TRADING_CREDENTIALS_MISSING', `jin10 mcp ${method}: missing MCP token. ${TOKEN_HINT}`)
@@ -237,13 +356,15 @@ export class Jin10McpClient {
           'content-type': 'application/json',
           accept: 'application/json, text/event-stream',
           authorization: `Bearer ${token.trim()}`,
+          // 官方 Streamable HTTP：initialize 之后的每个请求都要带协商版本头。
+          ...(this.negotiatedProtocolVersion !== undefined ? { [PROTOCOL_VERSION_HEADER]: this.negotiatedProtocolVersion } : {}),
           ...(this.sessionId !== undefined ? { 'mcp-session-id': this.sessionId } : {}),
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: this.requestSignal(),
       })
     } catch (error) {
-      throw networkError(method, error)
+      throw networkError(method, error, this.timeoutMs)
     }
     const sessionId = response.headers.get('mcp-session-id')
     if (sessionId !== null && sessionId.length > 0) this.sessionId = sessionId
@@ -259,7 +380,7 @@ export class Jin10McpClient {
       const body = await response.text().catch(() => '')
       throw new Jin10Error('TRADING_EXCHANGE_ERROR', `jin10 mcp ${method}: HTTP ${response.status}${body ? ` — ${body.slice(0, 200)}` : ''}`)
     }
-    const text = await response.text().catch((error: unknown) => { throw networkError(method, error) })
+    const text = await response.text().catch((error: unknown) => { throw networkError(method, error, this.timeoutMs) })
     const message = parseMcpBody(text)
     if (message === undefined) return undefined
     if (isRecord(message.error)) {

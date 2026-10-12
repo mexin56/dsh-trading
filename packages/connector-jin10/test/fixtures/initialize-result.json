@@ -1,0 +1,14 @@
+{
+  "protocolVersion": "2025-11-25",
+  "capabilities": {
+    "logging": {},
+    "resources": {},
+    "tools": {}
+  },
+  "serverInfo": {
+    "name": "jin10-mcp",
+    "title": "金十数据智能开放平台",
+    "version": "1.0.0",
+    "websiteUrl": "https://mcp.jin10.com/app/"
+  }
+}
