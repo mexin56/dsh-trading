@@ -42,6 +42,10 @@ jobs:
       # insert 时宿主 loader 会静默塌缩为最后一条（不抛错），只能靠启动前的静态门禁拦。
       # 判据文件 scripts/patch-id-freeze.json（新增/改名必须显式 --update）。
       - run: pnpm patch-id:check
+      # 工具契约门禁（tools-and-mcp / issue #43cedfae）：工具名、必填参数、参数类型
+      # 与输出形状是模型可见的公共契约；此前只有打印报告、无基线断言。
+      # 判据文件 scripts/tool-contract-freeze.json（新增/改名必须显式 --update）。
+      - run: pnpm tool-contract:check
       # 实盘开关门禁：不变量 §13.3「实盘开关不在 agent 可写路径上」——preset 资产里的
       # liveTrading 只是非权威镜像（只许 false），实盘授权由 @dshtrading/authority 的
       # 人工签署平面裁定；运行期不得引用签署侧。

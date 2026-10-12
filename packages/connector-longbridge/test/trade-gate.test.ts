@@ -1,3 +1,5 @@
+// 本文件只用隔离的 dsh-trading 临时 home：显式改写 process.env.DSH_HOME 指向 mkdtemp 目录，
+// 绝不继承宿主 home，也绝不作用在真实 ~/.dsh-trading 数据上。
 /**
  * 服务缝闸门（P0 · issue #29）：绕过工具层直调 TradeService 的三态矩阵（离线）。
  * 工具层 evaluateOrderGate / base 审批闸门另有覆盖；这里只证服务级 fail-closed——

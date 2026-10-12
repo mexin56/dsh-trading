@@ -1,0 +1,2776 @@
+{
+  "@dshtrading/base#`${market}_get_balance`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_fills`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_klines`": {
+    "file": "packages/base/src/research-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_order`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "orderId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_orderbook`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_orders`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_positions`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_ticker`": {
+    "file": "packages/base/src/research-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/base#`${market}_get_trades`": {
+    "file": "packages/base/src/market-tools.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/bot-api#tasks_create": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "cron",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "workspaceId",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "agentPreset",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "permission",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "taskId",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "requestId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/bot-api#tasks_delete": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [
+      {
+        "name": "taskId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "requestId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/bot-api#tasks_list": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/bot-api#tasks_meta": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/bot-api#tasks_run": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [
+      {
+        "name": "taskId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "requestId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/bot-api#tasks_update": {
+    "file": "packages/bot-api/src/tasks/tools.ts",
+    "params": [
+      {
+        "name": "taskId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "patchJson",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "requestId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-akshare#cn_get_klines": {
+    "file": "packages/connector-akshare/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-akshare#cn_get_sector_fund_flow": {
+    "file": "packages/connector-akshare/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-akshare#cn_get_ticker": {
+    "file": "packages/connector-akshare/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-alpaca#us_get_klines": {
+    "file": "packages/connector-alpaca/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-alpaca#us_get_ticker": {
+    "file": "packages/connector-alpaca/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-alpaca#us_place_order": {
+    "file": "packages/connector-alpaca/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-binance#crypto_get_klines": {
+    "file": "packages/connector-binance/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-binance#crypto_get_ticker": {
+    "file": "packages/connector-binance/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-binance#crypto_place_order": {
+    "file": "packages/connector-binance/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-bybit#crypto_get_klines": {
+    "file": "packages/connector-bybit/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-bybit#crypto_get_ticker": {
+    "file": "packages/connector-bybit/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ccxt#crypto_get_klines": {
+    "file": "packages/connector-ccxt/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "exchange",
+        "type": "string",
+        "required": false,
+        "enum": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ccxt#crypto_get_ticker": {
+    "file": "packages/connector-ccxt/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "exchange",
+        "type": "string",
+        "required": false,
+        "enum": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-eastmoney#`${market}_get_klines`": {
+    "file": "packages/connector-eastmoney/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-eastmoney#`${market}_get_ticker`": {
+    "file": "packages/connector-eastmoney/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-finnhub#us_get_klines": {
+    "file": "packages/connector-finnhub/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-finnhub#us_get_news": {
+    "file": "packages/connector-finnhub/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-finnhub#us_get_ticker": {
+    "file": "packages/connector-finnhub/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-fmp#us_get_company_profile": {
+    "file": "packages/connector-fmp/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-fmp#us_get_klines": {
+    "file": "packages/connector-fmp/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-fmp#us_get_ticker": {
+    "file": "packages/connector-fmp/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-futu#hk_get_klines": {
+    "file": "packages/connector-futu/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-futu#hk_get_ticker": {
+    "file": "packages/connector-futu/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-futu#hk_place_order": {
+    "file": "packages/connector-futu/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ibkr#us_cancel_order": {
+    "file": "packages/connector-ibkr/src/index.ts",
+    "params": [
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ibkr#us_get_balance": {
+    "file": "packages/connector-ibkr/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ibkr#us_get_klines": {
+    "file": "packages/connector-ibkr/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ibkr#us_get_ticker": {
+    "file": "packages/connector-ibkr/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-ibkr#us_place_order": {
+    "file": "packages/connector-ibkr/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#econ_calendar": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#flash_list": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "cursor",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#flash_search": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#global_instruments": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#global_klines": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "code",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "time",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#global_quote": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "code",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#news_get": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#news_list": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "cursor",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-jin10#news_search": {
+    "file": "packages/connector-jin10/src/tools.ts",
+    "params": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-longbridge#hk_cancel_order": {
+    "file": "packages/connector-longbridge/src/index.ts",
+    "params": [
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-longbridge#hk_get_balance": {
+    "file": "packages/connector-longbridge/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-longbridge#hk_get_klines": {
+    "file": "packages/connector-longbridge/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-longbridge#hk_get_ticker": {
+    "file": "packages/connector-longbridge/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-longbridge#hk_place_order": {
+    "file": "packages/connector-longbridge/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_cancel_order": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_funding_rate": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_get_balance": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_get_klines": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_get_order": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_get_positions": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_get_ticker": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_place_order": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "marginMode",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-okx#crypto_set_leverage": {
+    "file": "packages/connector-okx/src/index.ts",
+    "params": [
+      {
+        "name": "instId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "leverage",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "marginMode",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "posSide",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "ccy",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-polygon#us_get_klines": {
+    "file": "packages/connector-polygon/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-polygon#us_get_ticker": {
+    "file": "packages/connector-polygon/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-polygon#us_get_ticker_details": {
+    "file": "packages/connector-polygon/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-qmt#cn_cancel_order": {
+    "file": "packages/connector-qmt/src/index.ts",
+    "params": [
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-qmt#cn_get_balance": {
+    "file": "packages/connector-qmt/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-qmt#cn_get_klines": {
+    "file": "packages/connector-qmt/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-qmt#cn_get_ticker": {
+    "file": "packages/connector-qmt/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-qmt#cn_place_order": {
+    "file": "packages/connector-qmt/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-stooq#us_get_klines": {
+    "file": "packages/connector-stooq/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-stooq#us_get_ticker": {
+    "file": "packages/connector-stooq/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-stooq#us_place_order": {
+    "file": "packages/connector-stooq/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_cancel_order`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_get_balance`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_get_klines`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_get_order`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_get_positions`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_get_ticker`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-template#`${MARKET}_place_order`": {
+    "file": "packages/connector-template/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tencent#`${market}_get_klines`": {
+    "file": "packages/connector-tencent/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tencent#`${market}_get_ticker`": {
+    "file": "packages/connector-tencent/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tencent#`${market}_place_order`": {
+    "file": "packages/connector-tencent/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tiger#hk_cancel_order": {
+    "file": "packages/connector-tiger/src/index.ts",
+    "params": [
+      {
+        "name": "ordId",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tiger#hk_get_balance": {
+    "file": "packages/connector-tiger/src/index.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tiger#hk_get_klines": {
+    "file": "packages/connector-tiger/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tiger#hk_get_ticker": {
+    "file": "packages/connector-tiger/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tiger#hk_place_order": {
+    "file": "packages/connector-tiger/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "intentId",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tushare#cn_get_klines": {
+    "file": "packages/connector-tushare/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tushare#cn_get_ticker": {
+    "file": "packages/connector-tushare/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-tushare#cn_get_valuation": {
+    "file": "packages/connector-tushare/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-xysz#cn_get_fundamentals": {
+    "file": "packages/connector-xysz/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-xysz#cn_get_klines": {
+    "file": "packages/connector-xysz/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-xysz#cn_get_orderbook": {
+    "file": "packages/connector-xysz/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-xysz#cn_get_ticker": {
+    "file": "packages/connector-xysz/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-xysz#cn_list_instruments": {
+    "file": "packages/connector-xysz/src/index.ts",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-yahoo#us_get_klines": {
+    "file": "packages/connector-yahoo/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-yahoo#us_get_ticker": {
+    "file": "packages/connector-yahoo/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/connector-yahoo#us_place_order": {
+    "file": "packages/connector-yahoo/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "enum": true
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#fx_get": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "base",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_add": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "itemsJson",
+        "type": "json",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_confirm": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "idsJson",
+        "type": "json",
+        "required": true
+      },
+      {
+        "name": "editsJson",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_discard": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "idsJson",
+        "type": "json",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_list": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_remove": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "idsJson",
+        "type": "json",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_stage": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "itemsJson",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/holdings#holdings_update": {
+    "file": "packages/holdings/src/tool.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "patchJson",
+        "type": "json",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#indicator_activate": {
+    "file": "packages/indicators/src/chart-tools.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#indicator_author": {
+    "file": "packages/indicators/src/tool.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "pane",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "computeSource",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "activate",
+        "type": "boolean",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#indicator_deactivate": {
+    "file": "packages/indicators/src/chart-tools.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#indicator_delete": {
+    "file": "packages/indicators/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#indicator_list": {
+    "file": "packages/indicators/src/chart-tools.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/indicators#market + '_get_indicators'": {
+    "file": "packages/indicators/src/tool.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "indicators",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "points",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-cn#cn_get_auction_strength": {
+    "file": "packages/kit-cn/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-cn#cn_get_fundamentals": {
+    "file": "packages/kit-cn/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-cn#cn_get_limit_up_pool": {
+    "file": "packages/kit-cn/src/index.ts",
+    "params": [
+      {
+        "name": "page",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "size",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-cn#cn_get_news": {
+    "file": "packages/kit-cn/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "windowHours",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-crypto#crypto_funding_rate": {
+    "file": "packages/kit-crypto/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-crypto#crypto_get_derivatives": {
+    "file": "packages/kit-crypto/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-crypto#crypto_get_derivatives_history": {
+    "file": "packages/kit-crypto/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-crypto#crypto_get_fundamentals": {
+    "file": "packages/kit-crypto/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-crypto#crypto_get_news": {
+    "file": "packages/kit-crypto/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "windowHours",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-hk#hk_get_fundamentals": {
+    "file": "packages/kit-hk/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-hk#hk_get_news": {
+    "file": "packages/kit-hk/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "windowHours",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-us#us_get_fundamentals": {
+    "file": "packages/kit-us/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/kit-us#us_get_news": {
+    "file": "packages/kit-us/src/index.ts",
+    "params": [
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "windowHours",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/knowledge#knowledge_delete": {
+    "file": "packages/knowledge/src/tool.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/knowledge#knowledge_get": {
+    "file": "packages/knowledge/src/tool.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/knowledge#knowledge_graph": {
+    "file": "packages/knowledge/src/plugin.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/knowledge#knowledge_ingest": {
+    "file": "packages/knowledge/src/tool.ts",
+    "params": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "summary",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "sourceType",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "sourceUrl",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "sourceAuthor",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "publishedAt",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "credibility",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "coreClaimsJson",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "factCheckJson",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "takeawaysJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "boundariesJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "tagsJson",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "tickersJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "relatedJson",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/knowledge#knowledge_search": {
+    "file": "packages/knowledge/src/tool.ts",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "tags",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "cluster",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "author",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "sourceType",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "credibility",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "updatedAfter",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "publishedAfter",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "detail",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/router#instruments_search": {
+    "file": "packages/router/src/tools.ts",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": false,
+        "enum": true
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/router#routing_get": {
+    "file": "packages/router/src/tools.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#screener_author": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "summary",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "columnsJson",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "evaluateSource",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#screener_delete": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#screener_list": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#screener_reset": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#screener_run": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "screenerId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#strategy_author": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "horizon",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "summary",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "computeSource",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#strategy_backtest": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "strategyId",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "interval",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#strategy_delete": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#strategy_list": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/strategies#strategy_reset": {
+    "file": "packages/strategies/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_add": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/watchlist#watchlist_group_assign": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "member",
+        "type": "boolean",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_group_create": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_group_delete": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_group_rename": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_list": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [],
+    "outputForm": "object"
+  },
+  "@dshtrading/watchlist#watchlist_remove": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "none"
+  },
+  "@dshtrading/watchlist#watchlist_select": {
+    "file": "packages/watchlist/src/plugin.ts",
+    "params": [
+      {
+        "name": "market",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "symbol",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "outputForm": "object"
+  }
+}

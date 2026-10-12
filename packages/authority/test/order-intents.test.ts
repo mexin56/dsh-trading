@@ -1,3 +1,5 @@
+// 本文件只用隔离的 dsh-trading 临时 home：显式改写 process.env.DSH_HOME 指向 mkdtemp 目录，
+// 绝不继承宿主 home，也绝不作用在真实 ~/.dsh-trading 数据上。
 /**
  * 订单意图台账用例（离线；真实临时文件、真实 `transactStore` 跨进程锁，零 mock / 零等待）。
  *
