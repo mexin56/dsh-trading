@@ -8,12 +8,13 @@ tmp+rename 原子写块在 7 个包有 9+ 处同体副本（只读审计 F1）�
 
 ## Decision
 
-- 唯一实现落 @dshtrading/dsh-home（writeJsonAtomic，语义与 holdings/fs-atomic.ts 逐字一致）：tmp 唯一名、EPERM/EBUSY 25ms 退避重试 3 次、失败保留旧文件 + 清 tmp + log + throw。
+- 唯一实现落 @dshtrading/dsh-home（writeJsonAtomic）：tmp 唯一名（独占创建）、EPERM/EBUSY 25ms 退避重试 3 次、失败保留旧文件 + 清 tmp + log + throw。
+- 耐久性（2026-10-12 补强）：rename 前对 tmp 的**文件描述符** fsync、rename 后对**父目录** fsync，让新内容与「改名已发生」各有落盘点。目录 fsync 只在平台/文件系统明确不支持时（Windows 无法以文件句柄打开目录；部分网络盘返回 ENOTSUP/ENOSYS）记一行告警后跳过，EACCES/ENOENT/IO 等其余同步错误一律上抛——「无法确认耐久」不静默降级；同步失败仍清 tmp 且不吞原始错误。
 - 归属判据：dsh-home 是「home 数据文件」包且 7 个消费包全部已依赖它——零新依赖边、零 profile overrides 同步成本；base 是 cordis bundle（库包依赖它会倒转依赖方向），新建包踩实证 overrides 坑，均否决。
 - logPrefix 参数保留各调用方既有失败日志逐字不变（前缀含包名与对象名）。
 - holdings/fs-atomic.ts 删除，store-fs.ts 与 fx.ts 直引 dsh-home。
 - **刻意排除** client-ui-trading/tasks/ledger.ts：sync + fsync + chmod 600 的台账持久化变体是刻意的耐久语义（崩溃窗口 + 文件权限），与异步 tmp+rename 不同构，不收敛。
-- watchlist 保留 safeAtomicWrite 薄封装（3 个调用点签名不动），内部委托共享实现。
+- watchlist 的 3 个写路径（自选/分组/选中）在 2026-10-09 整体改走 `transactStore`（锁内读改写），不再有独立的 safeAtomicWrite 薄封装。
 - 本入口**只管「一次写入不产生半截文件」**：跨进程「两进程整表回写互相覆盖」是另一条缺口，
   由同包兄弟入口 `withHomeFileLock`/`transactStore` 在 store 粒度按 id 合并解决（2026-10-09，
   见 [跨进程写保护记录](../bug-fix/2026-10-09-cross-process-store-merge-write.md)）。不把合并
@@ -29,4 +30,4 @@ tmp+rename 原子写块在 7 个包有 9+ 处同体副本（只读审计 F1）�
 ## Consequences
 
 - 原子写缺陷修复今后只改一处；新增 store 直接 import。
-- 测试：dsh-home 新增 3 个 writeJsonAtomic 单测；watchlist 28 / indicators 69 / strategies 142 / knowledge 28 / holdings 76 全绿。
+- 测试：dsh-home 的 writeJsonAtomic 用例覆盖正常写入、覆盖旧内容、父路径是文件、目录 fsync 无法完成时明确失败（POSIX 权限条件）、不可写目录清 tmp 保旧文件；watchlist / indicators / strategies / knowledge / holdings 全绿。
