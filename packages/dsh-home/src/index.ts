@@ -13,13 +13,14 @@ import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-// home 数据文件原子写（tmp+rename，EPERM/EBUSY 重试）——全包唯一实现。
+// home 数据文件原子写（tmp+rename，fd/目录 fsync，EPERM/EBUSY 重试）——全包唯一实现。
 export { writeJsonAtomic } from './fs-atomic.ts'
-// 跨进程写保护唯一实现（锁文件 + 陈旧回收）与整表「锁内读-改-原子写」共享入口。
-export { withHomeFileLock, HomeFileLockTimeoutError } from './file-lock.ts'
-export type { HomeFileLockOptions } from './file-lock.ts'
-export { transactStore, SKIP_WRITE } from './store-transaction.ts'
-export type { SkipWrite, TransactStoreOptions } from './store-transaction.ts'
+// 跨进程写保护唯一实现（带 owner 身份的锁 + 可证明死亡的陈旧回收 + 提交前归属复核）。
+export { withHomeFileLock, HomeFileLockTimeoutError, HomeFileLockLostError } from './file-lock.ts'
+export type { HomeFileLockOptions, HomeFileLock, HomeFileLockOwner } from './file-lock.ts'
+// 整表「锁内读-改-原子写」与跨实例读新鲜度缓存（各 store 唯一入口）。
+export { transactStore, SKIP_WRITE, createStoreCache } from './store-transaction.ts'
+export type { SkipWrite, TransactStoreOptions, StoreCache } from './store-transaction.ts'
 
 const DEFAULT_HOME_DIR_NAME = '.dsh'
 /** 交易 home 的目录名（与 CLI wrapper / 各脚本的约定一致）。 */
