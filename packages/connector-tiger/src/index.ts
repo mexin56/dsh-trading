@@ -29,6 +29,7 @@ import type {
 import {
   INTERVAL_VOCABULARY,
   TigerRestClient,
+  toTigerSymbol,
   type TigerRestOptions,
   TradingServiceError,
 } from './rest.js'
@@ -170,7 +171,7 @@ export class TigerTradeService extends Service implements TradeService {
     return placed
   }
 
-  async cancelOrder(orderId: string): Promise<{ orderId: string; status: 'canceled' }> {
+  async cancelOrder(orderId: string, _symbol?: string): Promise<void> {
     // 服务缝闸门（P0）：撤单是会改变交易所/券商真实状态的实盘动作，与真实下单同门槛
     // （授权平面已授予且未强制模拟），防「经撤单接口绕过下单闸门」。
     if (!liveTradingEnabled(this.config.liveTrading) || this.config.dryRun) {
@@ -179,7 +180,19 @@ export class TigerTradeService extends Service implements TradeService {
         'Tiger TradeService.cancelOrder rejected at the service seam: cancel is a live action and requires a signed live-trading grant (see @dshtrading/authority) with dryRun=false.',
       )
     }
-    return this.client.cancelOrder(undefined, orderId)
+    await this.client.cancelOrder(undefined, orderId)
+  }
+
+  /**
+   * 单笔订单查询：Tiger 本切片的 REST 面只覆盖 trade_order / cancel_order，
+   * 没有已核对的订单状态契约。按仓库惯例**显式拒绝**（TRADING_NOT_IMPLEMENTED），
+   * 绝不返回编造的订单——base 的账户工具与 GUI 会把返回值当交易所真值消费。
+   */
+  async getOrder(_symbol: string, _id: string): Promise<Order> {
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'Tiger: single-order lookup is not implemented in this slice (no verified order-status contract); do not treat a missing result as "no such order".',
+    )
   }
 
   async getPositions(): Promise<Position[]> {
@@ -205,8 +218,15 @@ export function apply(ctx: Context, config: Config): void {
   if (!routeAllows(ctx, config, 'hk')) return
 
   const privateKey = config.privateKeyRef ? process.env[config.privateKeyRef] : undefined
-  const marketData = new TigerMarketDataService(ctx, { tigerId: config.tigerId, accountId: config.accountId, privateKey })
-  const trade = new TigerTradeService(ctx, { tigerId: config.tigerId, accountId: config.accountId, privateKey , config })
+  // 只把有值的可选字段交给 rest 层：Config 的可选项类型是 `string | undefined`，
+  // 而 TigerRestOptions 在 exactOptionalPropertyTypes 下不接受显式的 undefined。
+  const credentials = {
+    ...(config.tigerId === undefined ? {} : { tigerId: config.tigerId }),
+    ...(config.accountId === undefined ? {} : { accountId: config.accountId }),
+    ...(privateKey === undefined ? {} : { privateKey }),
+  }
+  const marketData = new TigerMarketDataService(ctx, credentials)
+  const trade = new TigerTradeService(ctx, { ...credentials, config })
 
   ctx.inject(['tools'], (ctx) => {
     const tools = ctx.tools as unknown as { register(d: unknown): void; get(n: string): unknown }
@@ -291,7 +311,7 @@ export function apply(ctx: Context, config: Config): void {
           side: args.side as 'buy' | 'sell',
           type: args.type as 'market' | 'limit',
           quantity: args.quantity,
-          price: args.price,
+          ...(args.price === undefined ? {} : { price: args.price }),
           ...(typeof args.intentId === 'string' ? { intentId: args.intentId } : {}),
           dryRun: false,
         })

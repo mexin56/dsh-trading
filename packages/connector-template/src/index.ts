@@ -30,7 +30,6 @@
 import { liveTradingEnabled } from '@dshtrading/authority'
 import {
   OrderIntentLedger,
-  deriveVenueClientKey,
   orderFromReceipt,
   receiptFromOrder,
   type OrderIntentPayload,
