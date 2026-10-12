@@ -15,7 +15,7 @@
  * - Issue #65：提供 /holdings 七个端点 + /fx 端点（统一资产台账，契约 §3/§4）。
  */
 import { instrumentFormOf } from '@dshtrading/api'
-import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, Position, PredictionFeed, PredictionMeeting, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
+import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
 import { aggregateNews as aggregateCnNews, fetchCnFundamentalsPackage } from '@dshtrading/kit-cn'
 import { aggregateNews as aggregateHkNews, fetchHkFundamentalsPackage } from '@dshtrading/kit-hk'
 import { aggregateNews as aggregateUsNews, fetchUsFundamentalsPackage } from '@dshtrading/kit-us'
@@ -44,6 +44,7 @@ import type { Holding, HoldingCurrency, HoldingMarket, NewHolding, NewHoldingInp
 import { createMemoryHoldingsStore, HOLDING_MARKETS } from '@dshtrading/holdings'
 import type { FxFetchLike } from '@dshtrading/holdings/fx'
 import { createFxService } from '@dshtrading/holdings/fx'
+import { GuiApprovalDeniedError, type GuiApprovalSeat, type GuiLiveAction } from './gui-approval.ts'
 import { TtlCache } from './ttl-cache.ts'
 
 /** 本桥支持的市场（与连接器服务键一一对应）。 */
@@ -164,6 +165,8 @@ export function createBridgeHost(services: {
   macroFeed?: MacroFeedLike | undefined
   /** 预测市场源（2026-10-11 Polymarket 接入；缺席 = 未安装该连接器 → TRADING_NOT_IMPLEMENTED）。 */
   predictionFeed?: PredictionFeedLike | undefined
+  /** GUI 实盘动作的逐动作审批座位（2026-10-12；缺席 = 无审批面 → GUI 实盘 fail-closed）。 */
+  guiApproval?: GuiApprovalSeat | undefined
 }): BridgeHost {
   return {
     getMarketService: market => {
@@ -190,6 +193,7 @@ export function createBridgeHost(services: {
     flashFeed: services.flashFeed,
     macroFeed: services.macroFeed,
     predictionFeed: services.predictionFeed,
+    guiApproval: services.guiApproval,
   }
 }
 
@@ -245,6 +249,12 @@ export interface BridgeHost {
   macroFeed?: MacroFeedLike | undefined
   /** 预测市场源（2026-10-11 Polymarket 接入；缺席 = 未安装该连接器 → TRADING_NOT_IMPLEMENTED）。 */
   predictionFeed?: PredictionFeedLike | undefined
+  /**
+   * GUI 实盘动作的逐动作审批座位（2026-10-12 用户裁决：保留 GUI 实盘并接入官方
+   * ctx.approval.request）。缺席时 GUI 实盘动作一律 TRADING_APPROVAL_DENIED——
+   * 审批面没挂不是放行的理由。
+   */
+  guiApproval?: GuiApprovalSeat | undefined
 }
 
 export interface MarketInfoWire {
@@ -363,6 +373,16 @@ export interface GuiOrderBody {
   readonly quantity?: unknown
   readonly price?: unknown
   readonly dryRun?: unknown
+  /**
+   * 发起动作的官方会话 id（审批绑定该会话的 agent）。缺省/未知 = 无审批上下文，
+   * 实盘路径 fail-closed 到 TRADING_APPROVAL_DENIED（绝不静默降级为模拟）。
+   */
+  readonly sessionId?: unknown
+  /**
+   * 本次逻辑提交的稳定意图 id（客户端生成 UUID；未知结果/网络失败重试保持同一
+   * 值，成功或主动新意图才换）。实盘必填：没有稳定意图的动作不允许下发。
+   */
+  readonly intentId?: unknown
 }
 
 export interface CustomIndicatorsWire {
@@ -653,6 +673,11 @@ export const FUNDAMENTALS_CACHE_TTL_MS = 5 * 60 * 1000
 /** 基本面缓存条目上限（LRU）：财报级数据包体积大，长生命周期宿主必须有界。 */
 export const FUNDAMENTALS_CACHE_MAX = 64
 
+/** 读一个「必须是字符串」的可选字段：非字符串/空白一律回空串（形状不信任）。 */
+function readTrimmedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
 /** 从 Error 上提取结构化错误词汇（连接器按 TradingError 形状附加 code）。 */
 export function errorPayload(error: unknown): { code: string; message: string } {
   if (error instanceof Error) {
@@ -889,11 +914,27 @@ export class TradingBridge {
   }
 
   /**
-   * GUI 下单（真交易执行）：支持实盘报单（默认 dryRun: false）。
-   * 若底层连接器未配置 API 凭证或未获人工签署实盘授权，由服务缝闸门抛出标准错误，
-   * 桥层如实向前端返回，杜绝伪造假成交。
+   * GUI 实盘动作的逐动作审批闸门（唯一出口，2026-10-12）：
+   * 审批座位缺席 / 无会话上下文 / 会话串号 / 用户拒绝 / 取消 / 连接断开，一律抛
+   * `TRADING_APPROVAL_DENIED`，绝不静默降级成模拟单或伪造回执。
+   * @param action - 规范化动作（展示 + 绑定同源）。
+   * @param signal - HTTP 连接信号（断连/超时即取消审批）。
    */
-  async placeOrderFromGui(market: string, body: GuiOrderBody): Promise<PlaceOrderWire> {
+  async #authorizeGuiLiveAction(action: GuiLiveAction, signal?: AbortSignal): Promise<void> {
+    const seat = this.host.guiApproval
+    if (seat === undefined) {
+      throw new GuiApprovalDeniedError('the GUI approval seat is not mounted on this bridge host')
+    }
+    await seat.authorize(action, { signal })
+  }
+
+  /**
+   * GUI 下单（真交易执行）：支持实盘报单（默认 dryRun: false）。
+   * 实盘路径先过逐动作审批（{@link TradingBridge.#authorizeGuiLiveAction}）；审批没成
+   * 就没有订单。若底层连接器未配置 API 凭证或未获人工签署实盘授权，由服务缝闸门抛出
+   * 标准错误，桥层如实向前端返回，杜绝伪造假成交。
+   */
+  async placeOrderFromGui(market: string, body: GuiOrderBody, signal?: AbortSignal): Promise<PlaceOrderWire> {
     const trade = this.#requireTradeService(market)
     const symbol = typeof body.symbol === 'string' ? body.symbol.trim() : ''
     const side = body.side === 'sell' ? 'sell' as const : body.side === 'buy' ? 'buy' as const : undefined
@@ -910,23 +951,70 @@ export class TradingBridge {
       throw new BridgeProtocolError(400, 'place order: limit orders require a positive price')
     }
     const requestedDryRun = typeof body.dryRun === 'boolean' ? body.dryRun : false
-    const order = await trade.placeOrder({
+    const intentId = readTrimmedString(body.intentId)
+    const sessionId = readTrimmedString(body.sessionId)
+    if (requestedDryRun !== true) {
+      // 所有实盘调用必须有稳定意图：没有意图 id 就没有可审计、可去重的动作身份。
+      if (intentId === '') {
+        throw new BridgeProtocolError(400, 'place order: live orders require an intentId')
+      }
+      await this.#authorizeGuiLiveAction({
+        action: 'place-order',
+        market,
+        symbol,
+        side,
+        type,
+        quantity,
+        ...(price !== undefined ? { price } : {}),
+        intentId,
+        sessionId,
+      }, signal)
+    }
+    // intentId 由 @dshtrading/api 的 OrderRequest 收录（并行流：可选 intentId）；合入前
+    // 用交叉类型承载，条件 spread 透传——连接器据此把同一意图的重试收敛成同一笔。
+    const request: OrderRequest & { readonly intentId?: string } = {
       symbol,
       side,
       type,
       quantity,
       ...(price !== undefined ? { price } : {}),
       dryRun: requestedDryRun,
-    })
+      ...(intentId === '' ? {} : { intentId }),
+    }
+    const order = await trade.placeOrder(request)
     return { ok: true, order }
   }
 
-  /** GUI 撤单（issue #40）：按 market + orderId + 可选 symbol 分发到激活的交易服务。 */
-  async cancelOrderFromGui(market: string, orderId: string, symbol?: string): Promise<{ ok: true; canceled: boolean }> {
+  /**
+   * GUI 撤单（issue #40）：按 market + orderId + 可选 symbol 分发到激活的交易服务。
+   * 撤单与下单同门槛（2026-10-12）：先过逐动作审批，审批没成订单照旧挂着。
+   * @param context.sessionId - 发起动作的官方会话 id（审批绑定）。
+   * @param context.intentId - 本次撤单的稳定意图 id（实盘必填）。
+   * @param context.signal - HTTP 连接信号。
+   */
+  async cancelOrderFromGui(
+    market: string,
+    orderId: string,
+    symbol?: string,
+    context?: { readonly sessionId?: string | undefined; readonly intentId?: string | undefined; readonly signal?: AbortSignal | undefined },
+  ): Promise<{ ok: true; canceled: boolean }> {
     const trade = this.#requireTradeService(market)
     const trimmedId = orderId.trim()
     if (!trimmedId) throw new BridgeProtocolError(400, 'cancel order: id is required')
-    await trade.cancelOrder(trimmedId, symbol?.trim())
+    const trimmedSymbol = symbol?.trim()
+    const intentId = context?.intentId?.trim() ?? ''
+    if (intentId === '') {
+      throw new BridgeProtocolError(400, 'cancel order: live cancellations require an intentId')
+    }
+    await this.#authorizeGuiLiveAction({
+      action: 'cancel-order',
+      market,
+      orderId: trimmedId,
+      ...(trimmedSymbol === undefined || trimmedSymbol === '' ? {} : { symbol: trimmedSymbol }),
+      intentId,
+      sessionId: context?.sessionId?.trim() ?? '',
+    }, context?.signal)
+    await trade.cancelOrder(trimmedId, trimmedSymbol)
     return { ok: true, canceled: true }
   }
 
@@ -2029,13 +2117,17 @@ function parseChartInstances(body: unknown): IndicatorInstance[] {
   return out
 }
 
-/** 请求分发：把 (method, pathname, searchParams) 路由到桥方法，返回 (status, payload)。 */
+/**
+ * 请求分发：把 (method, pathname, searchParams) 路由到桥方法，返回 (status, payload)。
+ * @param signal - HTTP 连接信号（GUI 实盘动作：客户端断连/超时 → 取消审批且不再报单）。
+ */
 export async function dispatchBridgeRequest(
   bridge: TradingBridge,
   method: string,
   pathname: string,
   search: URLSearchParams,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<{ status: number; payload: unknown }> {
   if (method === 'GET') {
     switch (pathname) {
@@ -2178,7 +2270,14 @@ export async function dispatchBridgeRequest(
       const symbol = search.get('symbol') ?? undefined
       if (!market) throw new BridgeProtocolError(400, 'cancel order: market is required')
       if (!orderId) throw new BridgeProtocolError(400, 'cancel order: id is required')
-      return { status: 200, payload: await bridge.cancelOrderFromGui(market, orderId, symbol) }
+      return {
+        status: 200,
+        payload: await bridge.cancelOrderFromGui(market, orderId, symbol, {
+          sessionId: search.get('sessionId') ?? undefined,
+          intentId: search.get('intentId') ?? undefined,
+          signal,
+        }),
+      }
     }
     if (pathname === '/watchlists') {
       const market = search.get('market') ?? ''
@@ -2231,7 +2330,7 @@ export async function dispatchBridgeRequest(
 
   if (method === 'POST') {
     if (pathname === '/trade/order') {
-      return { status: 200, payload: await bridge.placeOrderFromGui(search.get('market') ?? '', body as GuiOrderBody) }
+      return { status: 200, payload: await bridge.placeOrderFromGui(search.get('market') ?? '', body as GuiOrderBody, signal) }
     }
     if (pathname === '/strategies/reset') {
       const input = (typeof body === 'object' && body !== null ? body : {}) as { id?: unknown }

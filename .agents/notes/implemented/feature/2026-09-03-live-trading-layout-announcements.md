@@ -14,9 +14,14 @@ Status: implemented
 ## Decision
 
 ### 1. 彻底实现真交易（清除假交易模拟）
-- `packages/client-ui-trading/src/bridge.ts`：`placeOrderFromGui` 移除硬编码 `dryRun: true`，默认执行 `dryRun: false` 实盘报单，直接贯通底层连接器的真实网络下单能力；
+- `packages/bot-api/src/bridge.ts`（2026-10-01 从 client-ui-trading 搬包）：`placeOrderFromGui` 移除硬编码 `dryRun: true`，默认执行 `dryRun: false` 实盘报单，直接贯通底层连接器的真实网络下单能力；
 - `api.ts` 与错误回执：若连接器未配置 API 凭证或未开启 `liveTrading`，如实向上抛出错误原因（如未配置密钥、未开启实盘），并在 UI 提供明确提示，绝不伪造虚假成交；
 - 全面清理多语言文案：移除所有 `dryRun` 占位和模拟提示，切换为“实盘通道”、“立即下单”、“报单成功”等真实交易语义。
+- **2026-10-12 用户裁决：保留 GUI 实盘，接入官方逐动作审批**。GUI 的实盘路径（`POST/DELETE /trade/order`）经 `packages/bot-api/src/gui-approval.ts` 调用宿主真实 `ctx.approval.request`（`@deepseek-ai/dsh-user-approval` 的 `ApprovalService`），只认 `allowed-once`：
+  - 审批绑定**实际 agent/session**：客户端（`QuotePane` 经官方 `useSessions` + `currentSessionId`）传当前主视图会话 id，宿主用 `agents.get(sessionId)` 解析 agent 并以 `agent.session.id` 复核，串会话一律拒绝；`ctx.approval` 缺席、会话缺席、拒绝、取消、HTTP 断连（AbortSignal）全部 fail-closed 到 `TRADING_APPROVAL_DENIED`——绝不退化成模拟单，不伪造 dry-run 回执；`ApprovalService` 的审计对 `approval/asked`/`approval/decided` 落在该会话日志里；`request()` 要求会话处于打开的一轮（空闲会话的 ask 直接抛错 → 同样拒绝）；
+  - 展示与绑定同源：`reason` 带完整规范化快照（market/symbol/side/type/quantity/price/intentId/sessionId；撤单为 market/orderId/symbol/intentId/sessionId），工具名沿用 base 闸门词汇（`<market>_place_order`/`<market>_cancel_order`），GUI 动作与 agent 工具动作在审计里同口径；
+  - 所有实盘调用带**稳定意图 id**（客户端 UUID）：未知结果/网络失败重试续用同一 `intentId`，参数变化、成功或主动新意图才换；撤单与下单同门槛；
+  - 已知边界：界面文案 `trade.liveHint`（“实盘下单唯一通道是 Agent 会话；本面板只做模拟与只读查询”）仍是旧口径，与现状不符——文案清理不在本变更范围。
 
 ### 2. UI 专业终端布局重构（对齐富途牛牛/同花顺/TradingView）
 - **右侧盯盘下单侧边栏（`OrderPanel`）**：

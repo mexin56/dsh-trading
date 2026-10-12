@@ -28,11 +28,14 @@ describe('Trade UI API & Real Trading', () => {
       type: 'limit',
       quantity: 100,
       price: 45.2,
-    })
+    }, { sessionId: 'session-gui-1', intentId: 'intent-trade-ui-1' })
 
     expect(capturedBody).toBeDefined()
     const parsed = JSON.parse(capturedBody!)
     expect(parsed.dryRun).toBe(false)
+    // 实盘身份随请求体透传（宿主据此绑定审批与去重）
+    expect(parsed.sessionId).toBe('session-gui-1')
+    expect(parsed.intentId).toBe('intent-trade-ui-1')
     expect(res.order).toBeDefined()
     expect(res.order?.id).toBe('ord-real-999')
     expect(res.order?.dryRun).toBe(false)
@@ -53,10 +56,11 @@ describe('Trade UI API & Real Trading', () => {
       type: 'limit',
       quantity: 100,
       price: 45.2,
-    })
+    }, { sessionId: 'session-gui-1', intentId: 'intent-trade-ui-2' })
 
     expect(res.order).toBeUndefined()
     expect(res.error).toContain('liveTrading is disabled')
+    expect(res.code).toBe('TRADING_LIVE_TRADING_DISABLED')
   })
 
   it('placeGuiDryRunOrder: 兼容旧调用', async () => {
@@ -81,7 +85,7 @@ describe('Trade UI API & Real Trading', () => {
       side: 'buy',
       type: 'market',
       quantity: 1,
-    })
+    }, { sessionId: 'session-gui-1', intentId: 'intent-trade-ui-3' })
     expect(order?.id).toBe('ord-123')
   })
 })

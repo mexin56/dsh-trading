@@ -18,6 +18,7 @@ import type { ChartState } from './chart-state.ts'
 import type { Observable, SelectionState } from './store.ts'
 import type { IndicatorMarketScope } from '@dshtrading/indicators'
 import type { MarketId } from './types.ts'
+import type { GuiApprovalContextProps } from './gui-approval.ts'
 import css from './stage.module.css'
 
 /** 插件视图的注册 definition 形状（quote 由 shell 内建，不走此面）。 */
@@ -66,8 +67,10 @@ export type MiddleStageProps =
   PropsRuntime<'shell.overlay'>
   & PropsLocale<'dshtrading.market'>
   & InjectFace<MiddleStageInjected>
+  /** GUI 实盘审批的会话读面（QuotePane 从官方 client context 解出后透传）。 */
+  & GuiApprovalContextProps
 
-export function MiddleStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator }: MiddleStageProps) {
+export function MiddleStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId }: MiddleStageProps) {
   // 名册响应式：registry 版本号驱动 tab 条重渲染；当前视图是普通 state
   // （readStageView 净化 localStorage 脏值）。
   useSyncExternalStore(stageViews.subscribe, stageViews.getVersion)
@@ -100,7 +103,7 @@ export function MiddleStage({ t, useSelection, useChart, toggleIndicator, setInd
           quote 视图 = shell 内建（QuoteStage 直引——需要中栏全部指标动作面）；
           插件视图走 definition.render(props)。 */}
       {view === 'quote' ? (
-        <QuoteStage {...({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator } as never)} />
+        <QuoteStage {...({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId } as never)} />
       ) : (
         (() => {
           const definition = stageViews.get(view)

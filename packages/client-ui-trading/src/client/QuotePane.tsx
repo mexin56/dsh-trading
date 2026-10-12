@@ -13,8 +13,10 @@
  * ResizeObserver + resize 跟随（对话列轨道经宿主 transition 动画，
  * RO 在动画期间连续重测量）。
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import { currentSessionId } from './current-session.ts'
 import { MiddleStage } from './MiddleStage.tsx'
 import type { MiddleStageProps } from './MiddleStage.tsx'
 import type { Observable, SelectionState } from './store.ts'
@@ -52,8 +54,30 @@ interface Rect {
   height: number
 }
 
-export function QuotePane({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator }: QuotePaneProps) {
+/**
+ * 官方标准位 `useSessions` 的本地结构面：本仓 client 类型程序不含
+ * `@deepseek-ai/dsh-api-session-controller` 的 GlobalStandardProps 增补
+ * （HomeHistory / ChatResizeHandle 相对同一个洞，见 current-session.ts 头注），
+ * 故按结构读取并在此收窄一次——运行期席位由框架注入，恒在场。
+ */
+type SessionListHook = <TSelected>(selector: (state: SessionListState) => TSelected) => TSelected
+
+function sessionListHookOf(props: QuotePaneProps): SessionListHook {
+  return (props as unknown as { useSessions: SessionListHook }).useSessions
+}
+
+export function QuotePane(props: QuotePaneProps) {
+  const { t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator } = props
   const [rect, setRect] = useState<Rect | null>(null)
+  // 官方标准位（结构读取，见 sessionListHookOf）。
+  const useSessions = sessionListHookOf(props)
+  // GUI 实盘审批的会话上下文（官方读法，同 HomeHistory/ChatResizeHandle）：当前主视图
+  // 会话 id 即审批要绑定到的 agent 会话；无会话 = 无审批上下文（宿主 fail-closed）。
+  // 点击时才读（ref 跟随最新值），避免把提交闭包钉在旧的会话上。
+  const sessionId = useSessions((state: SessionListState) => currentSessionId(state))
+  const sessionRef = useRef(sessionId)
+  useEffect(() => { sessionRef.current = sessionId }, [sessionId])
+  const guiSessionId = useCallback(() => sessionRef.current, [])
 
   useEffect(() => {
     let raf = 0
@@ -146,7 +170,7 @@ export function QuotePane({ t, useSelection, useChart, toggleIndicator, setIndic
     >
       {/* MiddleStage 的 slot 运行时面（viewRequest 等）在面板场景不需要，
           只取 t/两个 store hook 与指标动作。 */}
-      <MiddleStage {...({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator } as MiddleStageProps)} />
+      <MiddleStage {...({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId } as MiddleStageProps)} />
     </div>
   )
 }
