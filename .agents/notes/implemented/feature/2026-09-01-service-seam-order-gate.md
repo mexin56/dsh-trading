@@ -38,4 +38,11 @@ Status: implemented
 
 > **2026-10-08 原地补充（闸门覆盖面的第二次修订）**：审批闸门的动作集合从「下单/撤单」扩为「一切会改变交易所真实风险参数的实盘动作」，首例是合约杠杆/保证金模式变更 `crypto_set_leverage`（P7）。模式改名 `LIVE_ACTION_GATE_PATTERN`，判定函数改名 `decideLiveActionGate`；`ORDER_GATE_PATTERN`/`isOrderGateTool`/`decideOrderGate` 保留为**同实现**的旧名别名（消费方零改动）。三态语义与服务缝位置不变。理由：调大杠杆等于放大强平风险，而旧模式只认 `*_(place|cancel)_order`，杠杆设置本可绕过整个审批面。**新增任何实盘动作必须同时加进模式**。见 [合约交易 Tier 2 note](2026-10-08-contract-trading-tier2-semantics-and-gates.md)。
 
+> **2026-10-12 原地补充（live 分支前的持久意图记录，issue 43）**：闸门 ③（live）之后、真正触网之前，
+> 连接器现在必须先经 `@dshtrading/authority/order-intents` 落一条持久意图记录（`intentId` 在实盘请求里
+> 必填、dry-run 可缺省）：同 ID 同载荷重试只重放回执、同 ID 异载荷/provider/环境/账户冲突拒绝、
+> 结局未知一律不自动重发；台账写盘失败即**不触网**。三态闸门语义、位置与「撤单同门槛」全部不变，
+> 新增的只是 live 分支里的一段前置纪律。见
+> [订单意图台账](../architecture/2026-10-12-order-intent-ledger-idempotency.md)。
+
 > **2026-10-01 原地补充（闸门第一段的权威来源）**：本记录的三态语义与「撤单同门槛」不变，但第一段的判定输入换了——18 个连接器的 43 处判定点从读 `config.liveTrading` 改为经 `@dshtrading/authority` 的 `liveTradingEnabled(config.liveTrading)`（镜像与人工签署平面取合取）。服务缝仍是实盘路径的必经点，关闭语义仍是 fail-closed；变的是「谁有权授予」。见 [2026-10-01-live-trading-authority-plane](../architecture/2026-10-01-live-trading-authority-plane.md)。
