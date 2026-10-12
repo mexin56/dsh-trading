@@ -93,6 +93,17 @@ export interface OrderIntentPayload {
 }
 
 /**
+ * 落盘回执的状态词汇：与 @dshtrading/api 的 `OrderStatus` **同形**。
+ *
+ * 本模块不 import @dshtrading/api（那是纯类型契约包，而这里是运营数据的形状校验），
+ * 所以在这里复述一次；**api 仍是该词汇的归属方**，改那边必须同步这里。
+ */
+export type OrderIntentStatus = 'new' | 'partially_filled' | 'filled' | 'canceled' | 'rejected' | 'expired'
+
+/** 落盘回执形状校验用的取值集（与 OrderIntentStatus 同步）。 */
+const ORDER_INTENT_STATUSES: readonly OrderIntentStatus[] = ['new', 'partially_filled', 'filled', 'canceled', 'rejected', 'expired']
+
+/**
  * venue 回执（Order 的持久子集）。`id` 恒为 venue 侧真实订单 id——
  * 没有它就不是回执，本模块拒绝落库。
  */
@@ -101,7 +112,7 @@ export interface OrderIntentReceipt {
   readonly symbol: string
   readonly side: 'buy' | 'sell'
   readonly type: 'limit' | 'market'
-  readonly status: string
+  readonly status: OrderIntentStatus
   readonly price?: number
   readonly quantity: number
   readonly filledQuantity?: number
@@ -125,10 +136,14 @@ export interface OrderIntentRecord {
   readonly receipt?: OrderIntentReceipt
 }
 
-/** 提交前裁决：`submit` = 本次可以触网；`replay` = 已有回执，直接返回且不得触网。 */
+/**
+ * 提交前裁决：`submit` = 本次可以触网；`replay` = 已有回执，直接返回且不得触网。
+ * 两种结果都回带**规范化后的 intentId**（已 trim）：调用方据此派生 venue client key
+ * 与写回执，不需要自己再判一次「id 到底给没给」。
+ */
 export type OrderIntentDecision =
-  | { readonly action: 'submit' }
-  | { readonly action: 'replay'; readonly receipt: OrderIntentReceipt }
+  | { readonly action: 'submit'; readonly intentId: string }
+  | { readonly action: 'replay'; readonly intentId: string; readonly receipt: OrderIntentReceipt }
 
 export interface OrderIntentLedgerOptions extends OrderIntentScope {
   /** 显式 home（缺省按 `$DSH_HOME` 解析；测试必须显式指到临时目录）。 */
@@ -201,6 +216,55 @@ function isReceipt(value: unknown): value is OrderIntentReceipt {
     && typeof receipt.symbol === 'string'
     && typeof receipt.quantity === 'number'
     && typeof receipt.timestamp === 'number'
+    && typeof receipt.status === 'string'
+    && (ORDER_INTENT_STATUSES as readonly string[]).includes(receipt.status)
+}
+
+/** api `Order` 的最小结构面（本包不依赖 @dshtrading/api，连接器传自己的 Order 即可）。 */
+export interface OrderLike {
+  readonly id: string
+  readonly symbol: string
+  readonly side: 'buy' | 'sell'
+  readonly type: 'limit' | 'market'
+  readonly status: OrderIntentStatus
+  readonly price?: number
+  readonly quantity: number
+  readonly filledQuantity?: number
+  readonly timestamp: number
+}
+
+/** api `Order` → 落盘回执（**只接受非空 id**；venue 没给句柄就不是成功）。 */
+export function receiptFromOrder(order: OrderLike): OrderIntentReceipt {
+  return {
+    id: order.id,
+    symbol: order.symbol,
+    side: order.side,
+    type: order.type,
+    status: order.status,
+    ...(order.price !== undefined ? { price: order.price } : {}),
+    quantity: order.quantity,
+    ...(order.filledQuantity !== undefined ? { filledQuantity: order.filledQuantity } : {}),
+    timestamp: order.timestamp,
+  }
+}
+
+/**
+ * 落盘回执 → api `Order` 的同形结构（状态词汇已在落盘时按 api 词汇校验过，
+ * 因此这里的窄化是安全的），`dryRun` 恒为 false：能进台账的都是实盘单。
+ */
+export function orderFromReceipt(receipt: OrderIntentReceipt): OrderLike & { readonly dryRun: false } {
+  return {
+    id: receipt.id,
+    symbol: receipt.symbol,
+    side: receipt.side,
+    type: receipt.type,
+    status: receipt.status,
+    ...(receipt.price !== undefined ? { price: receipt.price } : {}),
+    quantity: receipt.quantity,
+    ...(receipt.filledQuantity !== undefined ? { filledQuantity: receipt.filledQuantity } : {}),
+    dryRun: false,
+    timestamp: receipt.timestamp,
+  }
 }
 
 /** 一份记录文件的内容：读盘形状与坏形降级口径（坏形 = 当作没有记录，绝不猜）。 */
@@ -313,8 +377,8 @@ export class OrderIntentLedger {
     }
     // 锁内写盘后的状态就是裁决：confirmed = 已有回执（重放），unknown = 本次刚落下、可触网。
     return record.state === 'confirmed' && record.receipt !== undefined
-      ? { action: 'replay', receipt: record.receipt }
-      : { action: 'submit' }
+      ? { action: 'replay', intentId, receipt: record.receipt }
+      : { action: 'submit', intentId }
   }
 
   /**

@@ -34,6 +34,13 @@
  */
 
 import { liveTradingEnabled } from '@dshtrading/authority'
+import {
+  OrderIntentLedger,
+  deriveVenueClientKey,
+  orderFromReceipt,
+  receiptFromOrder,
+  type OrderIntentPayload,
+} from '@dshtrading/authority/order-intents'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -396,18 +403,48 @@ const INSTRUMENT_TTL_MS = 60 * 60 * 1000
 /** 规格并发预取上限：账户只读面冷缓存时最多同时打这么多 /public/instruments（公共面有限频，取保守并发）。 */
 const INSTRUMENT_PREFETCH_CONCURRENCY = 8
 
+/**
+ * OKX 官方契约的 `clOrdId` 规则：大小写字母数字、**至多 32 字符**，且在未成交挂单
+ * 之间必须唯一（okx.com/docs-v5：`clOrdId` / "clOrdId must be unique among the
+ * clOrdIds of all pending orders"）。派生值 = `dsht` + sha256 前缀，纯十六进制，
+ * 天然落在该字符集内。**注意它是第二层防护而不是 exactly-once**：订单成交/撤销后
+ * 该 clOrdId 即释放，跨时间重复提交只靠本地意图台账拦下。
+ */
+export const OKX_CLIENT_ORDER_ID_RULE = { prefix: 'dsht', maxLength: 32 } as const
+
+/**
+ * 台账账户定位：OKX 插件配置里**没有**非密账户字段（账户由 API key 决定），
+ * 因此这里用稳定占位 `default`，环境（demo/live）承担账户区分。
+ *
+ * 边界（如实记录）：把同一个 DSH 实例的 OKX 凭据换到**另一个账户**而 env 不变时，
+ * 台账无法区分——此时未知意图必须由人工/读对账推进（台账本身仍然拒绝自动重发，
+ * 所以最坏结果是「保守地不重发」，不是重复下单）。凭据**轮换**（同一账户换 key）
+ * 不进指纹，因此不会让未知意图看起来是新意图。
+ */
+const OKX_INTENT_ACCOUNT = 'default'
+
 export class OkxTradeService extends Service implements TradeService {
   private readonly client: OkxRestClient
   private readonly config: Config
   private readonly getCredentials: () => Promise<OkxCredentials>
   /** instId → 规格 缓存；key 前缀 demo:/live: —— demo 与实盘 ctVal 是否一致未实证（调研待验证 #5），按环境分桶。 */
   private readonly instruments = new Map<string, { instrument: OkxInstrument; at: number }>()
+  /**
+   * 订单意图台账（实盘路径的幂等前提；写 agent 自己的 trading home，不写授权平面）。
+   * 环境进作用域：模拟盘与实盘是两套账户，同一 intentId 跨环境必须冲突而不是重发。
+   */
+  private readonly intents: OrderIntentLedger
 
   constructor(ctx: Context, options: OkxTradeServiceOptions, serviceName: string = TRADING_CRYPTO_TRADE_KEY) {
     super(ctx, serviceName)
     this.client = options.client
     this.config = options.config
     this.getCredentials = options.getCredentials
+    this.intents = new OrderIntentLedger({
+      provider: 'okx',
+      environment: options.config.env,
+      account: OKX_INTENT_ACCOUNT,
+    })
   }
 
   private get simulated(): boolean {
@@ -543,6 +580,9 @@ export class OkxTradeService extends Service implements TradeService {
       }
     }
     // 闸门 ③：live（dryRun=false 且实盘已获授权）→ 真实签名下单。
+    //
+    // 归一化（规格读取 + sz 换算）先于台账：这些是**参数验证**，失败时不该把 intentId
+    // 烧成一条「未知」记录。归一化只打 OKX 公共只读面，不构成任何订单风险。
     const instId = normalizeOkxSymbol(req.symbol)
     const instrument = await this.getInstrument(instId)
     const normalized = normalizeSize(instId, instrument, req.quantity)
@@ -550,26 +590,51 @@ export class OkxTradeService extends Service implements TradeService {
     // 缺省 cross（全仓）。isolated 需先在交易所侧对该标的设好逐仓杠杆
     // （crypto_set_leverage），否则交易所按 51000/51012 拒绝——本仓不猜、不代设。
     const marginMode: MarginMode = req.marginMode ?? 'cross'
+    const canonicalSymbol = toCanonicalOkxSymbol(instId)
+    const payload: OrderIntentPayload = {
+      symbol: canonicalSymbol,
+      side: req.side,
+      type: req.type,
+      quantity: req.quantity,
+      ...(req.price !== undefined ? { price: req.price } : {}),
+      extra: { tdMode: instrument.instType === 'SWAP' ? marginMode : 'cash' },
+    }
+    // 持久意图台账（铁律：**先落盘，后触网**）。三种结果：
+    //   submit  → 本次已落下 unknown 记录，可以调用交易所；
+    //   replay  → 同 ID 已有 venue 回执：原样回带，**不重发**；
+    //   抛错    → 缺 intentId / 载荷冲突 / 结局未知 / 写盘失败，一律不触网。
+    const decision = await this.intents.begin({ intentId: req.intentId, payload })
+    if (decision.action === 'replay') return orderFromReceipt(decision.receipt)
+    // venue client order key：由 intentId 确定性派生（OKX 官方 clOrdId 契约 ≤32 字母数字）。
+    // 它只是第二层防护（仅约束未成交挂单），永不进回执/DTO。
+    const clOrdId = deriveVenueClientKey(decision.intentId, OKX_CLIENT_ORDER_ID_RULE)
     const params = {
       instId,
       tdMode: instrument.instType === 'SWAP' ? marginMode : ('cash' as const),
       side: req.side,
       ordType: req.type,
       sz: normalized.sz,
+      clOrdId,
       ...(req.type === 'limit' ? { px: String(req.price) } : {}),
       // tgtCcy 是现货市价单专用参数（limit 恒为 base 币数，不带 tgtCcy）。
       ...(req.type === 'market' && normalized.tgtCcy !== undefined ? { tgtCcy: normalized.tgtCcy } : {}),
     }
     const credentials = await this.getCredentials()
+    // 从这里开始任何失败都停在「未知/在飞」：同 ID 重试只会得到 TRADING_INTENT_UNKNOWN。
     const rows = await this.client.placeOrder(params, this.auth(credentials))
     const first = rows[0] as Record<string, unknown>
     const ordId = typeof first.ordId === 'string' && first.ordId !== '' ? first.ordId : undefined
     if (ordId === undefined) {
-      throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `OKX place order for ${instId}: missing ordId in response`)
+      // venue 没给句柄：这不算成功，也不造 id——记录停在 unknown，人工/读对账推进。
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `OKX place order for ${instId}: response carries no real ordId — the order is not confirmed `
+          + `(intent ${decision.intentId} stays unresolved and will not be resubmitted automatically)`,
+      )
     }
-    return {
+    const order: Order = {
       id: ordId,
-      symbol: toCanonicalOkxSymbol(instId),
+      symbol: canonicalSymbol,
       side: req.side,
       type: req.type,
       status: 'new',
@@ -578,6 +643,9 @@ export class OkxTradeService extends Service implements TradeService {
       dryRun: false,
       timestamp: Date.now(),
     }
+    // 只有真实非空 venue orderId 才写 confirmed（回执即幂等锚）。
+    await this.intents.confirm({ intentId: decision.intentId, payload, receipt: receiptFromOrder(order) })
+    return order
   }
 
   /**
@@ -935,6 +1003,13 @@ export interface PlaceOrderArgs {
   readonly marginMode?: MarginMode
   /** 缺省视为 true：仅模拟。显式 false 即实盘意图，进入三态闸门 ②/③。 */
   readonly dryRun?: boolean
+  /**
+   * Stable idempotency id for a live order (required when dryRun=false, optional for
+   * simulations). Retrying with the same id and the same normalized request returns the
+   * recorded venue receipt instead of placing a second order; a different payload,
+   * provider, environment or account under the same id is rejected as a conflict.
+   */
+  readonly intentId?: string
 }
 
 /**
@@ -1104,6 +1179,11 @@ export function createPlaceOrderTool(deps: PlaceOrderToolDeps) {
           'true (default) = simulate only and return a DRY-RUN receipt; false = request real execution (gated by the signed live-trading authority, env and user approval)',
         default: true,
       },
+      intentId: {
+        type: 'string',
+        description:
+          'Stable idempotency id, required when dryRun=false. Same id + same request returns the recorded receipt and never places a second order; a different payload/provider/environment/account under the same id is rejected (TRADING_INTENT_CONFLICT); an unresolved id stays blocked as unknown until reconciled.',
+      },
     },
     output: {
       schema: { type: 'string' },
@@ -1130,6 +1210,7 @@ export function createPlaceOrderTool(deps: PlaceOrderToolDeps) {
         quantity: args.quantity,
         ...(args.type === 'limit' ? { price: args.price } : {}),
         ...(args.marginMode !== undefined ? { marginMode: args.marginMode } : {}),
+        ...(args.intentId !== undefined ? { intentId: args.intentId } : {}),
         dryRun: false,
       })
       return JSON.stringify(order)

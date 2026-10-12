@@ -92,8 +92,8 @@ describe('订单意图台账：同 ID 只下一单', () => {
     const store = ledger()
     // When 调用方在触网前请求裁决
     const decision = await store.begin({ intentId: 'intent-1', payload: PAYLOAD })
-    // Then 裁决是 submit，且磁盘上已经有一条 unknown 记录（记录先于网络写成立）
-    expect(decision).toEqual({ action: 'submit' })
+    // Then 裁决是 submit（回带规范化 intentId），且磁盘上已有一条 unknown 记录（记录先于网络写成立）
+    expect(decision).toEqual({ action: 'submit', intentId: 'intent-1' })
     const record = await store.read('intent-1')
     expect(record).toMatchObject({
       version: ORDER_INTENT_PROTOCOL_VERSION,
@@ -113,7 +113,7 @@ describe('订单意图台账：同 ID 只下一单', () => {
     const restarted = ledger()
     const decision = await restarted.begin({ intentId: 'intent-2', payload: PAYLOAD })
     // Then 直接重放同一回执，且台账仍只有这一条记录（没有第二条意图）
-    expect(decision).toEqual({ action: 'replay', receipt: receipt() })
+    expect(decision).toEqual({ action: 'replay', intentId: 'intent-2', receipt: receipt() })
     expect(recordFiles()).toHaveLength(1)
   })
 
@@ -222,7 +222,7 @@ describe('订单意图台账：同 ID 只下一单', () => {
     const decision = await ledger().begin({ intentId: 'intent-10', payload: PAYLOAD })
     // Then 记录变成 confirmed，后续同 ID 请求只会重放这份回执
     expect(reconciled.state).toBe('confirmed')
-    expect(decision).toEqual({ action: 'replay', receipt: receipt({ id: 'V-10' }) })
+    expect(decision).toEqual({ action: 'replay', intentId: 'intent-10', receipt: receipt({ id: 'V-10' }) })
   })
 
   it('user 想对账一条台账里没有的意图：拒绝凭空造记录', async () => {

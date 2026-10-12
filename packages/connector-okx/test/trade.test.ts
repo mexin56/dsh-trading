@@ -4,6 +4,9 @@
  */
 import { installTestAuthority, type TestAuthority } from '@dshtrading/authority/testing'
 import { Context as CordisContext } from '@deepseek-ai/cordis'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Config } from '../src/index.js'
 import {
@@ -22,8 +25,28 @@ import { OkxRestClient, TradingServiceError, type OkxCredentials } from '../src/
 /** 实盘授权夹具：连接器闸门现在要求人工签署授权（@dshtrading/authority），
  *  用例在临时目录里搭一份真实签名的平面并指向它——不这样做，闸门 ③ 只能被 mock 掉。 */
 let testAuthority: TestAuthority | undefined
-beforeAll(() => { testAuthority = installTestAuthority() })
-afterAll(() => { testAuthority?.uninstall() })
+/** 订单意图台账的家：显式指到临时目录，绝不继承宿主 `$DSH_HOME`（那会写进真实实例的数据）。 */
+let homeDir: string | undefined
+let savedHome: string | undefined
+beforeAll(() => {
+  testAuthority = installTestAuthority()
+  savedHome = process.env.DSH_HOME
+  homeDir = mkdtempSync(join(tmpdir(), 'dsh-okx-intents-'))
+  process.env.DSH_HOME = homeDir
+})
+afterAll(() => {
+  testAuthority?.uninstall()
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  if (homeDir !== undefined) rmSync(homeDir, { recursive: true, force: true })
+})
+
+/** 每次实盘提交一个全新的意图 id（同 id 只允许一笔，用例之间必须互不干扰）。 */
+let intentSeq = 0
+function nextIntentId(): string {
+  intentSeq += 1
+  return `okx-test-intent-${intentSeq}`
+}
 
 /* ------------------------------------------------------------------ */
 /* 夹具                                                                    */
@@ -133,7 +156,7 @@ describe('OkxTradeService 服务缝闸门（绕过工具层直调）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: 'seam-1', sCode: '0', sMsg: '' }]) },
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
-    const order = await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false })
+    const order = await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false, intentId: nextIntentId() })
     expect(order.dryRun).toBe(false)
     expect(order.id).toBe('seam-1')
     expect(posts).toHaveLength(1)
@@ -358,7 +381,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: '12345', sCode: '0', sMsg: '' }]) },
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
-    const order = await trade.placeOrder({ symbol: 'BTC-USDT-SWAP', side: 'buy', type: 'market', quantity: 0.02, dryRun: false })
+    const order = await trade.placeOrder({ symbol: 'BTC-USDT-SWAP', side: 'buy', type: 'market', quantity: 0.02, dryRun: false, intentId: nextIntentId() })
     expect(order.id).toBe('12345')
     expect(order.dryRun).toBe(false)
     const body = JSON.parse(posts[0]?.body ?? '{}') as Record<string, unknown>
@@ -373,7 +396,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: '67890', sCode: '0', sMsg: '' }]) },
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
-    await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false })
+    await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false, intentId: nextIntentId() })
     const body = JSON.parse(posts[0]?.body ?? '{}') as Record<string, unknown>
     expect(body.tgtCcy).toBe('base_ccy')
     expect(body.sz).toBe('0.01')
@@ -386,7 +409,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: '1', sCode: '0', sMsg: '' }]) },
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
-    await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'limit', quantity: 0.01, price: 41000, dryRun: false })
+    await trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'limit', quantity: 0.01, price: 41000, dryRun: false, intentId: nextIntentId() })
     const body = JSON.parse(posts[0]?.body ?? '{}') as Record<string, unknown>
     expect(body.tgtCcy).toBeUndefined()
     expect(body.px).toBe('41000')
@@ -399,7 +422,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
     // 0.0001 BTC / 0.01 = 0.01 张，minSz=0.01 张恰好；改更小：0.00005 BTC = 0.005 张 < minSz。
-    await expect(trade.placeOrder({ symbol: 'BTC-USDT-SWAP', side: 'buy', type: 'market', quantity: 0.00005, dryRun: false }))
+    await expect(trade.placeOrder({ symbol: 'BTC-USDT-SWAP', side: 'buy', type: 'market', quantity: 0.00005, dryRun: false, intentId: nextIntentId() }))
       .rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR', message: expect.stringContaining('minSz') })
   })
 
@@ -409,7 +432,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: 'd1', sCode: '0', sMsg: '' }]) },
     ])
     await makeTradeService(demo.fetchImpl, { dryRun: false, liveTrading: true, env: 'demo' })
-      .placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false })
+      .placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false, intentId: nextIntentId() })
     expect(demo.posts[0]?.headers['x-simulated-trading']).toBe('1')
 
     const live = routeFetch([
@@ -417,7 +440,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       { match: (u) => u.includes('/api/v5/trade/order'), respond: () => okEnvelope([{ ordId: 'l1', sCode: '0', sMsg: '' }]) },
     ])
     await makeTradeService(live.fetchImpl, { dryRun: false, liveTrading: true, env: 'live' })
-      .placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false })
+      .placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false, intentId: nextIntentId() })
     expect(live.posts[0]?.headers['x-simulated-trading']).toBeUndefined()
   })
 
@@ -430,7 +453,7 @@ describe('sz 单位纪律（placeOrder 换算）', () => {
       },
     ])
     const trade = makeTradeService(fetchImpl, { dryRun: false, liveTrading: true })
-    await expect(trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false }))
+    await expect(trade.placeOrder({ symbol: 'BTC-USDT', side: 'buy', type: 'market', quantity: 0.01, dryRun: false, intentId: nextIntentId() }))
       .rejects.toMatchObject({ code: 'TRADING_INSUFFICIENT_BALANCE' })
   })
 })

@@ -340,6 +340,12 @@ export interface OkxPlaceOrderParams {
   readonly sz: string
   readonly px?: string
   readonly tgtCcy?: 'base_ccy' | 'quote_ccy'
+  /**
+   * 客户端订单 id（OKX 官方契约：大小写字母数字、至多 32 字符，且在未成交挂单间唯一）。
+   * 由 TradeService 从 `OrderRequest.intentId` 确定性派生（见 index.ts 的
+   * OKX_CLIENT_ORDER_ID_RULE）；**仅在未成交期间**参与去重，不构成跨时间 exactly-once。
+   */
+  readonly clOrdId?: string
 }
 
 /**
