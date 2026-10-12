@@ -15,17 +15,22 @@ import { createHash } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
+  countOpenExecutions,
+  DEFAULT_MAX_INFLIGHT_EXECUTIONS,
   DEFAULT_SESSION_PERMISSION,
   DEFAULT_TASK_AGENT_PRESET,
   DEFAULT_TASK_PERMISSION,
   hasOpenExecution,
+  isTaskSkipReason,
   permissionPending,
   retainRecentExecutions,
   TASKS_SCHEMA_VERSION,
   type ExecutionRecord,
   type NewTaskInput,
   type ScheduleRule,
+  type ScheduleSkipRecord,
   type TaskPermission,
+  type TaskSkipReason,
   type TaskRecord,
   type TasksAction,
   type TasksActionEnvelope,
@@ -46,6 +51,9 @@ interface LedgerDocument {
 
 /** 幂等缓存容量（对齐 task-board：256 条，随账本持久化）。 */
 const MAX_REQUEST_CACHE = 256
+
+/** 陈旧锁接管的原子重建尝试次数：每轮 EEXIST 后重读持有者。 */
+const LOCK_ACQUIRE_ATTEMPTS = 5
 
 /** 业务拒绝（HTTP 映射由桥层完成）。 */
 export class TaskActionError extends Error {
@@ -119,6 +127,21 @@ export function interpretProcessProbe(probe: { error?: unknown; stdout: string |
   return state !== 'Z' && state !== 'X'
 }
 
+/**
+ * 目录条目同步：rename 的持久性依赖父目录 fsync（POSIX）。Windows 不支持对
+ * 目录做 fsync，按「适用平台」跳过。失败即让 commit 失败——「发布」必须建立在
+ * 文件与目录都落定之上（调用方会看到错误，内存保持旧状态）。
+ */
+function syncDirectory(dir: string): void {
+  if (process.platform === 'win32') return
+  const fd = openSync(dir, 'r')
+  try {
+    fsyncSync(fd)
+  } finally {
+    closeSync(fd)
+  }
+}
+
 /** 武装定时规则：启用且表达式合法 → 计算下次运行；禁用 → 保留表达式、清到期。 */
 function armSchedule(rule: { enabled: boolean; cron: string }, now: number): ScheduleRule {
   if (!rule.enabled) {
@@ -162,11 +185,17 @@ function normalizeTask(value: unknown, warnings: string[]): TaskRecord | undefin
   let schedule: ScheduleRule | undefined
   if (scheduleRow !== undefined && typeof scheduleRow === 'object') {
     if (typeof scheduleRow.enabled === 'boolean' && typeof scheduleRow.cron === 'string' && isValidCron(scheduleRow.cron)) {
+      const skipRow = scheduleRow.lastSkip as Record<string, unknown> | undefined
+      const lastSkip: ScheduleSkipRecord | undefined = skipRow !== undefined && typeof skipRow === 'object'
+        && typeof skipRow.at === 'number' && typeof skipRow.triggerPoint === 'number' && isTaskSkipReason(skipRow.reason)
+        ? { at: skipRow.at, triggerPoint: skipRow.triggerPoint, reason: skipRow.reason }
+        : undefined
       schedule = {
         enabled: scheduleRow.enabled,
         cron: scheduleRow.cron,
         nextRunAt: typeof scheduleRow.nextRunAt === 'number' ? scheduleRow.nextRunAt : undefined,
         lastTriggeredAt: typeof scheduleRow.lastTriggeredAt === 'number' ? scheduleRow.lastTriggeredAt : undefined,
+        ...(lastSkip === undefined ? {} : { lastSkip }),
       }
     } else {
       warnings.push('dropped invalid schedule on task ' + String(row.id))
@@ -228,6 +257,8 @@ export interface AppliedAction {
 export interface TasksLedgerOptions {
   /** 会话默认权限（确认门基准）；缺省 workspace-write。 */
   sessionDefaultPermission?: TaskPermission
+  /** 全局在飞执行容量上限（跨任务）；缺省 DEFAULT_MAX_INFLIGHT_EXECUTIONS。 */
+  maxInflightExecutions?: number
   /** 可注入时钟（测试）。 */
   now?: () => number
 }
@@ -238,34 +269,64 @@ export class TasksLedger {
   private readonly lockPath: string
   private readonly now: () => number
   private readonly sessionDefaultPermission: TaskPermission
+  private readonly maxInflightExecutions: number
   private disposed = false
 
   constructor(readonly filePath: string, options: TasksLedgerOptions = {}) {
     this.lockPath = `${filePath}.lock`
     this.now = options.now ?? Date.now
     this.sessionDefaultPermission = options.sessionDefaultPermission ?? DEFAULT_SESSION_PERMISSION
+    this.maxInflightExecutions = options.maxInflightExecutions ?? DEFAULT_MAX_INFLIGHT_EXECUTIONS
     this.acquireLock()
     this.document = this.load()
   }
 
   // ── 生命周期 ────────────────────────────────────────────────────────────
 
+  /**
+   * 取得目录锁：**原子独占创建**（`open(path,'wx')` = O_CREAT|O_EXCL），绝不
+   * 「先检查存在、再覆盖写」。已存在时读取持有者 pid：活着就拒绝（同进程双开
+   * 同样拒绝——那是两个真实调度器）；死了先删除再原子重建。删除与重建之间若
+   * 被并发的接管者抢先，本轮的 wx 会再次 EEXIST，下一轮重读持有者——两个竞争
+   * 者里只有一个能创建成功，另一个读到活持有者后拒绝，因此任何时刻只有一个写者。
+   * 锁内容保持裸十进制 pid（旧格式兼容）。
+   */
   private acquireLock(): void {
     mkdirSync(dirname(this.filePath), { recursive: true })
-    if (existsSync(this.lockPath)) {
-      let holderPid = 0
+    for (let attempt = 0; attempt < LOCK_ACQUIRE_ATTEMPTS; attempt += 1) {
       try {
-        holderPid = Number.parseInt(readFileSync(this.lockPath, 'utf8'), 10)
-      } catch {
-        holderPid = 0
+        const fd = openSync(this.lockPath, 'wx', 0o600)
+        try {
+          writeFileSync(fd, String(process.pid), 'utf8')
+        } finally {
+          closeSync(fd)
+        }
+        return
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       }
-      if (Number.isFinite(holderPid) && holderPid > 0 && processAlive(holderPid)) {
+      const holderPid = this.readLockHolder()
+      if (holderPid !== undefined && holderPid > 0 && processAlive(holderPid)) {
         throw new LedgerLockedError(holderPid, this.lockPath)
       }
-      // 持有者已死 → 接管。同进程双开（另一实例还活着）同样拒绝：两个实例各挂
-      // 一套调度器是真实双写者场景，不豁免同 pid。
+      // 陈旧/不可读锁：先删再原子重建（删除失败留给下一轮重试）。
+      try {
+        unlinkSync(this.lockPath)
+      } catch {
+        // 已被并发接管者清理。
+      }
     }
-    writeFileSync(this.lockPath, String(process.pid), { flag: 'w' })
+    throw new LedgerLockedError(this.readLockHolder() ?? 0, this.lockPath)
+  }
+
+  /** 读取锁文件里的持有者 pid；缺失/不可解析返回 undefined。 */
+  private readLockHolder(): number | undefined {
+    try {
+      const parsed = Number.parseInt(readFileSync(this.lockPath, 'utf8'), 10)
+      return Number.isFinite(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
   }
 
   private load(): LedgerDocument {
@@ -320,8 +381,17 @@ export class TasksLedger {
   /** 释放目录锁（幂等；dispose 后其余方法拒绝工作）。 */
   dispose(): void {
     this.disposed = true
+    // 只有锁文件仍归本进程才删除：被他人接管后（陈旧接管/人工干预）误删别人的
+    // 锁会立刻放进第二个写者，直接违反单写者不变量。
+    const holderPid = this.readLockHolder()
+    if (holderPid !== process.pid) {
+      if (holderPid !== undefined) {
+        console.warn(`[dsh-trading/tasks] lock at ${this.lockPath} is held by pid ${holderPid}; leaving it in place on dispose`)
+      }
+      return
+    }
     try {
-      if (existsSync(this.lockPath)) unlinkSync(this.lockPath)
+      unlinkSync(this.lockPath)
     } catch {
       // 锁文件清理失败不阻断退出（接管逻辑能处理残留）。
     }
@@ -379,7 +449,6 @@ export class TasksLedger {
   private commit(next: LedgerDocument): void {
     next.revision += 1
     next.recentRequests = next.recentRequests.slice(-MAX_REQUEST_CACHE)
-    this.document = next
     const payload = JSON.stringify(next)
     const tmp = `${this.filePath}.tmp`
     mkdirSync(dirname(this.filePath), { recursive: true })
@@ -398,6 +467,12 @@ export class TasksLedger {
         // 权限收紧失败不阻断（本地单用户目录）。
       }
     }
+    syncDirectory(dirname(this.filePath))
+    // 只有文件写盘 + fsync + 适用平台的目录同步都成功之后，才发布新的内存文档/
+    // revision 并广播。真实落盘失败（EISDIR/EACCES/ENOSPC…）不能污染内存状态，
+    // 也不能让 requestId 幂等缓存记下一次根本没写下去的请求——否则重试会被
+    // 当成重放静默返回旧快照。
+    this.document = next
     for (const listener of this.listeners) {
       try {
         listener()
@@ -521,6 +596,14 @@ export class TasksLedger {
     if (permissionPending(task, this.sessionDefaultPermission)) {
       throw new TaskActionError(403, 'TASKS_PERMISSION_PENDING', `task ${task.title} awaits permission confirmation; runs are refused`)
     }
+    const inflight = countOpenExecutions(document.tasks)
+    if (inflight >= this.maxInflightExecutions) {
+      throw new TaskActionError(
+        429,
+        'TASKS_CAPACITY_EXCEEDED',
+        `global in-flight execution capacity is exhausted (${inflight}/${this.maxInflightExecutions})`,
+      )
+    }
     const execution: ExecutionRecord = {
       id: crypto.randomUUID(),
       sessionId: undefined,
@@ -545,7 +628,12 @@ export class TasksLedger {
     })
   }
 
-  /** 执行结算（结果 + 失败原因）。 */
+  /** 单条执行记录只读引用（服务层启动护栏与诊断用）。 */
+  execution(taskId: string, executionId: string): ExecutionRecord | undefined {
+    return this.document.tasks.find(task => task.id === taskId)?.executions.find(item => item.id === executionId)
+  }
+
+  /** 执行结算（结果 + 失败原因）；结算即清掉未结算期的侦查诊断。 */
   settleRun(taskId: string, executionId: string, result: 'succeeded' | 'failed' | 'cancelled', error: string | undefined): void {
     this.mutate(document => {
       const task = document.tasks.find(item => item.id === taskId)
@@ -554,6 +642,37 @@ export class TasksLedger {
       execution.endedAt = this.now()
       execution.result = result
       execution.error = error
+      delete execution.note
+    })
+  }
+
+  /**
+   * 记录未结算执行的侦查诊断（为什么还开着）。只在内容变化时落盘——轮询每
+   * 5 秒一次，内容不变也写盘会造成无谓 fsync 与 SSE 广播。note 为 undefined
+   * 即清空；已结算的执行忽略。
+   */
+  noteInspection(taskId: string, executionId: string, note: string | undefined): void {
+    if (this.disposed) return
+    const current = this.execution(taskId, executionId)
+    if (current === undefined || current.endedAt !== undefined || current.note === note) return
+    this.mutate(document => {
+      const execution = document.tasks.find(task => task.id === taskId)?.executions.find(item => item.id === executionId)
+      if (execution === undefined || execution.endedAt !== undefined) return
+      if (note === undefined) delete execution.note
+      else execution.note = note
+    })
+  }
+
+  /**
+   * 记录一次被跳过的定时触发点（权限门/容量/已有执行）。cron 错过不补跑的策略
+   * 不变，但「到点没跑」必须在快照上能解释，否则只剩一个空转的 nextRunAt。
+   */
+  recordScheduleSkip(taskId: string, triggerPoint: number, reason: TaskSkipReason, at: number): void {
+    if (this.disposed) throw new TaskActionError(503, 'TASKS_LEDGER_DISPOSED', 'task ledger is disposed')
+    this.mutate(document => {
+      const schedule = document.tasks.find(item => item.id === taskId)?.schedule
+      if (schedule === undefined) return
+      schedule.lastSkip = { at, triggerPoint, reason }
     })
   }
 

@@ -9,6 +9,7 @@
 import { TasksLedger, TaskActionError, type AppliedAction } from './ledger.ts'
 import {
   type TaskPermission,
+  type TaskSkipReason,
   type TasksActionEnvelope,
   type TasksSnapshot,
 } from '@dshtrading/api'
@@ -41,6 +42,14 @@ export interface TradingTasksServiceOptions {
   onEvent?: () => void
   /** 会话默认权限（确认门基准）；缺省 workspace-write。 */
   sessionDefaultPermission?: TaskPermission
+  /** 全局在飞执行容量上限（跨任务）；缺省 DEFAULT_MAX_INFLIGHT_EXECUTIONS。 */
+  maxInflightExecutions?: number
+  /**
+   * 失联执行的收敛窗口：会话已空闲、完整历史扫描确认没有 turn/end 的执行，超过
+   * 这个时长仍未结算即收敛为取消（永不重发 prompt）。仍在运行/待审批（宿主
+   * status=running）的执行不受此窗口影响。
+   */
+  staleExecutionMs?: number
   /** 可注入时钟与节奏（测试）。 */
   now?: () => number
   tickMs?: number
@@ -50,12 +59,31 @@ export interface TradingTasksServiceOptions {
 const TICK_MS = 30_000
 const POLL_MS = 5_000
 
+/** 失联执行收敛窗口缺省：1 小时（保守——宁可晚收敛，也不误杀慢启动的真实执行）。 */
+export const DEFAULT_STALE_EXECUTION_MS = 60 * 60_000
+
+/** TaskActionError 码 → 结构化跳过原因（非跳过类错误返回 undefined）。 */
+function skipReasonFor(code: string): TaskSkipReason | undefined {
+  if (code === 'TASKS_PERMISSION_PENDING') return 'permission-pending'
+  if (code === 'TASKS_CAPACITY_EXCEEDED') return 'capacity'
+  if (code === 'TASKS_ALREADY_RUNNING') return 'already-running'
+  return undefined
+}
+
+/** 人类可读的错误消息。 */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export class TradingTasksService {
   private readonly ledger: TasksLedger
   private readonly runner: TasksRunner
   private readonly options: TradingTasksServiceOptions
   private readonly tickMs: number
   private readonly pollMs: number
+  private readonly staleExecutionMs: number
+  /** 正在启动中的执行 id（同一执行不重复启动，重启也不盲发）。 */
+  private readonly launching = new Set<string>()
   private timers: Array<ReturnType<typeof setInterval>> = []
   private tickInFlight = false
   private pollInFlight = false
@@ -65,9 +93,11 @@ export class TradingTasksService {
     this.options = options
     this.tickMs = options.tickMs ?? TICK_MS
     this.pollMs = options.pollMs ?? POLL_MS
+    this.staleExecutionMs = options.staleExecutionMs ?? DEFAULT_STALE_EXECUTION_MS
     // LedgerLockedError 直接上抛：桥层据此把任务面降级为 503（特性不挂，宿主照跑）。
     this.ledger = new TasksLedger(options.ledgerPath, {
       ...(options.sessionDefaultPermission === undefined ? {} : { sessionDefaultPermission: options.sessionDefaultPermission }),
+      ...(options.maxInflightExecutions === undefined ? {} : { maxInflightExecutions: options.maxInflightExecutions }),
       ...(options.now === undefined ? {} : { now: options.now }),
     })
     this.ledger.subscribe(() => { options.onEvent?.() })
@@ -146,10 +176,20 @@ export class TradingTasksService {
 
   // ── 内部：启动与轮询 ───────────────────────────────────────────────────
 
-  /** 异步起跑一条已开的执行：launch 落定绑定会话；失败结算 failed。 */
+  /**
+   * 异步起跑一条已开的执行：launch 落定绑定会话；失败结算 failed。
+   *
+   * 不盲发：同一执行只启动一次（并发调用经 launching 去重），已结算或已绑定
+   * 会话的执行直接跳过；启动身份由执行 id 派生（runner 侧），所以即便真的重复
+   * 触及 SDK 也只会采纳同一会话、同 requestId 的 prompt 也只受理一次。
+   */
   private async launchTask(taskId: string, executionId: string): Promise<void> {
+    if (this.launching.has(executionId)) return
+    const existing = this.ledger.execution(taskId, executionId)
+    if (existing === undefined || existing.endedAt !== undefined || existing.sessionId !== undefined) return
     const task = this.ledger.task(taskId)
     if (task === undefined) return
+    this.launching.add(executionId)
     const runnerTask = {
       id: task.id,
       title: task.title,
@@ -159,15 +199,16 @@ export class TradingTasksService {
       ...(task.permission === undefined ? {} : { permission: task.permission }),
     }
     try {
-      const sessionId = await this.runner.launch(runnerTask)
+      const sessionId = await this.runner.launch(runnerTask, executionId)
       this.ledger.attachSession(taskId, executionId, sessionId)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
       if (error instanceof SessionLaunchError) {
         // 会话已建但启动中途失败：绑上会话再结算，观察面能对上号。
         this.ledger.attachSession(taskId, executionId, error.sessionId)
       }
-      this.ledger.settleRun(taskId, executionId, 'failed', message)
+      this.ledger.settleRun(taskId, executionId, 'failed', errorMessage(error))
+    } finally {
+      this.launching.delete(executionId)
     }
   }
 
@@ -187,7 +228,12 @@ export class TradingTasksService {
           void this.launchTask(opened.taskId, opened.executionId)
         } catch (error) {
           if (!(error instanceof TaskActionError)) throw error
-          // 权限待确认 / 已有执行在跑：跳过该触发点（对齐 task-board 的 cron 拒绝语义）。
+          // 权限待确认 / 容量满 / 已有执行在跑：跳过该触发点（cron 不补跑的策略
+          // 不变），但跳过必须留结构化原因——否则「到点没跑」在快照上无从解释。
+          const reason = skipReasonFor(error.code)
+          if (reason !== undefined) {
+            this.ledger.recordScheduleSkip(due.taskId, due.nextRunAt, reason, this.options.now?.() ?? Date.now())
+          }
         }
       }
       this.ledger.updateScheduler({ lastTickAt: this.options.now?.() ?? Date.now(), error: undefined })
@@ -204,26 +250,62 @@ export class TradingTasksService {
     }
   }
 
-  /** 执行轮询：已绑定会话的未结算执行侦查结局并结算。 */
+  /**
+   * 执行轮询：未结算执行侦查结局并结算。
+   *
+   * - 结算：会话消失判取消、按 SDK reason 分类的终局事件判正常/失败/取消。
+   * - 仍在运行/待审批：宿主 `AgentStatus` 只有 idle/running，等待审批期间
+   *   status 保持 running，因此这类执行永远不会因年龄被收敛。
+   * - 失联收敛：会话空闲 + 完整历史扫描确认无 turn/end + 超过 staleExecutionMs
+   *   → 结算为取消并写明原因（不重发 prompt）。
+   * - 读取异常：在快照上留下 note，不静默永久 pending，也不据此判死。
+   */
   private async poll(): Promise<void> {
     if (this.disposed || this.pollInFlight) return
     this.pollInFlight = true
     try {
       const opens = this.ledger.openExecutions()
+      const now = this.options.now?.() ?? Date.now()
+      const staleSeconds = String(Math.round(this.staleExecutionMs / 1000))
       for (const open of opens) {
-        // 未绑定会话 = launch 还在途（launchTask 自己负责失败结算），跳过。
-        if (open.sessionId === undefined) continue
+        // 未绑定会话：launch 在途时交给 launchTask 结算；launch 已不在途却迟迟
+        // 没有绑上会话（超过窗口）说明启动悬空，收敛为取消而不是永久 pending。
+        if (open.sessionId === undefined) {
+          if (!this.launching.has(open.executionId) && now - open.startedAt >= this.staleExecutionMs) {
+            this.ledger.settleRun(
+              open.taskId,
+              open.executionId,
+              'cancelled',
+              'execution launch never attached a session within ' + staleSeconds + 's; converged as cancelled (prompt not resent)',
+            )
+          }
+          continue
+        }
         try {
           const inspection = await this.runner.inspect(open.sessionId, open.startedAt)
-          if (inspection.outcome === 'pending') continue
-          this.ledger.settleRun(
-            open.taskId,
-            open.executionId,
-            inspection.outcome,
-            inspection.outcome === 'failed' || inspection.outcome === 'cancelled' ? inspection.error : undefined,
-          )
-        } catch {
-          // 单个执行侦查失败不影响其他执行，下轮再试。
+          if (inspection.outcome !== 'pending') {
+            this.ledger.settleRun(
+              open.taskId,
+              open.executionId,
+              inspection.outcome,
+              inspection.outcome === 'succeeded' ? undefined : inspection.error,
+            )
+            continue
+          }
+          if (inspection.historyExhausted === true && now - open.startedAt >= this.staleExecutionMs) {
+            this.ledger.settleRun(
+              open.taskId,
+              open.executionId,
+              'cancelled',
+              'execution session is idle and its complete history records no turn/end; converged as cancelled after '
+                + staleSeconds + 's (prompt not resent)',
+            )
+            continue
+          }
+          this.ledger.noteInspection(open.taskId, open.executionId, inspection.diagnostic)
+        } catch (error) {
+          // 单个执行侦查失败不影响其他执行，下轮再试；原因留在快照上。
+          this.ledger.noteInspection(open.taskId, open.executionId, 'inspection failed: ' + errorMessage(error))
         }
       }
       // 对账扫描备忘：已删除/已结算任务的会话 id 不在名册，清掉防泄漏。
