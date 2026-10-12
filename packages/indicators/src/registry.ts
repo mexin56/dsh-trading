@@ -9,7 +9,7 @@
 import type {
   IndicatorDefinition, IndicatorInstance, IndicatorParamSpec,
 } from './types.ts'
-import { clampParamsBySpecs } from './chart-activations.ts'
+import { clampParamsBySpecs, defaultActivationInstance } from './chart-activations.ts'
 
 export interface IndicatorRegistry {
   /** 注册指标；同名覆盖（开发热替换友好），并通知订阅者。 */
@@ -65,7 +65,9 @@ export function createIndicatorRegistry(): IndicatorRegistry {
     defaultInstance(id) {
       const definition = registry.get(id)
       if (definition === undefined) return undefined
-      return { id, params: this.defaultParams(definition) }
+      // 委托 defaultActivationInstance：全仓「造新实例」只有一个入口，否则这条路径
+      // 会静默漏掉 definition.defaultApplyScope（如港股通持股比例的仅日线及以上）。
+      return defaultActivationInstance(definition)
     },
     instanceKey(instance) {
       const values = definitionParams(instance.id).map(spec => instance.params[spec.key] ?? spec.default)

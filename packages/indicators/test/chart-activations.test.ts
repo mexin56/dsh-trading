@@ -11,9 +11,13 @@ import {
   clampActivationParams,
   createMemoryChartActivationStore,
   createMemoryCustomIndicatorStore,
+  defaultActivationInstance,
+  presetDefinitions,
+  type IndicatorInstance,
   effectiveInstanceParams,
   effectiveMarketScope,
   isInstanceApplicableOn,
+  isDefinitionAvailableOn,
   isInstanceVisibleOn,
   resolveIndicatorSpec,
   sanitizeInstance,
@@ -148,6 +152,25 @@ describe('hiddenScopes 按标的隐藏（symbol visibility）', () => {
     expect(isInstanceVisibleOn(hidden, 'cn', '002714.SZ')).toBe(true)
     expect(isInstanceVisibleOn(hidden)).toBe(true)                     // 无聚焦标的 → 可见（全局语义）
     expect(isInstanceVisibleOn({ id: 'k', params: {} }, 'us', 'AAPL')).toBe(true)
+  })
+
+  it('用户看到的市场限定指标：白名单命中才可用，缺席/空表/无市场视为不受限', () => {
+    // Given 一个只对港股有意义的指标定义（如港股通持股比例）
+    const hkOnly = { markets: ['hk'] }
+    // Then 仅港股命中，其余市场不出现
+    expect(isDefinitionAvailableOn(hkOnly, 'hk')).toBe(true)
+    expect(isDefinitionAvailableOn(hkOnly, 'us')).toBe(false)
+    expect(isDefinitionAvailableOn(hkOnly, 'crypto')).toBe(false)
+    // Then 无聚焦市场时不过滤（与 isInstanceApplicableOn 同款兜底）
+    expect(isDefinitionAvailableOn(hkOnly)).toBe(true)
+    // Then 存量定义（无 markets）在所有市场都可用
+    expect(isDefinitionAvailableOn({}, 'us')).toBe(true)
+    // Then 空数组按「未限定」解释，不等于全禁用
+    expect(isDefinitionAvailableOn({ markets: [] }, 'us')).toBe(true)
+    // Then 多市场白名单逐个命中
+    const hkCn = { markets: ['hk', 'cn'] }
+    expect(isDefinitionAvailableOn(hkCn, 'cn')).toBe(true)
+    expect(isDefinitionAvailableOn(hkCn, 'us')).toBe(false)
   })
 
   it('withHiddenScopes：记隐藏/清隐藏幂等，清空后字段整体消失，不触碰 params/symbolParams', () => {
@@ -520,5 +543,98 @@ describe('indicator_author「创作即上图」（issue #63）', () => {
     const silent = vi.fn()
     await createAuthorIndicatorTool({ store, chartStore, onActivated: silent, trialTimeoutMs: TEST_TRIAL_TIMEOUT_MS }).execute({ ...AUTHOR_ARGS, id: 'authored_ii' })
     expect(silent).not.toHaveBeenCalled()
+  })
+})
+describe('预置指标的默认适用范围（决策 7：定义侧声明，三条创建路径共用）', () => {
+  const HOLDING_ID = 'hk-connect-holding'
+  const HOLDING_SCOPE = { hk: { enabled: true, intervals: ['1d', '1w', '1M'] } }
+
+  it('运营查港股通持股比例的定义时，默认适用范围随解析面透出；未声明的指标仍缺席', async () => {
+    // Given 预置定义里只有港股通持股比例声明了默认级别（数据是日频序列）
+    // When 走写入边界的解析面读取定义
+    const holdingSpec = await resolveIndicatorSpec(HOLDING_ID)
+    const maSpec = await resolveIndicatorSpec('ma')
+
+    // Then 声明原样透出，未声明的保持缺席（缺席 = 全部级别应用，存量零迁移）
+    expect(holdingSpec?.defaultApplyScope).toEqual(HOLDING_SCOPE)
+    expect(maSpec?.defaultApplyScope).toBeUndefined()
+  })
+
+  it('运营生成新实例时，定义声明的默认适用范围被复制而非共享 definition 引用', () => {
+    // Given 港股通持股比例的预置定义
+    const definition = presetDefinitions().find(entry => entry.id === HOLDING_ID)
+    if (definition === undefined) throw new Error('preset hk-connect-holding missing')
+
+    // When 按定义生成默认实例并改动实例上的级别
+    const instance = defaultActivationInstance({
+      id: definition.id, title: definition.title, pane: definition.pane, params: definition.params,
+      defaultApplyScope: definition.defaultApplyScope,
+    })
+    instance.applyScope?.hk?.intervals.push('5m')
+
+    // Then 实例带默认适用范围，且改动不回写 definition（模块级常量不得被实例污染）
+    expect(instance.applyScope).not.toEqual(HOLDING_SCOPE)
+    expect(definition.defaultApplyScope).toEqual(HOLDING_SCOPE)
+  })
+
+  it('用户经 indicator_activate 新挂载港股通持股比例时，实例带默认适用范围（分钟级不适用）', async () => {
+    // Given 空激活名册
+    const chartStore = createMemoryChartActivationStore()
+    const { activate } = createChartActivationTools({ chartStore })
+
+    // When 全局挂载（不带 market/symbol）
+    await activate.execute({ id: HOLDING_ID })
+
+    // Then 新实例带默认适用范围：日线及以上适用，分钟级不适用
+    const stored = (await chartStore.list())[0] as IndicatorInstance
+    expect(stored.applyScope).toEqual(HOLDING_SCOPE)
+    expect(isInstanceApplicableOn(stored, 'hk', '1d')).toBe(true)
+    expect(isInstanceApplicableOn(stored, 'hk', '1w')).toBe(true)
+    expect(isInstanceApplicableOn(stored, 'hk', '1M')).toBe(true)
+    expect(isInstanceApplicableOn(stored, 'hk', '5m')).toBe(false)
+  })
+
+  it('用户经 indicator_activate 按标的挂载港股通持股比例时，新实例同样带默认适用范围', async () => {
+    // Given 空激活名册
+    const chartStore = createMemoryChartActivationStore()
+    const { activate } = createChartActivationTools({ chartStore })
+
+    // When 按标的覆盖写（market + symbol）
+    await activate.execute({ id: HOLDING_ID, market: 'hk', symbol: '00700.HK' })
+
+    // Then 覆盖写入库，默认适用范围随新实例一并落地
+    //（该指标无参数，空覆盖被 store 的形状清洗归一删除，故 symbolParams 不落盘）
+    const stored = (await chartStore.list())[0] as IndicatorInstance
+    expect(stored.symbolParams).toBeUndefined()
+    expect(stored.applyScope).toEqual(HOLDING_SCOPE)
+    expect(isInstanceApplicableOn(stored, 'hk', '5m')).toBe(false)
+  })
+
+  it('用户挂载未声明默认范围的指标时，新实例仍不带 applyScope（存量指标零迁移）', async () => {
+    // Given 空激活名册
+    const chartStore = createMemoryChartActivationStore()
+    const { activate } = createChartActivationTools({ chartStore })
+
+    // When 全局挂载 MA（definition 未声明 defaultApplyScope）
+    await activate.execute({ id: 'ma' })
+
+    // Then 实例没有 applyScope，任何级别照常适用（与本次变更前一字不差）
+    const stored = (await chartStore.list())[0] as IndicatorInstance
+    expect(stored.applyScope).toBeUndefined()
+    expect(isInstanceApplicableOn(stored, 'hk', '5m')).toBe(true)
+  })
+
+  it('用户把港股通持股比例改成全部级别后再次改参数，默认范围不被补回来', async () => {
+    // Given 已挂载实例被用户清空适用范围（面板改成「全部支持级别」后字段归一消失）
+    const chartStore = createMemoryChartActivationStore([{ id: HOLDING_ID, params: {} }])
+    const { activate } = createChartActivationTools({ chartStore })
+
+    // When 再次写参数（全局写）
+    await activate.execute({ id: HOLDING_ID })
+
+    // Then 缺席保持缺席：用户显式选择不被定义侧默认值覆盖回 1d/1w/1M
+    const stored = (await chartStore.list())[0] as IndicatorInstance
+    expect(stored.applyScope).toBeUndefined()
+    expect(isInstanceApplicableOn(stored, 'hk', '5m')).toBe(true)
   })
 })

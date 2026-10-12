@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest'
 import {
   createMemoryChartActivationStore,
   createMemoryCustomIndicatorStore,
+  isInstanceApplicableOn,
   resolveIndicatorSpec,
+  type IndicatorInstance,
   type IndicatorParamSpec,
 } from '@dshtrading/indicators'
 import { BridgeProtocolError, TradingBridge, createBridgeHost, dispatchBridgeRequest, type BridgeHost } from '../src/bridge.ts'
@@ -359,5 +361,68 @@ describe('图表激活名册桥端点（issue #63）', () => {
     expect(put).toMatchObject({ status: 200, payload: { ok: true, instances: [{ id: 'ma', params: expect.anything() }] } })
     const get = await dispatchBridgeRequest(bridge, 'GET', '/chart/indicators', new URLSearchParams())
     expect(get).toEqual({ status: 200, payload: { ok: true, instances: [] } })
+  })
+})
+describe('预置指标的默认适用范围（决策 7：定义侧声明，桥与工具共用同一份事实）', () => {
+  const HOLDING_ID = 'hk-connect-holding'
+  const HOLDING_SCOPE = { hk: { enabled: true, intervals: ['1d', '1w', '1M'] } }
+
+  it('用户经宿主桥新建港股通持股比例时，实例带默认适用范围（分钟级不适用）', async () => {
+    // Given 空激活名册的宿主
+    const chartStore = createMemoryChartActivationStore()
+    const bridge = new TradingBridge(fakeHost({ chartActivationsStore: chartStore }))
+
+    // When PUT 全局挂载（客户端挂载路径只发 id）
+    const put = await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(), { id: HOLDING_ID })
+
+    // Then 落盘实例带默认适用范围，日线及以上适用、分钟级不适用
+    expect(put).toEqual({
+      status: 200,
+      payload: { ok: true, instances: [{ id: HOLDING_ID, params: {}, applyScope: HOLDING_SCOPE }] },
+    })
+    const stored = (await chartStore.list())[0] as IndicatorInstance
+    expect(isInstanceApplicableOn(stored, 'hk', '1d')).toBe(true)
+    expect(isInstanceApplicableOn(stored, 'hk', '1M')).toBe(true)
+    expect(isInstanceApplicableOn(stored, 'hk', '5m')).toBe(false)
+  })
+
+  it('用户经宿主桥按标的挂载港股通持股比例时，新实例同样带默认适用范围', async () => {
+    // Given 空激活名册的宿主
+    const bridge = new TradingBridge(fakeHost())
+
+    // When PUT market + symbol（按标的覆盖写）
+    const put = await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(),
+      { id: HOLDING_ID, market: 'hk', symbol: '00700.HK' }) as { payload: { instances: Array<Record<string, unknown>> } }
+
+    // Then 默认适用范围随新实例落盘（该指标无参数，空覆盖被形状清洗归一删除）
+    expect(put.payload.instances[0]).toEqual({ id: HOLDING_ID, params: {}, applyScope: HOLDING_SCOPE })
+  })
+
+  it('用户经宿主桥新建未声明默认范围的指标时，实例仍不带 applyScope（存量指标零迁移）', async () => {
+    // Given 空激活名册的宿主
+    const bridge = new TradingBridge(fakeHost())
+
+    // When PUT 挂载 MA（definition 未声明 defaultApplyScope）
+    const put = await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(),
+      { id: 'ma' }) as { payload: { instances: IndicatorInstance[] } }
+
+    // Then 没有 applyScope，任何级别照常适用（与本次变更前一字不差）
+    expect(put.payload.instances[0]?.applyScope).toBeUndefined()
+    expect(isInstanceApplicableOn(put.payload.instances[0] as IndicatorInstance, 'hk', '5m')).toBe(true)
+  })
+
+  it('用户把港股通持股比例清空成全部级别后再写 params，默认范围不被补回来', async () => {
+    // Given 已挂载的港股通持股比例，用户随后在适用范围面板清空（空表 → 字段整体消失）
+    const bridge = new TradingBridge(fakeHost())
+    await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(), { id: HOLDING_ID })
+    await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(), { id: HOLDING_ID, applyScope: {} })
+
+    // When 再次写 params（重复挂载）
+    const put = await dispatchBridgeRequest(bridge, 'PUT', '/chart/indicators', new URLSearchParams(),
+      { id: HOLDING_ID }) as { payload: { instances: Array<Record<string, unknown>> } }
+
+    // Then 清空保持清空：分钟级恢复适用，定义侧默认值没有被写回
+    expect('applyScope' in (put.payload.instances[0] ?? {})).toBe(false)
+    expect(isInstanceApplicableOn(put.payload.instances[0] as IndicatorInstance, 'hk', '5m')).toBe(true)
   })
 })

@@ -641,6 +641,26 @@ export interface InstrumentRef {
   readonly contract?: InstrumentContract
 }
 
+/** 港股通单日持股快照（东财 RPT_MUTUAL_STOCK_HOLDRANKS 口径）。 */
+export interface SouthboundHoldingPoint {
+  /** 交易日（UTC 当日 00:00 的 epoch ms；与日 K 的 openTime 同口径便于对齐）。 */
+  readonly date: number
+  /** 持股比例（百分比数值，如 11.9 表示 11.9%）。来源字段 HOLD_SHARES_RATIO（占港股已发行股本）。 */
+  readonly holdRatio: number
+  /** 持股数量（股）。 */
+  readonly holdShares: number
+  /** 持股市值（HKD）。 */
+  readonly holdMarketCap: number
+}
+
+/** 港股通持股历史（按交易日升序，旧→新，已按日去重）。 */
+export interface SouthboundHoldingHistory {
+  /** 市场规范词汇 symbol（如 00700.HK）。 */
+  readonly symbol: string
+  /** 序列升序；同一交易日至多一条。标的不在港股通范围时为空数组（不是抛错）。 */
+  readonly points: readonly SouthboundHoldingPoint[]
+}
+
 /**
  * 行情服务契约：由市场连接器实现，注册到按市场命名空间的 ctx 键（如 ctx.tradingCrypto）。
  * 符号词汇（2026-08-31 规范，docs/guides/symbol-vocabulary.md）：入参接受市场规范形与连接器原生形，
@@ -691,6 +711,14 @@ export interface MarketDataService {
    * 可选方法：无公共逐笔端点的数据源（腾讯沪深行情行）不实现。
    */
   getRecentTrades?(symbol: string, limit?: number): Promise<TradeTick[]>
+  /**
+   * 港股通持股历史（GUI「港股通持股比例」副图用，2026-10-13）：日频序列，
+   * 升序、按交易日去重。可选方法：无该数据端点的数据源不实现（当前仅
+   * connector-eastmoney 的 hk 实例实现）；标的不在港股通范围时返回空 points
+   * （**空 ≠ 0**，消费方隐藏副图而非画零线），上游失败则抛错。
+   * 入参接受规范形与连接器原生形，输出 `symbol` 一律市场规范词汇。
+   */
+  getSouthboundHoldings?(symbol: string): Promise<SouthboundHoldingHistory>
 }
 
 /**

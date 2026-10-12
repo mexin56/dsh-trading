@@ -1,9 +1,10 @@
 /**
- * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ）。全部是
- * definition 数据 + math.ts 纯函数的组合，无渲染逻辑；由指标插件
- * （client-ui-indicators）注册进 tradingIndicators 服务。
+ * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有
+ * 仅港股的「港股通持股比例」）。全部是 definition 数据 + math.ts 纯函数的组合，
+ * 无渲染逻辑；由指标插件（client-ui-indicators）注册进 tradingIndicators 服务。
  */
 import type { IndicatorDefinition, Kline } from './types.ts'
+import { alignAuxToBars } from './aux.ts'
 import { bollinger, ema, kdj, macd, rsi, sma } from './math.ts'
 
 /** MA 线配色（富途系配色 + 扩展周期轮换调色板）。 */
@@ -46,7 +47,27 @@ function emaColor(period: number, index: number): string {
 
 const closesOf = (bars: readonly Kline[]): number[] => bars.map(bar => bar.close)
 
-/** 六个预置 definition（纯数据，注册时机归消费方）。 */
+/** 港股通持股比例副图消费的外部序列键（宿主按此键 prefetch 并按同名键注入）。 */
+const HK_CONNECT_HOLDING_AUX_KEY = 'hk-connect-holding'
+
+/** 一天的毫秒数（K 线交易日归一到 UTC 00:00 用）。 */
+const MS_PER_DAY = 86_400_000
+
+/**
+ * K 线 → 交易日（UTC 00:00），供日频外部序列对齐。日线及更细周期取 openTime
+ * 当日（本仓日频 openTime 即 UTC 00:00，与外部序列一字对齐）：这时不用 closeTime，
+ * 它是当日 23:59:59.999，一旦 openTime 带盘中偏移（如 09:30）向下取整就会进位到
+ * 次日、吃到未来一天的值。周 K/月 K 则取 closeTime 当日——周期末，从而对齐到区间内
+ * 最新已知值，而不是周期起点的旧值。
+ */
+function klineTradingDay(bar: Kline): number {
+  const closeTime = bar.closeTime
+  const periodEnd = typeof closeTime === 'number' && Number.isFinite(closeTime) ? closeTime : bar.openTime
+  const tradingDay = periodEnd - bar.openTime >= 2 * MS_PER_DAY ? periodEnd : bar.openTime
+  return Math.floor(tradingDay / MS_PER_DAY) * MS_PER_DAY
+}
+
+/** 七个预置 definition（纯数据，注册时机归消费方）。 */
 export function presetDefinitions(): IndicatorDefinition[] {
   return [
     {
@@ -161,6 +182,40 @@ export function presetDefinitions(): IndicatorDefinition[] {
           { key: 'D', kind: 'line', color: '#4a90e2', values: d },
           { key: 'J', kind: 'line', color: '#c05fd8', values: j },
         ]
+      },
+    },
+    {
+      // 港股通持股比例（副图，仅港股；决策 7：日线及以上才适用，级别过滤归实例侧）：
+      // 数据来自宿主预取的日频外部序列（aux 声明的键），无参数，单条 line。
+      id: 'hk-connect-holding',
+      pane: 'sub',
+      title: '港股通持股比例',
+      params: [],
+      markets: ['hk'],
+      // 决策 7 的默认适用范围只在这里声明一次：数据是日频序列，分钟级上会被前向
+      // 填充成一整段平移直线，故新实例默认只勾 1d/1w/1M（GUI 挂载、indicator_activate
+      // 与桥 PUT 三条创建路径共用本声明）。
+      defaultApplyScope: { hk: { enabled: true, intervals: ['1d', '1w', '1M'] } },
+      aux: [HK_CONNECT_HOLDING_AUX_KEY],
+      compute() {
+        // 声明了 aux 的指标由宿主走 computeAux（契约 §3 二选一）：旧宿主若误调
+        // compute，返回空输出即「什么都不画」，绝不降级为一条贴底的零线。
+        return []
+      },
+      computeAux(bars, _params, aux) {
+        const points = aux[HK_CONNECT_HOLDING_AUX_KEY]
+        // 无数据（未取到 / 标的不在港股通范围）→ 空输出：消费方据此隐藏该副图
+        // pane（决策 3），空 ≠ 0。
+        if (points === undefined || points.length === 0) return []
+        const aligned = alignAuxToBars(bars, points, klineTradingDay)
+        return [{
+          key: 'HK_CONNECT_HOLDING',
+          kind: 'line',
+          color: '#7c5cff',
+          // 非有限值（脏数据）按 warm-up 处理：曲线断开，不把 NaN 交给渲染层。
+          values: aligned.map(value => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)),
+          precision: 2,
+        }]
       },
     },
   ]

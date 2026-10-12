@@ -30,16 +30,17 @@ function bars(count: number): Kline[] {
 }
 
 describe('registry', () => {
-  it('6 个预置已注册：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ', () => {
+  it('7 个预置已注册：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ + 港股通持股比例', () => {
     const registry = makeRegistry()
     const ids = registry.list().map(definition => definition.id)
-    expect(ids).toEqual(expect.arrayContaining(['ma', 'ema', 'boll', 'macd', 'rsi', 'kdj']))
+    expect(ids).toEqual(expect.arrayContaining(['ma', 'ema', 'boll', 'macd', 'rsi', 'kdj', 'hk-connect-holding']))
     expect(registry.get('ma')?.pane).toBe('main')
     expect(registry.get('ema')?.pane).toBe('main')
     expect(registry.get('boll')?.pane).toBe('main')
     expect(registry.get('macd')?.pane).toBe('sub')
     expect(registry.get('rsi')?.pane).toBe('sub')
     expect(registry.get('kdj')?.pane).toBe('sub')
+    expect(registry.get('hk-connect-holding')?.pane).toBe('sub')
   })
 
   it('defaultParams/defaultInstance 取 schema 默认值', () => {
@@ -77,7 +78,13 @@ describe('presets compute 输出契约', () => {
     for (const definition of registry.list()) {
       const instance = registry.defaultInstance(definition.id)
       if (instance === undefined) throw new Error(`default instance missing: ${definition.id}`)
-      const outputs = definition.compute(sample, instance.params)
+      // 声明 aux 的指标由宿主走 computeAux（契约 §3 二选一）：按声明的键注入与
+      // K 线同日的序列，使输出与其余预置同口径（非空、逐条对齐）。
+      const outputs = definition.aux === undefined
+        ? definition.compute(sample, instance.params)
+        : definition.computeAux?.(sample, instance.params, Object.fromEntries(
+          definition.aux.map(key => [key, sample.map(bar => ({ date: bar.openTime, value: 10 + bar.close / 100 }))]),
+        )) ?? []
       expect(outputs.length, definition.id).toBeGreaterThan(0)
       const keys = new Set<string>()
       for (const output of outputs) {

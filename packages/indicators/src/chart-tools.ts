@@ -134,13 +134,16 @@ export function createIndicatorActivateTool(options: IndicatorActivateToolOption
 
       const params = clampActivationParams(spec.params, overrides)
       const existing = (await chartStore.list()).find(candidate => candidate.id === id)
+      // 新建（未挂载）实例的起点：definition 声明的默认适用范围在 defaultActivationInstance
+      // 里落地（决策 7）；既有实例照旧以自己为起点，绝不把默认值补回去。
+      const fresh = existing ?? defaultActivationInstance(spec)
       let instance: IndicatorInstance
       if (scope !== undefined) {
         // 按标的覆盖（issue #72）：保留全局 params 与其它标的的覆盖，只写本标的这套。
         // 新实例的全局 params 取 schema 默认值——首个标的的覆盖不得泄漏成全局值。
         // 显示语义：写覆盖同时清除该标的两级隐藏（symbol 级 + market 级）。
         const base: IndicatorInstance = withHiddenScopes(
-          withHiddenScopes(existing ?? { id, params: clampActivationParams(spec.params, {}) }, scope, true),
+          withHiddenScopes(fresh, scope, true),
           market,
           true,
         )
@@ -149,11 +152,12 @@ export function createIndicatorActivateTool(options: IndicatorActivateToolOption
         instance = {
           ...base,
           symbolParams: { ...(base.symbolParams ?? {}), [scope]: params },
-          ...(existing?.applyScope !== undefined ? { applyScope: existing.applyScope } : {}),
+          ...(base.applyScope !== undefined ? { applyScope: base.applyScope } : {}),
         }
       } else {
         // 全局写：保留已有按标的覆盖与适用范围（旧行为直接整体覆盖实例会把它们抹掉）。
-        instance = carryInstanceExtras(existing, { id, params })
+        // fresh 只在新建时携带默认适用范围；既有实例缺席即缺席（用户清空后不被补回）。
+        instance = carryInstanceExtras(fresh, { id, params })
       }
       await chartStore.activate(instance)
       onWritten?.(id)

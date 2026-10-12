@@ -13,15 +13,16 @@
  * - Issue #19：提供 /indicators/custom 端点（GET/DELETE），供前端同步自定义指标。
  * - Issue #24：提供 /knowledge/cards 端点（GET），供前端读取沉淀的知识卡片。
  * - Issue #65：提供 /holdings 七个端点 + /fx 端点（统一资产台账，契约 §3/§4）。
+ * - 2026-10-13：提供 /southbound-holdings 端点（港股通持股副图；按能力跨 provider 解析）。
  */
 import { instrumentFormOf } from '@dshtrading/api'
-import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
+import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, SouthboundHoldingHistory, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
 import { aggregateNews as aggregateCnNews, fetchCnFundamentalsPackage } from '@dshtrading/kit-cn'
 import { aggregateNews as aggregateHkNews, fetchHkFundamentalsPackage } from '@dshtrading/kit-hk'
 import { aggregateNews as aggregateUsNews, fetchUsFundamentalsPackage } from '@dshtrading/kit-us'
 import { aggregateNews as aggregateCryptoNews, fetchCryptoFundamentalsPackage } from '@dshtrading/kit-crypto'
 import type { ChartActivationStore, CustomIndicatorRecord, CustomIndicatorStore, IndicatorApplyScope, IndicatorInstance } from '@dshtrading/indicators'
-import { carryInstanceExtras, clampActivationParams, createMemoryChartActivationStore, createMemoryCustomIndicatorStore, resolveIndicatorSpec, sanitizeApplyScope, sanitizeInstance, symbolScopeKey, withHiddenScopes } from '@dshtrading/indicators'
+import { carryInstanceExtras, clampActivationParams, createMemoryChartActivationStore, createMemoryCustomIndicatorStore, defaultActivationInstance, resolveIndicatorSpec, sanitizeApplyScope, sanitizeInstance, symbolScopeKey, withHiddenScopes } from '@dshtrading/indicators'
 import type { KnowledgeCard, KnowledgeCardStore } from '@dshtrading/knowledge'
 import { createMemoryKnowledgeCardStore } from '@dshtrading/knowledge'
 import type { CustomStrategyRecord, CustomStrategyStore } from '@dshtrading/strategies'
@@ -65,6 +66,12 @@ export const MARKET_SERVICE_KEYS: Record<MarketId, string> = {
 /** 注册表服务的最小形状（鸭式，与 @dshtrading/router 的 MarketDataRegistryLike 同构）。 */
 export interface MarketDataRegistryLike {
   active(market: string): { provider: string; service: MarketDataService } | undefined
+  /**
+   * 该市场全部注册项（可选，2026-10-13 港股通持股副图）：按能力跨 provider 解析时
+   * 要看「同市场其它 provider」（本机 hk 的 eastmoney 已注册但非 active，正走这条）。
+   * 注册表未提供本方法 → 只认 active 路径，无能力时退化为 TRADING_NOT_IMPLEMENTED。
+   */
+  list?(market: string): readonly { provider: string; service: MarketDataService }[]
 }
 
 /** 交易注册表服务的最小形状（issue #40，鸭式；api 包 TradeRegistry 同构）。 */
@@ -176,6 +183,8 @@ export function createBridgeHost(services: {
     },
     getTradeService: market => services.tradeRegistry?.active(market)?.service,
     activeProvider: market => services.registry?.active(market)?.provider ?? services.router?.activeProvider(market),
+    // 注册表本体透传（2026-10-13）：southboundHoldings 需要 active + list 两条路径。
+    marketRegistry: services.registry,
     customIndicatorsStore: services.customIndicatorsStore ?? createMemoryCustomIndicatorStore(),
     chartActivationsStore: services.chartActivationsStore ?? createMemoryChartActivationStore(),
     knowledgeStore: services.knowledgeStore ?? createMemoryKnowledgeCardStore(),
@@ -209,6 +218,12 @@ export interface BridgeHost {
   getMarketService(market: MarketId): MarketDataService | undefined
   /** 该市场当前激活的 provider slug（router 设置；可能 undefined）。 */
   activeProvider(market: MarketId): string | undefined
+  /**
+   * 行情服务注册表本体（可选，2026-10-13 港股通持股副图）：southboundHoldings 按
+   * 能力跨 provider 解析时需要 registry.active + registry.list，而非仅 getMarketService
+   * 解析出的那一个。createBridgeHost 已接线；字面量宿主/旧宿主缺席 → 只认 active 路径。
+   */
+  marketRegistry?: MarketDataRegistryLike | undefined
   /** 自定义指标存储（可选）。 */
   customIndicatorsStore?: CustomIndicatorStore
   /** 图表激活名册存储（可选，issue #63）。 */
@@ -313,6 +328,26 @@ export interface SymbolsWire {
 export interface FundamentalsWire {
   ok: true
   fundamentals: StockFundamentals
+}
+
+/**
+ * 港股通持股历史信封（2026-10-13）：字段名 = 方法名/路由名，客户端按
+ * payload.southboundHoldings 读取；标的不在港股通范围时 points 为空数组
+ * （空 ≠ 0，前端隐藏副图），上游失败则由错误信封承载。
+ */
+export interface SouthboundHoldingsWire {
+  ok: true
+  southboundHoldings: SouthboundHoldingHistory
+}
+
+/** 实现了港股通持股端点的行情服务（可选能力；连接器选择性实现）。 */
+type SouthboundCapableService = MarketDataService & {
+  getSouthboundHoldings(symbol: string): Promise<SouthboundHoldingHistory>
+}
+
+/** 能力探测（鸭子类型）：只认真正实现了可选方法的服务，缺席/非函数一律不算。 */
+function hasSouthboundHoldings(service: MarketDataService | undefined): service is SouthboundCapableService {
+  return typeof (service as { getSouthboundHoldings?: unknown } | undefined)?.getSouthboundHoldings === 'function'
 }
 
 export interface DerivativesWire {
@@ -674,6 +709,16 @@ export const FUNDAMENTALS_CACHE_TTL_MS = 5 * 60 * 1000
 /** 基本面缓存条目上限（LRU）：财报级数据包体积大，长生命周期宿主必须有界。 */
 export const FUNDAMENTALS_CACHE_MAX = 64
 
+/**
+ * 港股通持股历史缓存 TTL（5分钟）：日频序列（每交易日一个点），非 tick；
+ * 与 fundamentals 同款「TTL + 同键 in-flight 去重」，副图随级别切换反复取数
+ * 时一次翻转只打一轮上游（2026-10-13 港股通持股副图，契约 C §4）。
+ */
+export const SOUTHBOUND_CACHE_TTL_MS = 5 * 60 * 1000
+
+/** 港股通持股缓存条目上限（LRU）：按「市场:标的」为键，宿主长生命周期必须有界。 */
+export const SOUTHBOUND_CACHE_MAX = 64
+
 /** 读一个「必须是字符串」的可选字段：非字符串/空白一律回空串（形状不信任）。 */
 function readTrimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -693,6 +738,9 @@ export class TradingBridge {
   private readonly symbolsCache = new Map<string, { list: SymbolInfoWire[]; fetchedAt: number }>()
   private readonly fundamentalsCache = new TtlCache<StockFundamentals>(FUNDAMENTALS_CACHE_TTL_MS, FUNDAMENTALS_CACHE_MAX)
   private readonly fundamentalsInflight = new Map<string, Promise<StockFundamentals>>()
+  /** 港股通持股历史缓存（2026-10-13；键 = `${market}:${symbol}`，同 fundamentals 模式）。 */
+  private readonly southboundCache = new TtlCache<SouthboundHoldingHistory>(SOUTHBOUND_CACHE_TTL_MS, SOUTHBOUND_CACHE_MAX)
+  private readonly southboundInflight = new Map<string, Promise<SouthboundHoldingHistory>>()
   /** FX 兜底 fetcher（issue #65；host.fetchFxRates 注入正式实现时不走这里）。 */
   readonly #fallbackFxFetcher: FxRatesFetcher = createFallbackFxFetcher()
 
@@ -1535,6 +1583,67 @@ export class TradingBridge {
     }
   }
 
+  /**
+   * 港股通持股历史（GUI「港股通持股比例」副图，2026-10-13；契约 C §4）。
+   *
+   * 解析顺序冻结（按能力跨 provider，不按 router 当前值）：
+   * 1. registry.active(market) 的服务实现了 getSouthboundHoldings → 用之；
+   * 2. 否则扫 registry.list(market)，**按 provider 名排序稳定遍历**，取第一个实现了
+   *    该方法的服务——本机 hk 路由指向 tencent（无此能力）、eastmoney 已注册但非
+   *    active，正是这条路径的存在理由；active 命中但方法缺失时同样落到这里；
+   * 3. 都没有 → TRADING_NOT_IMPLEMENTED 业务错误（HTTP 200 + ok:false），前端隐藏副图。
+   *
+   * 缓存照抄 fundamentals：5 分钟进程内 TTL + 同键 in-flight 去重，副图随级别
+   * 切换反复取数，一次翻转只打一轮上游。语义区分（契约 A）：标的不在港股通范围
+   * → 服务回 { points: [] }，桥如实透传（空 ≠ 0，不伪造成 0 点）；上游失败 →
+   * 原样抛错，交给 HTTP 层下发生成业务错误。
+   */
+  async southboundHoldings(market: string, symbol: string): Promise<SouthboundHoldingsWire> {
+    if (!isMarketId(market)) throw new BridgeProtocolError(400, `unknown market ${JSON.stringify(market)}`)
+    const trimmed = symbol.trim()
+    if (trimmed === '') throw new BridgeProtocolError(400, 'southboundHoldings: symbol is required')
+    const service = this.#resolveSouthboundService(market)
+    if (service === undefined) {
+      throw Object.assign(
+        new Error(`no southbound holdings source for ${market} — no provider implements getSouthboundHoldings`),
+        { code: 'TRADING_NOT_IMPLEMENTED' },
+      )
+    }
+
+    const cacheKey = `${market}:${trimmed}`
+    const cached = this.southboundCache.getFresh(cacheKey, Date.now())
+    if (cached !== undefined) {
+      return { ok: true, southboundHoldings: cached }
+    }
+    const inflight = this.southboundInflight.get(cacheKey)
+    if (inflight !== undefined) return { ok: true, southboundHoldings: await inflight }
+
+    const job = (async (): Promise<SouthboundHoldingHistory> => {
+      const history = await service.getSouthboundHoldings(trimmed)
+      this.southboundCache.set(cacheKey, history, Date.now())
+      return history
+    })()
+
+    this.southboundInflight.set(cacheKey, job)
+    try {
+      return { ok: true, southboundHoldings: await job }
+    } finally {
+      this.southboundInflight.delete(cacheKey)
+    }
+  }
+
+  /** 按能力解析港股通持股数据源（冻结顺序见 southboundHoldings 文档注释）。 */
+  #resolveSouthboundService(market: string): SouthboundCapableService | undefined {
+    const registry = this.host.marketRegistry
+    const active = registry?.active(market)?.service
+    if (hasSouthboundHoldings(active)) return active
+    // active 缺席或命中但方法缺失：扫同市场注册项，按 provider 名排序取第一个有能力的。
+    const capable = [...(registry?.list?.(market) ?? [])]
+      .filter((entry): entry is { provider: string; service: SouthboundCapableService } => hasSouthboundHoldings(entry.service))
+      .sort((a, b) => (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0))
+    return capable[0]?.service
+  }
+
   /** 按市场拉 kit 基本面数据包；kit 未覆盖或上游失败 → undefined（不算错误）。 */
   async #fetchPkg(market: MarketId, symbol: string): Promise<FundamentalsPackage | undefined> {
     try {
@@ -1881,7 +1990,9 @@ export class TradingBridge {
         return { ok: true, instances: store !== undefined ? await store.list() : [] }
       }
       // 新实例的全局 params 取 schema 默认值——首个标的的覆盖不得泄漏成全局值。
-      const base: IndicatorInstance = existing ?? { id, params: clampActivationParams(spec.params, {}) }
+      // 新建实例同时带上 definition 声明的默认适用范围（决策 7）；既有实例以自己
+      // 为起点，用户清空适用范围后不会被补回。
+      const base: IndicatorInstance = existing ?? defaultActivationInstance(spec)
       const symbolParams: Record<string, Record<string, number>> = { ...(base.symbolParams ?? {}) }
       if (raw.clearSymbol === true) delete symbolParams[scope]
       else symbolParams[scope] = params
@@ -1896,7 +2007,9 @@ export class TradingBridge {
       }
     } else {
       // 全局 params 写：保留已有按标的覆盖、隐藏表与适用范围（旧行为整体覆盖会抹掉它们）。
-      const base: IndicatorInstance = existing ?? { id, params }
+      // base 只在新建时是 definition 默认实例（携带默认适用范围）；既有实例缺席即
+      // 缺席——用户显式清空适用范围后，重复写 params 不得把它补回来。
+      const base: IndicatorInstance = existing ?? defaultActivationInstance(spec)
       instance = carryInstanceExtras(base, { id, params })
     }
     if (store !== undefined) await store.activate(instance)
@@ -2155,6 +2268,11 @@ export async function dispatchBridgeRequest(
         const market = search.get('market') ?? ''
         const symbol = search.get('symbol') ?? ''
         return { status: 200, payload: await bridge.fundamentals(market, symbol) }
+      }
+      case '/southbound-holdings': {
+        const market = search.get('market') ?? ''
+        const symbol = search.get('symbol') ?? ''
+        return { status: 200, payload: await bridge.southboundHoldings(market, symbol) }
       }
       case '/derivatives': {
         const market = search.get('market') ?? ''

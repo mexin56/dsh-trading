@@ -33,6 +33,8 @@ export interface IndicatorSpecLike {
   params: readonly IndicatorParamSpec[]
   /** 自定义指标才有的可选描述。 */
   description?: string
+  /** 定义侧声明的「新实例默认适用范围」（definition.defaultApplyScope 的透传面）。 */
+  defaultApplyScope?: IndicatorApplyScope
 }
 
 /** 实例形状防御：id 非空字符串 + params 纯有限数字对象（坏形丢弃，SSOT 不收脏数据）。 */
@@ -143,6 +145,21 @@ export function isInstanceVisibleOn(instance: IndicatorInstance, market?: string
   if (scopes.includes(market)) return false
   if (symbol !== undefined && scopes.includes(symbolScopeKey(market, symbol))) return false
   return true
+}
+
+/**
+ * 指标定义在给定市场是否可用（definition.markets 缺席 = 所有市场可用）。
+ *
+ * 与实例级 isInstanceApplicableOn 正交：本函数管「这个指标在该市场是否该出现」
+ * （定义侧白名单，如「港股通持股比例」只对港股有意义），后者管「已挂载实例在当前
+ * 市场/级别是否应用」（用户侧设置）。market 缺失（无聚焦标的）不过滤，与
+ * isInstanceApplicableOn 同款兜底；markets 空数组按「未限定」解释，**不**等于全禁用
+ * ——「全禁用」不是有意义的意图表达，而空数组更可能是清洗后的残形。
+ */
+export function isDefinitionAvailableOn(definition: { markets?: readonly string[] }, market?: string): boolean {
+  const markets = definition.markets
+  if (markets === undefined || markets.length === 0 || market === undefined) return true
+  return markets.includes(market)
 }
 
 /**
@@ -292,7 +309,14 @@ export function createMemoryChartActivationStore(initial: IndicatorInstance[] = 
 export async function resolveIndicatorSpec(id: string, customStore?: CustomIndicatorStore): Promise<IndicatorSpecLike | undefined> {
   const preset = presetDefinitions().find(d => d.id === id)
   if (preset !== undefined) {
-    return { id: preset.id, title: preset.title, pane: preset.pane, params: preset.params }
+    return {
+      id: preset.id,
+      title: preset.title,
+      pane: preset.pane,
+      params: preset.params,
+      // 出现即透传：缺席保持缺席（存量 definition 零迁移），不补空表。
+      ...(preset.defaultApplyScope !== undefined ? { defaultApplyScope: preset.defaultApplyScope } : {}),
+    }
   }
   if (customStore !== undefined) {
     const record = await customStore.get(id)
@@ -340,9 +364,25 @@ export function clampActivationParams(specs: readonly IndicatorParamSpec[] | und
   return clampParamsBySpecs(specs, params)
 }
 
-/** 按 schema 生成默认参数实例（definition 缺席 → 空 params，UI 不可见兜底）。 */
+/** 定义侧默认适用范围的脱引用深拷贝（definition 是模块级常量，实例不得与之共享）。 */
+function cloneApplyScope(scope: IndicatorApplyScope): IndicatorApplyScope {
+  const out: IndicatorApplyScope = {}
+  for (const [market, scene] of Object.entries(scope)) {
+    out[market] = { enabled: scene.enabled, intervals: [...scene.intervals] }
+  }
+  return out
+}
+
+/**
+ * 按 schema 生成默认参数实例（definition 缺席 → 空 params，UI 不可见兜底）。
+ * 这是「造新实例」的唯一入口：definition 声明了 defaultApplyScope 时随实例落地
+ * （决策 7 的默认适用范围由此进入三条创建路径），未声明的指标不长出 applyScope
+ * ——存量指标的新实例仍是「全部市场、全部级别应用」，零迁移。
+ */
 export function defaultActivationInstance(spec: IndicatorSpecLike): IndicatorInstance {
   const params: Record<string, number> = {}
   for (const p of spec.params) params[p.key] = p.default
-  return { id: spec.id, params }
- }
+  const instance: IndicatorInstance = { id: spec.id, params }
+  if (spec.defaultApplyScope === undefined) return instance
+  return { ...instance, applyScope: cloneApplyScope(spec.defaultApplyScope) }
+}

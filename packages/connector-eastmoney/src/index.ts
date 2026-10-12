@@ -12,6 +12,7 @@ import type {
   Interval,
   Kline,
   MarketDataService,
+  SouthboundHoldingHistory,
   Ticker,
 } from '@dshtrading/api'
 import {
@@ -52,7 +53,17 @@ export class EastmoneyMarketDataService extends Service implements MarketDataSer
   ) {
     super(ctx, serviceName)
     this.client = new EastmoneyRestClient(options)
+    // 港股通持股是 hk 实例独有的可选能力（2026-10-13）：东财该报表只覆盖港股通标的，
+    // 且以 5 位港股代码为主键。cn 实例上该方法必须**缺席**——消费方（桥）按「方法是否
+    // 存在」区分「无此数据能力」与「该标的无数据」，声明在类体上的普通方法会让 cn
+    // 实例也长出这个能力，故只在 hk 分支动态挂载（dataplane 构造路径一并生效）。
+    if (this.client.market === 'hk') {
+      this.getSouthboundHoldings = (symbol: string) => this.client.getSouthboundHoldings(symbol)
+    }
   }
+
+  /** 港股通持股历史；仅 hk 实例存在（cn 实例为 undefined）。 */
+  declare getSouthboundHoldings?: (symbol: string) => Promise<SouthboundHoldingHistory>
 
   async getTicker(symbol: string): Promise<Ticker> {
     return this.client.getTicker(symbol)

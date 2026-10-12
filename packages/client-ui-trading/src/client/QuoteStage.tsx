@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import {
   fetchKlines, fetchTickers, fetchDerivatives, fetchDerivativesHistory, fetchOrderbook, fetchRecentTrades,
   fetchTradePositions, fetchTradeBalances, fetchTradeOpenOrders, fetchTradeFills, placeGuiOrder,
-  cancelGuiOrder, type TradeRowsReason,
+  cancelGuiOrder, fetchSouthboundHoldings, type TradeRowsReason,
 } from './api.ts'
 import { setHoldingsPanelOpen } from './holdings-store.ts'
 import { tradeModeStore, writeTradeMode } from './trade-mode-store.ts'
@@ -17,7 +17,6 @@ import {
   type GuiApprovalContextProps, type OrderIntentTracker,
 } from './gui-approval.ts'
 import { TvChart, toBar, toVolume } from './TvChart.tsx'
-import type { TvIndicatorGroup } from './TvChart.tsx'
 import { FundamentalsStage } from './FundamentalsStage.tsx'
 import { DerivativesPane } from './DerivativesPane.tsx'
 import { DerivativesStage } from './DerivativesStage.tsx'
@@ -38,10 +37,13 @@ import {
 } from './format.ts'
 import { indicators, isCustomIndicator } from './indicator-registry.ts'
 import { isTradFiPerp, resolveAssetClass, rowForm } from './instrument-meta.ts'
-import type { IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
+import type { AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
 import {
   effectiveInstanceParams, effectiveMarketScope, isInstanceVisibleOn, symbolScopeKey,
 } from '@dshtrading/indicators'
+import { createAuxRequestGuard, loadAuxSeries, requiredAuxKeys } from './aux-series.ts'
+import { availableDefinitions, dispatchIndicatorGroups } from './indicator-dispatch.ts'
+import { defaultScopeEntries } from './indicator-defaults.ts'
 import { MARKET_INTERVALS } from './store.ts'
 import { MARKET_TAB_KEY } from './market-vocab.ts'
 import { SCOPE_MARKETS, normalizeMarketScope, selectApplicableInstances } from './indicator-scope.ts'
@@ -144,6 +146,15 @@ function inferMarketFromSymbol(symbol?: string): MarketId | undefined {
 /** 信号 reason 的币种符号（按市场；crypto 以 USD 计价近似）。 */
 const CURRENCY_SYMBOL: Record<MarketId, string> = { cn: '¥', hk: 'HK$', us: '$', crypto: '$', futures: '¥', global: '$' }
 
+/** 指标外部序列的取数状态：request 命中当前标的时 series 才可消费（换标的残值不渲染）。 */
+interface AuxSeriesState {
+  /** 已结算的请求键 `${market}:${symbol}`（'' = 尚未取过）。 */
+  readonly request: string
+  /** 该请求已覆盖的外部序列键（含取不到数据的键——避免每次渲染重复请求）。 */
+  readonly keys: readonly AuxSeriesKey[]
+  readonly series: AuxSeriesMap
+}
+
 export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId }: QuoteStageProps) {
   const instrument = useSelection(value => value.instrument)
   const market: MarketId | undefined = (instrument?.market && ['crypto', 'us', 'cn', 'hk', 'futures', 'global'].includes(instrument.market))
@@ -175,7 +186,13 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     const scopeKey = symbolScopeKey(market, symbol)
     if (isVisible) setIndicatorVisible(id, false, scopeKey)
     else if (raw !== undefined) setIndicatorVisible(id, true, scopeKey)
-    else toggleIndicator(id)
+    else {
+      toggleIndicator(id)
+      // 决策 7：挂载那一刻补写默认适用范围（只在此刻写——用户在适用范围面板把级别
+      // 改成「全部支持级别」时条目会被归一删除，事后补写会覆盖用户的显式选择）。
+      // 默认值取自 definition.defaultApplyScope（与宿主两条创建路径同一个家）。
+      for (const entry of defaultScopeEntries(indicators.get(id))) setIndicatorScope(id, entry.market, entry.scope)
+    }
   }
   // 指标名册修订号：插件晚于首帧合并 definition 时触发重渲染。
   const rosterVersion = useSyncExternalStore(indicators.subscribe, indicators.getVersion)
@@ -367,6 +384,38 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
       .catch(() => { /* 头部统计缺省 */ })
     return () => { cancelled = true }
   }, [market, symbol])
+
+  // 指标外部序列取数（契约 §5，决策 3/5）：只对当前市场可用、且声明了 aux 的实例
+  // 按需取数（如港股通持股比例）。按 `${market}:${symbol}` 取一次——同一标的切周期
+  // 不重取（日频序列与 K 线级别无关）；换标的/换市场重取并丢弃在途旧应答。
+  // 未取到（undefined / 空序列）不写进 series：消费侧据此隐藏整个副图 pane。
+  const auxRequestRef = useRef(createAuxRequestGuard())
+  const [auxState, setAuxState] = useState<AuxSeriesState>({ request: '', keys: [], series: {} })
+  const auxRequestKey = market !== undefined && symbol !== undefined ? `${market}:${symbol}` : ''
+  useEffect(() => {
+    if (auxRequestKey === '' || market === undefined || symbol === undefined) return
+    const keys = requiredAuxKeys(applicableInstances, market, id => indicators.get(id))
+    if (keys.length === 0) return
+    // 该标的的这批键已落地（含切周期触发的重跑）→ 不重取；新增的键仍需补取，
+    // 否则「后续挂载了另一个 aux 指标」会永远取不到数据。
+    if (auxState.request === auxRequestKey && keys.every(key => auxState.keys.includes(key))) return
+    const handle = auxRequestRef.current.start(auxRequestKey)
+    void Promise.all(keys.map(async key => [key, await loadAuxSeries(key, market, symbol, fetchSouthboundHoldings)] as const))
+      .then((entries) => {
+        if (!handle.isCurrent()) return
+        const series: Record<string, readonly AuxPoint[]> = {}
+        for (const [key, points] of entries) {
+          if (points !== undefined && points.length > 0) series[key] = points
+        }
+        setAuxState({ request: handle.key, keys, series })
+      })
+  }, [auxRequestKey, applicableInstances, market, symbol, auxState])
+
+  /** 可消费的外部序列：request 命中当前标的才交出，换标的残值一律不参与渲染。 */
+  const auxSeries = useMemo<AuxSeriesMap>(
+    () => (auxState.request !== '' && auxState.request === auxRequestKey ? auxState.series : {}),
+    [auxState, auxRequestKey],
+  )
 
   // 衍生品指标轮询（issue #38，仅 crypto；现货输入由连接器升到对应永续）。
   // 竞态守卫（issue #54 评审 M3）：换标的后在途响应丢弃，不覆盖新标的 state。
@@ -652,26 +701,24 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     if (result.ok) applyKdasParams(result.params)
   }, [kdasScopeParams, applyKdasParams])
 
-  // 指标调度：适用实例 × klines → 渲染输入（symbol visibility + 适用范围双重过滤后的
-  // 实例才参与计算与绘制；主图与副图同规则）
+  // 指标调度：适用实例 × klines × 外部序列 → 渲染输入（symbol visibility + 适用范围
+  // 双重过滤后的实例才参与计算与绘制；主图与副图同规则）。声明了 aux 的实例另需外部
+  // 序列就绪，否则整体不进调度（决策 3：副图 pane 不存在）——见 indicator-dispatch。
   const indicatorGroups = useMemo(() => {
     if (klines === null) return []
-    const groups: Array<TvIndicatorGroup & { id: string; pane: 'main' | 'sub'; title: string }> = []
-    for (const instance of applicableInstances) {
-      const definition = indicators.get(instance.id)
-      if (definition === undefined) continue
-      groups.push({
-        id: instance.id,
-        title: definition.title,
-        pane: definition.pane,
-        key: indicators.instanceKey(instance),
-        // issue #72：命中 symbolParams["market:symbol"] 覆盖时该套参数整体替代全局 params；
-        // 计算前按当前 schema clamp——re-author 改 schema 后 stale 覆盖的旧键/越界值不直通 compute。
-        outputs: definition.compute(klines, indicators.clampParams(definition, effectiveInstanceParams(instance, market, symbol))),
-      })
-    }
-    return groups
-  }, [klines, applicableInstances, rosterVersion, market, symbol])
+    return dispatchIndicatorGroups({
+      klines,
+      instances: applicableInstances,
+      market,
+      symbol,
+      aux: auxSeries,
+      deps: {
+        getDefinition: id => indicators.get(id),
+        clampParams: (definition, params) => indicators.clampParams(definition, params),
+        instanceKey: instance => indicators.instanceKey(instance),
+      },
+    })
+  }, [klines, applicableInstances, rosterVersion, market, symbol, auxSeries])
 
   const mainOverlays = useMemo(() => indicatorGroups.filter(group => group.pane === 'main'), [indicatorGroups])
   const subIndicators = useMemo(() => indicatorGroups.filter(group => group.pane === 'sub'), [indicatorGroups])
@@ -692,8 +739,9 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
         ? stats.prevClose
         : klines[readoutIndex - 1]?.close
 
-  // 所有可用指标（供底部词条栏横向快捷展示）
-  const allDefinitions = useMemo(() => indicators.list(), [rosterVersion])
+  // 所有当前市场可用的指标（供底部词条栏横向快捷展示；决策 5：definition.markets
+  // 白名单过滤，如港股通持股比例不出现在 crypto/us/cn 的词条带）
+  const allDefinitions = useMemo(() => availableDefinitions(indicators.list(), market), [rosterVersion, market])
 
   // 策略信号标记数据（issue #41）：在当前 K 线序列上实时计算 EMA(12, 26) 交叉信号（过滤预热期与边缘噪音）。
   const signalMarkers = useMemo<readonly ChartSignalMarkerInput[] | undefined>(() => {
@@ -1023,6 +1071,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
               {pickerOpen && (
                 <IndicatorPicker
                   t={t}
+                  market={market}
                   instances={visibleInstances}
                   activeInstances={instances}
                   editingIndicator={editingIndicator}
@@ -1419,6 +1468,8 @@ function IndicatorPicker(props: {
   t: Translate
   /** 当前标的可见实例（勾选态/参数编辑的数据源）。 */
   instances: IndicatorInstance[]
+  /** 聚焦市场（决策 5：选择器只列该市场可用的 definition；缺席不过滤）。 */
+  market?: MarketId | undefined
   /** 全量激活名册（含对当前标的隐藏的实例）——「全局移除」按钮的存在性判定。 */
   activeInstances: IndicatorInstance[]
   editingIndicator: string | null
@@ -1435,8 +1486,9 @@ function IndicatorPicker(props: {
   onDelete: (id: string) => void
   onClose: () => void
 }): React.JSX.Element {
-  const { t, instances, activeInstances, editingIndicator, scopeKey, symbolLabel, onToggle, onEdit, onSetScope, onApply, onRemoveGlobal, onDelete, onClose } = props
-  const definitions = indicators.list()
+  const { t, market, instances, activeInstances, editingIndicator, scopeKey, symbolLabel, onToggle, onEdit, onSetScope, onApply, onRemoveGlobal, onDelete, onClose } = props
+  // 决策 5：只列当前市场可用的指标（如港股通持股比例不进 crypto/us/cn 的选择器）。
+  const definitions = availableDefinitions(indicators.list(), market)
   const empty = definitions.length === 0
   return (
     <>

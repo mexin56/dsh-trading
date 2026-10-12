@@ -3,7 +3,9 @@ import { presetDefinitions, type IndicatorDefinition } from './presets.ts'
 import type { IndicatorInstance, IndicatorParamSpec, Kline } from './types.ts'
 import type { CustomIndicatorStore } from './custom.ts'
 import type { ChartActivationStore } from './chart-activations.ts'
-import { carryInstanceExtras, clampActivationParams, defaultActivationInstance } from './chart-activations.ts'
+import {
+  carryInstanceExtras, clampActivationParams, defaultActivationInstance, isDefinitionAvailableOn,
+} from './chart-activations.ts'
 import { validateCustomIndicatorNode } from './validate-node.ts'
 
 export { createFileCustomIndicatorStore } from './custom-fs.ts'
@@ -36,7 +38,18 @@ export interface GetIndicatorsToolOptions {
 const DEFAULT_POINTS = 30
 const MAX_POINTS = 100
 
-const DEFAULT_INDICATOR_IDS = presetDefinitions().map((d) => d.id)
+/**
+ * 声明了 aux 的指标由宿主走 computeAux 入口（契约 §3 二选一）。本工具面只有行情
+ * 服务、没有外部序列数据源，故对它只能给一行说明，不能落成 "title ():" 空段落。
+ */
+function needsHostAux(definition: IndicatorDefinition): boolean {
+  return definition.aux !== undefined && definition.aux.length > 0
+}
+
+/** 工具面对需要宿主副图数据的指标给出的可读说明（不假装算出了输出）。 */
+function auxUnavailableNote(definition: IndicatorDefinition): string {
+  return definition.title + ': 需要宿主行情副图数据（本工具面不可用）'
+}
 
 /** 按 schema 生成默认参数。 */
 function defaultParams(definition: IndicatorDefinition): Record<string, number> {
@@ -50,6 +63,19 @@ function tail(values: ReadonlyArray<number | undefined>, n: number): Array<numbe
 
 export function createGetIndicatorsTool(options: GetIndicatorsToolOptions) {
   const { marketData, market = 'crypto', providerLabel, klineLimit = 300, customStore, trialTimeoutMs } = options
+  // 空市场 slug 按「未指定市场」处理——与 isDefinitionAvailableOn 的兜底同款：不过滤。
+  const marketFilter = market.trim() === '' ? undefined : market
+  const definitions = presetDefinitions()
+  const availableIds = definitions.filter((d) => isDefinitionAvailableOn(d, marketFilter)).map((d) => d.id)
+  // 默认集与错误信息里的清单都按市场过滤：不向 agent 宣称一个在该市场不可用的 id。
+  // 某市场一个预置都没有时**不**退回全量列表——那正是本过滤要修的跨市场泄漏；
+  // 改为显式文案，且默认调用直接报错（显式传入自定义 id 的路径不受影响）。
+  const presetVocabulary = availableIds.length > 0
+    ? 'available presets: ' + availableIds.join(', ')
+    : 'available presets: none on market ' + market
+  const defaultSetText = availableIds.length > 0
+    ? 'default: all presets available on this market: ' + availableIds.join(',')
+    : 'no presets are available on this market; pass explicit ids'
   return defineTool({
     name: market + '_get_indicators',
     description:
@@ -69,7 +95,7 @@ export function createGetIndicatorsTool(options: GetIndicatorsToolOptions) {
       },
       indicators: {
         type: 'string',
-        description: 'Comma-separated indicator ids to compute (default: all of ' + DEFAULT_INDICATOR_IDS.join(',') + ')',
+        description: 'Comma-separated indicator ids to compute (' + defaultSetText + '); ids unavailable on this market are rejected',
       },
       points: {
         type: 'number',
@@ -93,20 +119,32 @@ export function createGetIndicatorsTool(options: GetIndicatorsToolOptions) {
       }
       const requestedIds = typeof args.indicators === 'string' && args.indicators.trim()
         ? args.indicators.split(',').map((s) => s.trim()).filter(Boolean)
-        : DEFAULT_INDICATOR_IDS
-      const definitions = presetDefinitions()
+        : availableIds
+      if (requestedIds.length === 0) {
+        throw new Error((market + '_get_indicators: no preset indicators are available for market ') + market
+          + '; pass explicit indicator ids (custom ids are resolved via indicator_author first)')
+      }
       // 自定义指标解析（issue #33）：非预置 id → custom store 查记录 → 校验+编译落定。
       const customDefinitions: IndicatorDefinition[] = []
       for (const id of requestedIds) {
-        if (definitions.some((d) => d.id === id)) continue
+        const preset = definitions.find((d) => d.id === id)
+        if (preset !== undefined) {
+          // 该市场不可用的预置 id（如 crypto 下请求 hk-connect-holding）：明确报错，
+          // 既不静默返回空，也不落到 custom store 里去当自定义 id 查。
+          if (!isDefinitionAvailableOn(preset, marketFilter)) {
+            throw new Error((market + '_get_indicators: indicator id ') + JSON.stringify(id)
+              + ' is not available on market ' + market + ' — ' + presetVocabulary)
+          }
+          continue
+        }
         if (customStore === undefined) {
           throw new Error((market + '_get_indicators: unknown indicator id ') + JSON.stringify(id)
-            + ' — available presets: ' + DEFAULT_INDICATOR_IDS.join(', '))
+            + ' — ' + presetVocabulary)
         }
         const record = await customStore.get(id)
         if (record === undefined) {
           throw new Error((market + '_get_indicators: unknown indicator id ') + JSON.stringify(id)
-            + ' — available presets: ' + DEFAULT_INDICATOR_IDS.join(', ')
+            + ' — ' + presetVocabulary
             + '; custom ids require authoring via indicator_author first')
         }
         const result = validateCustomIndicatorNode(record, { trialTimeoutMs })
@@ -129,6 +167,10 @@ export function createGetIndicatorsTool(options: GetIndicatorsToolOptions) {
       ]
       for (const id of requestedIds) {
         const definition = definitions.find((d) => d.id === id) ?? customDefinitions.find((d) => d.id === id)!
+        if (needsHostAux(definition)) {
+          lines.push(auxUnavailableNote(definition))
+          continue
+        }
         const params = defaultParams(definition)
         const paramText = definition.params.map((p) => (p.key + '=' + params[p.key])).join(' ')
         lines.push(definition.title + ' (' + paramText + '):')

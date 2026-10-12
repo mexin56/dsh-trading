@@ -34,10 +34,22 @@ Status: implemented
 - 测试：connector-eastmoney 11 个单测全绿（新增 hk secid 映射、×1000 缩放、trends2 解析、5m kline 路由四类用例，全部用真实响应值作 fixture）。
 
 ## Addendum (2026-09-08, 审查修正)
-
 - `toEastmoneySecid(symbol, market)` 改为**市场感知**：hk 实例接受 `00700.HK` /
   `HK.00700` / `HK00700` / 裸 1-5 位（`700` → `116.00700`），CN 形态显式拒绝；
   cn 实例反之。此前形态解析与实例市场无关，`700` 会落 `secid=0.700`/`700.SZ`。
 - kline/get 时间戳改用 `utc8WallTimeToEpochMs`（与 trends2 同锚），修掉 TZ≠UTC+8
   宿主上 1m 与 5m/日 K 相差 12h 的问题。详见
   [review fixes](../bug-fix/2026-09-08-review-fixes.md)。
+
+## Addendum (2026-10-12, 港股通持股端点)
+
+- hk 实例新增可选能力 `getSouthboundHoldings(symbol)`（东财数据中心
+  `RPT_MUTUAL_STOCK_HOLDRANKS`，与 push2/push2his 不同域，需 `data.eastmoney.com`
+  的 Referer）；cn 实例该方法完全缺席。空态与故障分离：非港股通标的的上游
+  `code=9201`（"返回数据为空"）映射为空序列，其余业务码与 `pages>1` 抛错。
+  详见 [港股通持股比例副图](2026-10-12-hk-connect-holding-indicator.md)。
+- 本实例在**本机路由指向 tencent 时仍会被消费**（桥按能力跨 provider 在
+  `registry.list('hk')` 里选中它）——这与本文原记的「hk.provider=eastmoney
+  时才激活」的 `routeAllows` 门不冲突：`routeAllows` 管的是**行情服务**的注册，
+  持股端点由桥按能力解析。
+

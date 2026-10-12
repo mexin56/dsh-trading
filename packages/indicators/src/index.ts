@@ -1,6 +1,7 @@
 /**
  * @dshtrading/indicators — 技术指标核心库（纯库，非 dsh bundle）：
- * math 纯函数内核 + definition 契约类型 + 注册表工厂 + 预置指标数据 + 自定义指标纯函数校验器。
+ * math 纯函数内核 + definition 契约类型 + 注册表工厂 + 预置指标数据 + 自定义指标纯函数校验器
+ * + 外部日频序列注入缝（见 aux.ts）。
  *
  * 消费方：client-ui-trading（宿主行情视图 + 本地注册表）与
  * client-ui-indicators（预置指标提供插件，经 cordis tradingIndicators
@@ -13,6 +14,7 @@ export type {
   IndicatorApplyScope, IndicatorDefinition, IndicatorInstance, IndicatorMarketScope,
   IndicatorOutput, IndicatorPane, IndicatorParamSpec, Kline,
 } from './types.ts'
+export { alignAuxToBars, type AuxPoint, type AuxSeriesKey, type AuxSeriesMap } from './aux.ts'
 export { createIndicatorRegistry, type IndicatorRegistry } from './registry.ts'
 export { presetDefinitions, MA_COLORS, EMA_COLORS } from './presets.ts'
 export {
@@ -41,6 +43,7 @@ export {
   defaultActivationInstance,
   effectiveInstanceParams,
   effectiveMarketScope,
+  isDefinitionAvailableOn,
   isInstanceApplicableOn,
   isInstanceVisibleOn,
   resolveIndicatorSpec,

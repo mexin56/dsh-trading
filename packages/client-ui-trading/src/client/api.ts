@@ -4,7 +4,7 @@
  * carries the auth cookie by default).
  */
 import type { AccountBalance, DerivativesData, DerivativesHistory, Kline, MarketId, MarketInfo, Order, Orderbook, Position, TickerOutcome, TradeFill, TradeTick } from './types.ts'
-import type { FundamentalsPackage, InstrumentAssetClass, InstrumentForm } from '@dshtrading/api'
+import type { FundamentalsPackage, InstrumentAssetClass, InstrumentForm, SouthboundHoldingHistory } from '@dshtrading/api'
 import type { CustomIndicatorRecord, IndicatorApplyScope, IndicatorInstance } from '@dshtrading/indicators'
 import type { KnowledgeCard } from '@dshtrading/knowledge'
 import type { CustomStrategyRecord, CustomScreenerRecord } from '@dshtrading/strategies'
@@ -1052,6 +1052,22 @@ export async function fetchFundamentals(market: MarketId, symbol: string, signal
     return wire.fundamentals
   } catch (err) {
     console.warn(`[dsh-trading] fetchFundamentals ${market}/${symbol} failed:`, err)
+    return undefined
+  }
+}
+
+/**
+ * 港股通持股历史（GUI「港股通持股比例」副图，2026-10-13；契约 §5 冻结签名）。
+ * 信封字段名是 southboundHoldings。宿主未装该端点、标的不在港股通范围或上游
+ * 失败 → undefined：副图整体隐藏（空 ≠ 0，不画零线），主图与其它指标不受影响。
+ */
+export async function fetchSouthboundHoldings(market: MarketId, symbol: string, signal?: AbortSignal): Promise<SouthboundHoldingHistory | undefined> {
+  try {
+    const query = new URLSearchParams({ market, symbol })
+    const wire = await getJson<{ ok: boolean; southboundHoldings?: SouthboundHoldingHistory }>(`/dshtrading/api/southbound-holdings?${query.toString()}`, signal)
+    return wire.southboundHoldings
+  } catch (err) {
+    console.warn(`[dsh-trading] fetchSouthboundHoldings ${market}/${symbol} failed:`, err)
     return undefined
   }
 }

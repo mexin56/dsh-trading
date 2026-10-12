@@ -7,7 +7,12 @@
  * 单占（重复 register 抛错），外部指标插件不可能往宿主拥有的命名空间贡献
  * 键；社区指标因此只需交付纯数据 definition，无需 i18n 通道。内置指标名
  * （MA/MACD 等）本身语言中立。
+ *
+ * 外部序列注入缝（2026-10-13 港股通持股比例）：指标可用 aux 声明需要宿主预取的
+ * 外部日频序列键，宿主按需 prefetch 后走 computeAux 入口（见 aux.ts）。未声明
+ * aux 的存量 definition 完全不受影响。
  */
+import type { AuxSeriesKey, AuxSeriesMap } from './aux.ts'
 import type { Series } from './math.ts'
 
 /** K 线（与宿主行情数据结构对齐的最小面）。 */
@@ -62,6 +67,29 @@ export interface IndicatorDefinition {
   title: string
   params: readonly IndicatorParamSpec[]
   compute(bars: readonly Kline[], params: Readonly<Record<string, number>>): IndicatorOutput[]
+  /** 需要宿主预取的外部序列键（可选）；缺失 = 本指标只吃 K 线。 */
+  aux?: readonly AuxSeriesKey[]
+  /**
+   * 按外部序列计算（可选）：声明了 aux 的指标由宿主走这条入口，
+   * 宿主未取到数据（空/失败）时**不得调用**本函数，直接隐藏该指标渲染。
+   * 与 compute 二选一：声明 aux 时宿主只认 computeAux。
+   */
+  computeAux?(bars: readonly Kline[], params: Readonly<Record<string, number>>, aux: AuxSeriesMap): IndicatorOutput[]
+  /**
+   * 可用市场 slug 白名单（可选；如 ['hk']，slug 词汇同 IndicatorApplyScope）。
+   * 缺席 = 所有市场可用（存量 definition 零迁移）。
+   */
+  markets?: readonly string[]
+  /**
+   * 该指标**新实例**的默认适用范围（可选；如港股通持股比例取自日频序列，分钟级
+   * 没有对应数据，默认只适用 1d/1w/1M）。这是指标自身的固有属性，声明落在定义侧，
+   * 三条创建路径（GUI 挂载 / indicator_activate / 桥 PUT）共用同一份事实。
+   * 缺席 = 全部市场、全部级别应用（存量 definition 零迁移）。
+   *
+   * 只作用于新建实例：已挂载实例的 applyScope 是用户设置，任何写入路径都不得把它
+   * 改回默认（用户显式改成「全部级别」之后必须保持）。
+   */
+  defaultApplyScope?: IndicatorApplyScope
 }
 
 /**
