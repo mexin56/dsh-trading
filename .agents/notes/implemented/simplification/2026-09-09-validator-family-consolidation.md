@@ -9,7 +9,8 @@ Status: implemented
 ## Decision
 
 - **编译单一来源**：strategies 的 `compileStrategySource` 变为 indicators `compileComputeSource` 的类型收窄别名（导出签名与全部调用点不变）。
-- **vm 沙箱单一实现**：indicators/validate-node.ts 新增 `runSourceInVmSandbox(source, bars, params, timeoutMs, label)`（经 `@dshtrading/indicators/tool` 子路径导出）；indicators 的 `nodeVmComputeRunner` 与 strategies 的 `nodeStrategyComputeRunner`/`nodeScreenerEvaluateRunner` 全部变为薄封装，label 参数归位三个语境的超时文案（文案逐字不变）。
+- **vm 执行器单一实现**：indicators/validate-node.ts 新增 `runSourceInVmSandbox(source, bars, params, timeoutMs, label)`（经 `@dshtrading/indicators/tool` 子路径导出）；indicators 的 `nodeVmComputeRunner` 与 strategies 的 `nodeStrategyComputeRunner`/`nodeScreenerEvaluateRunner` 全部变为薄封装，label 参数归位三个语境的超时文案（文案逐字不变）。
+- **信任边界（2026-10-12 明示）**：该执行器此前被称作「vm 沙箱」，容易被读成安全隔离。`node:vm` **不是安全边界**——它只防失控（死循环/同步卡死，由 `timeoutMs` 熔断），不隔离文件系统、进程、网络与内存。它只用于**用户自己编写**的指标/策略源码（信任级与 bash 同级）；执行外部不可信输入需要宿主 sandbox 面，不在本仓。实现处的模块头注已写明这条边界。
 - **Worker 内第三副本**：`WORKER_TRIAL_SCRIPT` 是 blob Worker 字符串（无法 import，镜像在架构上不可避免），补注释标明单一事实来源是 `compileComputeSource`、形态嗅探正则改动必须同步。
 - 依赖方向沿用既有的 strategies → indicators（strategies 本就 import createSampleBars/workerComputeRunner），不引入新方向。
 

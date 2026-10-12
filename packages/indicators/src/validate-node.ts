@@ -7,10 +7,16 @@ import type { IndicatorOutput, Kline } from './types.ts'
 import { validateCustomIndicator, type ComputeRunner, type ValidationResult } from './validate.ts'
 
 /**
- * 用户源码 vm 沙箱执行的单一实现（指标/策略/选股器共用，2026-09-09 收敛自
- * strategies 的同体副本）：沙箱白名单全局、箭头/函数体双形态编译、超时熔断。
+ * 用户源码 vm 执行的单一实现（指标/策略/选股器共用，2026-09-09 收敛自
+ * strategies 的同体副本）：白名单全局、箭头/函数体双形态编译、超时熔断。
  * label 是超时文案的语境词（如「指标试算」/「策略试算」/「选股器试算」）——
  * 文案按调用语境归位，机制只此一份。
+ *
+ * **信任边界（不要读成安全隔离）**：`node:vm` 不是安全边界——它只防**失控**
+ * （死循环、同步卡死，由 timeout 熔断），不隔离文件系统、进程、网络与内存。
+ * 因此本执行器只适用于**用户自己编写**的指标/策略源码（用户信任级 = 与 bash
+ * 同级，见 dynamic-capabilities skill 的信任级声明）；**绝不**用于执行外部
+ * 不可信输入。需要真正隔离时属于宿主 sandbox 面的能力，不在本仓实现。
  */
 export function runSourceInVmSandbox(
   computeSource: string,
