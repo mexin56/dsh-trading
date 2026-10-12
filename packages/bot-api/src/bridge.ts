@@ -233,8 +233,9 @@ export interface BridgeHost {
   fetchFxRates?: FxRatesFetcher | undefined
   /**
    * 交易服务（可选，issue #40）：tradeRegistry 按 market 解析；未注册 → undefined
-   * （交易台整体隐藏）。**安全语义**：桥只放行 dry-run 下单与只读查询——
-   * placeOrder 的 dryRun 被强制为 true，实盘路径不经 GUI。
+   * （交易台整体隐藏）。**安全语义（2026-10-12 更新）**：桥可发起真交易，但实盘
+   * place/cancel 必须先在宿主 approval 面拿到逐动作授权（缺 intentId、审批缺席、
+   * 拒绝、取消或会话不匹配一律明确失败，不回退成模拟成交）；dry-run 仍可直接执行。
    */
   getTradeService?(market: MarketId): TradeService | undefined
   /** 新闻注册表（可选，issue #37）：各市场 Kit 注册的新闻聚合器。 */
