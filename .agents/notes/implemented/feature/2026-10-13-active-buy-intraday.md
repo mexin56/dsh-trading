@@ -46,9 +46,11 @@ Status: implemented
 
 ## Verification
 
-- 门禁（`pnpm gates:all`，HEAD 现场复跑）：**15 通过 / 1 失败**；唯一红项 `tool-contract:check` 是**存量**矛盾——`packages/knowledge/src/tool.ts` 的 `*Json` 参数已声明为 `type: 'json'`（提交 `6d4c92d9`，issue #100），而冻结快照 `scripts/tool-contract-freeze.json` 仍记 `"type": "string"`（提交 `f20e3ff4` 引入该门禁）；本特性工作区未触碰这两处（`git status` 计数 0）。
+- 门禁（`pnpm gates:all`，HEAD `9f9fd857` 现场复跑；独立验收者另跑一次同结论）：**16 通过 / 0 失败**。此前唯一红项 `tool-contract:check` 是**存量**矛盾——`packages/knowledge/src/tool.ts` 的 `*Json` 参数已在 `6d4c92d9`（issue #100）改为 `type: 'json'`，而 `f20e3ff4` 引入的冻结快照仍记 `"type": "string"`；该矛盾由同一分支并入的 `b4709461` 修掉（重跑 `--update` 的 diff 恰为 8 行 `string → json`：holdings `itemsJson` + knowledge_ingest 的七个 `*Json`，无其它漂移），不是本特性的行为改动。
 - 包测试：`connector-tencent` 45 例、`bot-api` 240 例、`indicators` 115 例、`client-ui-trading` 427 例全绿；测试棘轮（`test:audit`）无新增债。
 - 连接器真实证据：`spikes/impl-active-buy/` 存 4 份 curl 原始 GBK 响应 + `r3-parse.mjs`（把落盘字节喂回 `rest.ts` 本体重放，只有取数时刻是注入值）；数值向量 总量 91083 / 外盘 43668 / 内盘 47410 → 买占 47.94、净买 −4.11。
 - 桥端到端：`dispatchBridgeRequest(GET, '/active-buy')` 实返 close/manual/live 三段 JSON；`live` 注入、今日已有行不注入、能力缺席降级、坏行跳过、非 cn 空序列、250 日截断各有判据；能力解析三条分支（active 优先 / qmt 无能力时取排序后 tencent / 全无能力只回历史）各有判据。
 - 客户端：5 分钟窗口边界（09:24/09:25/11:32/12:58/15:02/周末）、复取失败不清空已有序列、A→B→A 在途旧应答丢弃、空序列隐藏副图、数据驱动徽标各有判据；`i18n:check` 绿（`indicator.live` 三处一致）。
-- **未验证（如实标注）**：真实图表 canvas 布局（jsdom 挂不起 lightweight-charts）、宿主端到端取数与真实截图、响应式矩阵——留给部署后按 ui-screenshot-verify 手法补证。
+- 部署后端到端（2026-10-13 盘中，trading-web profile 刷新并重启实例之后）：`GET /dshtrading/api/active-buy?market=cn&symbol=002714.SZ` 返回 2026-10-13 的 `phase: "live"` 点（11:08:12，买占 42.05 / 净买 −15.88），即当日柱在盘中有值；自有 CDP 无头实例（非用户 Chrome）截图显示副图读数行「主动买盘 盘中 净买: 16.48 买占: 58.24」，其中 58.24 = (100 + 16.48) / 2 与恒等式一致。旧自定义指标 `active_buy_real` 已从图表名册与自定义指标名册摘除（记录先备份到 `~/.dsh-trading/backup/`）。
+- 独立复核（另一会话，绑同一 HEAD）：单包测试数字逐个复现（45 / 240 / 115 / 427）；`r3-parse.mjs` 重放 PASS；数据集残差实测最大 0.0709%（与注释一致），派生「买占」与源记录 `buySharePct` 最大相差 0.035 个百分点。
+- **未验证（如实标注）**：图表 canvas 的响应式矩阵（多分辨率与窗宽变化）未覆盖——jsdom 挂不起 lightweight-charts，图表侧只有部署后的真实截图证据。
