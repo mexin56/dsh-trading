@@ -65,6 +65,11 @@ export interface IndicatorDefinition {
   pane: IndicatorPane
   /** 指标显示名（纯字符串，见模块头注）。 */
   title: string
+  /**
+   * 指标说明（可选）：数据来源与口径限制。预置与自定义同面，由 indicator_list
+   * 与 resolveIndicatorSpec 透传给消费方（模型读指标清单时看到的就是这条）。
+   */
+  description?: string
   params: readonly IndicatorParamSpec[]
   compute(bars: readonly Kline[], params: Readonly<Record<string, number>>): IndicatorOutput[]
   /** 需要宿主预取的外部序列键（可选）；缺失 = 本指标只吃 K 线。 */

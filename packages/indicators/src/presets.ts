@@ -1,7 +1,8 @@
 /**
  * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有
- * 仅港股的「港股通持股比例」）。全部是 definition 数据 + math.ts 纯函数的组合，
- * 无渲染逻辑；由指标插件（client-ui-indicators）注册进 tradingIndicators 服务。
+ * 仅港股的「港股通持股比例」与仅 A 股的「主动买盘」两条外部序列指标）。
+ * 全部是 definition 数据 + math.ts 纯函数的组合，无渲染逻辑；由指标插件
+ * （client-ui-indicators）注册进 tradingIndicators 服务。
  */
 import type { IndicatorDefinition, Kline } from './types.ts'
 import { alignAuxToBars } from './aux.ts'
@@ -50,6 +51,9 @@ const closesOf = (bars: readonly Kline[]): number[] => bars.map(bar => bar.close
 /** 港股通持股比例副图消费的外部序列键（宿主按此键 prefetch 并按同名键注入）。 */
 const HK_CONNECT_HOLDING_AUX_KEY = 'hk-connect-holding'
 
+/** 主动买盘副图消费的外部序列键（与桥端点同名，宿主按此键 prefetch 并注入）。 */
+const ACTIVE_BUY_AUX_KEY = 'cn-active-buy'
+
 /** 一天的毫秒数（K 线交易日归一到 UTC 00:00 用）。 */
 const MS_PER_DAY = 86_400_000
 
@@ -67,7 +71,7 @@ function klineTradingDay(bar: Kline): number {
   return Math.floor(tradingDay / MS_PER_DAY) * MS_PER_DAY
 }
 
-/** 七个预置 definition（纯数据，注册时机归消费方）。 */
+/** 八个预置 definition（纯数据，注册时机归消费方）。 */
 export function presetDefinitions(): IndicatorDefinition[] {
   return [
     {
@@ -216,6 +220,60 @@ export function presetDefinitions(): IndicatorDefinition[] {
           values: aligned.map(value => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)),
           precision: 2,
         }]
+      },
+    },
+    {
+      // 主动买盘（副图，仅 A 股）：数据来自宿主预取的日频外部序列（aux 声明的键），
+      // 序列值语义 = 净主动买占当日总量百分比；无参数，两条输出（净买柱 + 买占线）。
+      id: 'active-buy',
+      pane: 'sub',
+      title: '主动买盘',
+      params: [],
+      markets: ['cn'],
+      description: '数据源：本地累积的腾讯盘口快照推断的内外盘（非交易所官方逐笔方向，涨跌停/对倒日失真）。'
+        + '红柱为净主动买占当日总量百分比，蓝线为主动买占比 ((100 + 净买占比) / 2)。'
+        + '当日柱为盘中累计到最新取数时刻，收盘后收敛为当日终值。',
+      // 与港股通持股比例同款（决策 7）：数据是日频序列，分钟级上会被前向填充成一整段
+      // 平移直线，故新实例默认只勾 1d/1w/1M（GUI 挂载、indicator_activate 与桥 PUT
+      // 三条创建路径共用本声明）。
+      defaultApplyScope: { cn: { enabled: true, intervals: ['1d', '1w', '1M'] } },
+      aux: [ACTIVE_BUY_AUX_KEY],
+      compute() {
+        // 声明了 aux 的指标由宿主走 computeAux（契约 §3 二选一）：旧宿主若误调
+        // compute，返回空输出即「什么都不画」，绝不降级为一条贴底的零线。
+        return []
+      },
+      computeAux(bars, _params, aux) {
+        const points = aux[ACTIVE_BUY_AUX_KEY]
+        // 无数据（未取到 / 该标的无盘口推断记录）→ 空输出：消费方据此隐藏整个副图
+        // pane（决策 3），空 ≠ 0。
+        if (points === undefined || points.length === 0) return []
+        const aligned = alignAuxToBars(bars, points, klineTradingDay)
+        // 非有限值（脏数据）按 warm-up 处理：曲线断开，不把 NaN 交给渲染层。
+        const net = aligned.map(value => (typeof value === 'number' && Number.isFinite(value) ? value : undefined))
+        return [
+          {
+            key: '净买',
+            kind: 'histogram',
+            histogramBySign: true,
+            color: '#e64545',
+            values: net,
+            precision: 2,
+          },
+          {
+            key: '买占',
+            kind: 'line',
+            color: '#3b82f6',
+            // 口径恒等式：买占 = (100 + 净买占比) / 2。前提是「外盘 + 内盘 ≈ 当日总量」：
+            // 总量 −（外盘+内盘）之差是**未归向成交**（集合竞价与价间成交计入总量却不计入
+            // 内外盘），量级不固定——本数据集 5 标的实测最大 0.071%（517520 2026-09-18），
+            // 单条报价行盘中可达 0.63%（600519 2026-10-13 10:09 实测）。故本式是**派生值**，
+            // 与源记录里的 buySharePct 相差「残差 / 2」（本数据集 ≤0.036 个百分点）。只取一条
+            // aux 序列（净买）而不注入两条，是有意的取舍：偏差比读图分辨率低一个量级。
+            values: net.map(value => (value === undefined ? undefined : (100 + value) / 2)),
+            precision: 2,
+          },
+        ]
       },
     },
   ]

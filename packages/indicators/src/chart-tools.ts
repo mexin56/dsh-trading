@@ -37,6 +37,8 @@ export function createIndicatorListTool(options: IndicatorListToolOptions) {
         title: d.title,
         pane: d.pane,
         params: d.params.map(p => ({ key: p.key, label: p.label, default: p.default, min: p.min, max: p.max })),
+        // 出现即透传（存量预置无 description，输出保持原样）。
+        ...(d.description !== undefined ? { description: d.description } : {}),
       }))
       const custom = customStore !== undefined
         ? (await customStore.list()).map(r => ({

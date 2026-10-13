@@ -31,7 +31,7 @@ export interface IndicatorSpecLike {
   title: string
   pane: IndicatorPane
   params: readonly IndicatorParamSpec[]
-  /** 自定义指标才有的可选描述。 */
+  /** 可选描述（预置 definition.description 或自定义指标的 description）。 */
   description?: string
   /** 定义侧声明的「新实例默认适用范围」（definition.defaultApplyScope 的透传面）。 */
   defaultApplyScope?: IndicatorApplyScope
@@ -314,6 +314,7 @@ export async function resolveIndicatorSpec(id: string, customStore?: CustomIndic
       title: preset.title,
       pane: preset.pane,
       params: preset.params,
+      ...(preset.description !== undefined ? { description: preset.description } : {}),
       // 出现即透传：缺席保持缺席（存量 definition 零迁移），不补空表。
       ...(preset.defaultApplyScope !== undefined ? { defaultApplyScope: preset.defaultApplyScope } : {}),
     }
