@@ -26,7 +26,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import Schema from '@deepseek-ai/schemastery'
-import type { Disposable, Interval, Kline, MarketDataService, Orderbook, StockFundamentals, Ticker } from '@dshtrading/api'
+import type { ActiveBuySnapshot, Disposable, Interval, Kline, MarketDataService, Orderbook, StockFundamentals, Ticker } from '@dshtrading/api'
 import {
   INTERVAL_VOCABULARY,
   type TencentMarket,
@@ -97,7 +97,17 @@ export class TencentMarketDataService extends Service implements MarketDataServi
   ) {
     super(ctx, name)
     this.client = new TencentRestClient(market, options)
+    // 主动买盘快照是 cn 实例独有的可选能力（2026-10-13）：外盘/内盘是 cn 报价行的字段，
+    // r_hk 行同位置恒为 0。cn 之外的实例上该方法必须**缺席**——消费方（桥/前端）按
+    // 「方法是否存在」区分「无此数据能力」与「读数为 0」，把方法声明在类体上会让 hk
+    // 实例也长出这个能力，故只在 cn 分支动态挂载（dataplane 构造路径一并生效）。
+    if (market === 'cn') {
+      this.getActiveBuySnapshot = (symbol: string) => this.client.getActiveBuySnapshot(symbol)
+    }
   }
+
+  /** 当日累计主动买盘快照；仅 cn 实例存在（hk 实例为 undefined）。 */
+  declare getActiveBuySnapshot?: (symbol: string) => Promise<ActiveBuySnapshot>
 
   getTicker(symbol: string): Promise<TencentTicker> {
     return this.client.getTicker(symbol)

@@ -24,7 +24,7 @@
  * @module @dshtrading/connector-tencent/rest
  */
 
-import type { Interval, Kline, Orderbook, OrderbookLevel, StockFundamentals, Ticker, TradingErrorCode } from '@dshtrading/api'
+import type { ActiveBuySnapshot, Interval, Kline, Orderbook, OrderbookLevel, StockFundamentals, Ticker, TradingErrorCode } from '@dshtrading/api'
 
 /* ------------------------------------------------------------------ */
 /* 错误载体（api 包词汇的运行时映射，与 connector-stooq 同构）               */
@@ -422,6 +422,119 @@ function parseHkFundamentals(fields: string[], timestamp: number): TencentFundam
 }
 
 /* ------------------------------------------------------------------ */
+/* 主动买盘快照（cn 专用，2026-10-13）                                      */
+/* ------------------------------------------------------------------ */
+
+/** ActiveBuySnapshot.source 的取值（与 api 契约同一事实，只在这里写一次）。 */
+export const ACTIVE_BUY_SOURCE = 'qt.gtimg.cn'
+
+/**
+ * 行的严格数值读数：空串/纯空白视为**缺失**。
+ * `Number('') === 0`——用宽松读数会把「字段缺席」伪装成 0 读数，而「主动买/卖为 0」
+ * 本身是有效事实，两者不能混同（本文件此前的 num() 保留给宽容字段用）。
+ */
+function strictNum(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const n = Number(trimmed)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/** 占比归一：保留 2 位小数（-0 归一为 0，避免 wire 上出现 `-0`）。 */
+function round2(value: number): number {
+  const r = Math.round(value * 100) / 100
+  return r === 0 ? 0 : r
+}
+
+/** 源字段 30（`YYYYMMDDHHMMSS`，交易所本地墙钟）→ 契约的 date/time 两个字符串。 */
+function splitQuoteTime(value: string | undefined, symbol: string): { date: string; time: string } {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(value ?? '')
+  if (!m) {
+    throw new TradingServiceError(
+      'TRADING_EXCHANGE_ERROR',
+      `Tencent CN active-buy for ${symbol}: invalid quote time field ${JSON.stringify(value ?? null)}`,
+    )
+  }
+  return { date: `${m[1]}-${m[2]}-${m[3]}`, time: `${m[4]}:${m[5]}:${m[6]}` }
+}
+
+/**
+ * cn 主动买盘快照解析（字段布局与 parseCnTicker 同一行报价；字段号 2026-10-13 实测
+ * spikes/impl-active-buy/r1-raw-sz002714.gbk）：
+ * 6=成交量=当日总量(**手**) 7=外盘=主动买(手) 8=内盘=主动卖(手)
+ * 30=时间 YYYYMMDDHHMMSS(Asia/Shanghai) 47=涨停价 48=跌停价。
+ *
+ * 口径与失败语义（api ActiveBuySnapshot 契约）：
+ *   - 外盘/内盘是**行情源按盘口推断**的当日累计主动方向，非交易所官方逐笔方向；
+ *   - 总量 <= 0、外盘/内盘字段缺失（空串也算缺失）、非有限或为负 → 抛
+ *     TRADING_EXCHANGE_ERROR，**绝不补 0、绝不返回 NaN**（无读数 ≠ 读数 0）；
+ *   - 占比按「÷当日总量」口径；`total - outer - inner` 的残差是**未归向成交**（集合竞价与
+ *     价间成交计入总量但不计入外/内盘），实测 2026-10-13 为 002714 12/121808 手、
+ *     600519 45/7154 手——不是固定量级，且**不参与修正**（源读数原样返回，见 spike 的
+ *     sumGap 对照）；
+ *   - 涨跌停价字段缺省（指数/ETF）时整字段省略，不用 0 占位。
+ */
+export function parseCnActiveBuySnapshot(fields: string[], symbol: string, fetchedAt: string): ActiveBuySnapshot {
+  const totalLots = strictNum(fields[6])
+  if (totalLots === undefined || totalLots <= 0) {
+    throw new TradingServiceError(
+      'TRADING_EXCHANGE_ERROR',
+      `Tencent CN active-buy for ${symbol}: missing/invalid total volume field 6 ${JSON.stringify(fields[6] ?? null)}`,
+    )
+  }
+  const outerLots = strictNum(fields[7])
+  const innerLots = strictNum(fields[8])
+  if (outerLots === undefined || innerLots === undefined || outerLots < 0 || innerLots < 0) {
+    throw new TradingServiceError(
+      'TRADING_EXCHANGE_ERROR',
+      `Tencent CN active-buy for ${symbol}: missing/invalid outer/inner volume fields 7/8 `
+      + `${JSON.stringify(fields[7] ?? null)}/${JSON.stringify(fields[8] ?? null)}`,
+    )
+  }
+  const { date, time } = splitQuoteTime(fields[30], symbol)
+  const limitUp = strictNum(fields[47])
+  const limitDown = strictNum(fields[48])
+  return {
+    symbol,
+    date,
+    time,
+    totalLots,
+    outerLots,
+    innerLots,
+    buySharePct: round2((outerLots / totalLots) * 100),
+    netSharePct: round2(((outerLots - innerLots) / totalLots) * 100),
+    ...(limitUp !== undefined ? { limitUp } : {}),
+    ...(limitDown !== undefined ? { limitDown } : {}),
+    source: ACTIVE_BUY_SOURCE,
+    fetchedAt,
+  }
+}
+
+/**
+ * epoch ms → ISO 8601 **带偏移**（该时区的墙钟，形如 2026-10-13T09:53:12+08:00）。
+ * 用 Intl 求时区偏移（含夏令时，与 wallTimeToEpochMs 同一套机制）；不用
+ * `Date#toISOString`——它是 UTC `Z` 形，读不出「本地」，且会让同一读数随宿主时区漂移。
+ */
+export function isoWithOffset(epochMs: number, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(epochMs))
+  const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '00'
+  const hour = String(Number(get('hour')) % 24).padStart(2, '0') // ICU 在 hour12:false 下可能给 '24'
+  const wall = Date.UTC(
+    Number(get('year')), Number(get('month')) - 1, Number(get('day')),
+    Number(hour), Number(get('minute')), Number(get('second')),
+  )
+  const offsetMinutes = Math.round((wall - epochMs) / 60_000)
+  const abs = Math.abs(offsetMinutes)
+  const offset = `${offsetMinutes < 0 ? '-' : '+'}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}:${get('second')}${offset}`
+}
+
+/* ------------------------------------------------------------------ */
 /* 腾讯行情客户端（无凭证、可注入 fetch，便于单测）                            */
 /* ------------------------------------------------------------------ */
 
@@ -444,6 +557,8 @@ export interface TencentRestOptions {
   readonly timeoutMs?: number
   /** 注入 fetch 实现；缺省用全局 fetch（Node 22+ 内置）。 */
   readonly fetchImpl?: typeof fetch
+  /** 时钟注入（单测固定 active-buy 快照的 fetchedAt 用；缺省 Date.now）。 */
+  readonly now?: () => number
 }
 
 export class TencentRestClient {
@@ -455,6 +570,7 @@ export class TencentRestClient {
   readonly #searchBaseUrl: string
   readonly #timeoutMs: number
   readonly #fetchImpl: typeof fetch
+  readonly #now: () => number
 
   constructor(market: TencentMarket, options: TencentRestOptions = {}) {
     this.#market = market
@@ -464,6 +580,7 @@ export class TencentRestClient {
     this.#searchBaseUrl = options.searchBaseUrl ?? DEFAULT_SEARCH_BASE_URL
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     this.#fetchImpl = options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init))
+    this.#now = options.now ?? (() => Date.now())
   }
 
   get market(): TencentMarket {
@@ -574,6 +691,28 @@ export class TencentRestClient {
     const { fields, timestamp, sym } = await this.#fetchQuoteFields(symbol)
     const parsed = parseCnOrderbook(fields, timestamp)
     return { ...parsed, symbol: toCanonicalTencentSymbol(this.#market, sym) }
+  }
+
+  /**
+   * 当日累计主动买盘快照（api 可选契约 getActiveBuySnapshot，2026-10-13）：与 getTicker
+   * 同一行报价的外盘/内盘字段（cn 布局 6/7/8/30/47/48，见 parseCnActiveBuySnapshot 注释），
+   * 零额外请求。**hk 结构性不支持**——r_hk 行的 7/8 位恒为 0（2026-10-13 实测
+   * spikes/impl-active-buy/r2-raw-hk00700.gbk），直接按 TRADING_NOT_IMPLEMENTED 上报；
+   * 服务层 hk 实例上该方法本身缺席（能力自然缺席，消费方按「方法是否存在」判降级）。
+   */
+  async getActiveBuySnapshot(symbol: string): Promise<ActiveBuySnapshot> {
+    if (this.#market === 'hk') {
+      throw new TradingServiceError(
+        'TRADING_NOT_IMPLEMENTED',
+        'Tencent HK active-buy: r_hk quote row carries no outer/inner (active buy/sell) fields (7/8 always 0) — unavailable for hk',
+      )
+    }
+    const { fields, sym } = await this.#fetchQuoteFields(symbol)
+    return parseCnActiveBuySnapshot(
+      fields,
+      toCanonicalTencentSymbol('cn', sym),
+      isoWithOffset(this.#now(), 'Asia/Shanghai'),
+    )
   }
 
   /**

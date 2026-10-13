@@ -1,0 +1,79 @@
+{
+  "replayedAt": "2026-10-13T02:13:56.446Z",
+  "sourceModule": "packages/connector-tencent/src/rest.ts",
+  "injectedNow": "2026-10-13T02:09:35.000Z",
+  "results": [
+    {
+      "label": "sz002714",
+      "symbol": "002714",
+      "file": "r1-raw-sz002714.gbk",
+      "rawBytes": 506,
+      "rawSha256_16": "af8b67507b370918",
+      "mappedFields": {
+        "f6": "121808",
+        "f7": "54093",
+        "f8": "67703",
+        "f30": "20261013100930",
+        "f47": "45.96",
+        "f48": "37.60"
+      },
+      "snapshot": {
+        "symbol": "002714.SZ",
+        "date": "2026-10-13",
+        "time": "10:09:30",
+        "totalLots": 121808,
+        "outerLots": 54093,
+        "innerLots": 67703,
+        "buySharePct": 44.41,
+        "netSharePct": -11.17,
+        "limitUp": 45.96,
+        "limitDown": 37.6,
+        "source": "qt.gtimg.cn",
+        "fetchedAt": "2026-10-13T10:09:35+08:00"
+      },
+      "sumGapLots": 12,
+      "sumGapPct": 0.0099
+    },
+    {
+      "label": "sh600519",
+      "symbol": "600519",
+      "file": "r2-raw-sh600519.gbk",
+      "rawBytes": 540,
+      "rawSha256_16": "cf923b457a758966",
+      "mappedFields": {
+        "f6": "7154",
+        "f7": "3758",
+        "f8": "3351",
+        "f30": "20261013100938",
+        "f47": "1416.80",
+        "f48": "1159.20"
+      },
+      "snapshot": {
+        "symbol": "600519.SH",
+        "date": "2026-10-13",
+        "time": "10:09:38",
+        "totalLots": 7154,
+        "outerLots": 3758,
+        "innerLots": 3351,
+        "buySharePct": 52.53,
+        "netSharePct": 5.69,
+        "limitUp": 1416.8,
+        "limitDown": 1159.2,
+        "source": "qt.gtimg.cn",
+        "fetchedAt": "2026-10-13T10:09:35+08:00"
+      },
+      "sumGapLots": 45,
+      "sumGapPct": 0.629
+    }
+  ],
+  "failures": {
+    "unknownSymbol": {
+      "body": "v_pv_none_match=\"1\";",
+      "code": "TRADING_UNSUPPORTED_SYMBOL"
+    },
+    "hkActiveBuy": {
+      "code": "TRADING_NOT_IMPLEMENTED",
+      "message": "Tencent HK active-buy: r_hk quote row carries no outer/inner (active buy/sell) fields (7/8 always 0) — unavailable for hk"
+    }
+  }
+}

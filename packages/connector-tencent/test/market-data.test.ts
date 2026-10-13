@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import type { TencentRestOptions } from '../src/rest.js'
+import type { Context } from '@deepseek-ai/cordis'
+import type { ActiveBuySnapshot, TencentRestOptions } from '../src/rest.js'
 import {
+  ACTIVE_BUY_SOURCE,
   INTERVAL_VOCABULARY,
   type TencentMarket,
   TencentRestClient,
   TradingServiceError,
+  isoWithOffset,
   klineDateToEpochMs,
   minuteKlineTimeToEpochMs,
   normalizeCnSymbol,
   normalizeHkSymbol,
   wallTimeToEpochMs,
 } from '../src/rest.js'
+import { TencentMarketDataService } from '../src/index.ts'
 
 // 夹具为腾讯端点 2026-08-31 真实响应形态（原始字节证据 spikes/impl-cn-hk/r1-*.raw /
 // r2-*.json）；中文名以 GBK 字节内嵌，验证 GBK 解码路径（UTF-8 解码会乱码）。
@@ -84,6 +88,34 @@ function client(market: TencentMarket, options: TencentRestOptions = {}): Tencen
   return new TencentRestClient(market, options)
 }
 
+// 主动买盘夹具 = 2026-10-13 10:09 腾讯实测行原文（GBK 解码后；原始字节证据
+// spikes/impl-active-buy/r1-raw-sz002714.gbk）。名字位留 %NAME% 占位，以便内嵌 GBK 字节。
+const CN_002714_NAME_GBK = 'c4c1d4adb9c9b7dd' // 牧原股份
+const CN_002714_BODY =
+  '51~%NAME%~002714~41.12~41.78~41.57~121808~54093~67703~41.11~47~41.10~328~41.09~167~41.08~329~41.07~76~41.12~1~41.13~27~41.14~13~41.15~2~41.16~103~~20261013100930~-0.66~-1.58~42.24~41.08~41.12/121808/507375819~121808~50738~0.37~-211.80~~42.24~41.08~2.78~1348.96~2373.86~3.00~45.96~37.60~2.82~801~41.65~-19.53~15.33~~~0.50~50737.5819~0.0000~0~   A~GP-A~-18.02~-2.77~3.13~-1.40~-0.61~53.06~31.81~-2.97~-6.35~6.67~3280544547~5772996144~73.28~-16.66~3280544547~~~-20.56~-0.15~~CNY~0~~41.06~391~'
+
+/**
+ * 按字段号改写实测行（只改写被断言的位，其余保持实测字节形态）。
+ * 36 位是「价/量/额」展示串、不参与解析，故不随向量改写。
+ */
+function cnActiveBuyRow(overrides: Record<number, string> = {}): string {
+  const fields = CN_002714_BODY.split('~')
+  for (const [index, value] of Object.entries(overrides)) fields[Number(index)] = value
+  return `v_sz002714="${fields.join('~')}";\n`
+}
+
+/** 取数时刻夹具：2026-10-13 09:53:12（Asia/Shanghai）。 */
+const FIXED_NOW_0953 = Date.UTC(2026, 9, 13, 1, 53, 12)
+
+/** 服务实例单测用最小 ctx（cordis Service 只需 reflect.provide；与 dataplane 单测同款）。 */
+function duckCtx(): { ctx: Context; provided: Record<string, unknown> } {
+  const provided: Record<string, unknown> = {}
+  const ctx = {
+    reflect: { provide: (name: string, value: unknown) => { provided[name] = value } },
+  } as unknown as Context
+  return { ctx, provided }
+}
+
 describe('normalizeCnSymbol', () => {
   it('accepts bare / SH / sz prefixed codes and routes by leading digit', () => {
     expect(normalizeCnSymbol('600519')).toBe('sh600519')
@@ -139,6 +171,16 @@ describe('time parsing', () => {
     expect(klineDateToEpochMs('2026-08-28')).toBe(Date.UTC(2026, 7, 28))
     // 2026-08-28 14:40 (UTC+8) -> 2026-08-28 06:40 (UTC)
     expect(minuteKlineTimeToEpochMs('202608281440', 'Asia/Shanghai')).toBe(Date.UTC(2026, 7, 28, 6, 40, 0))
+  })
+
+  it('用户比对带偏移的取数时刻时，Given 同一 epoch When 按不同时区渲染 Then 墙钟与偏移都随参数而非宿主环境', () => {
+    // Given 2026-10-13T01:53:12Z
+    const epoch = Date.UTC(2026, 9, 13, 1, 53, 12)
+    // When 按三个时区渲染同一时刻
+    // Then 偏移是渲染参数的结果（东八区 +08:00、UTC +00:00、纽约夏令时 -04:00）
+    expect(isoWithOffset(epoch, 'Asia/Shanghai')).toBe('2026-10-13T09:53:12+08:00')
+    expect(isoWithOffset(epoch, 'UTC')).toBe('2026-10-13T01:53:12+00:00')
+    expect(isoWithOffset(epoch, 'America/New_York')).toBe('2026-10-12T21:53:12-04:00')
   })
 })
 
@@ -395,6 +437,127 @@ describe('TencentRestClient.getOrderbook（issue #39 盘口）', () => {
     const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(HK_TICKER_TEMPLATE, HK_NAME_GBK) }])
     await expect(client('hk', { fetchImpl: impl }).getOrderbook('00700'))
       .rejects.toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
+  })
+})
+
+describe('TencentRestClient.getActiveBuySnapshot（cn 主动买盘快照，2026-10-13）', () => {
+  it('用户读 002714 主动买盘时，Given 09:53 实测读数 When 取快照 Then 买占比 47.94、净买占比 -4.11', async () => {
+    // Given 2026-10-13 当日 09:53 的行情行读数向量（总量 91083 / 外盘 43668 / 内盘 47410 手）；
+    // 行形态取自 10:09 实测原文，仅 6/7/8/30 位置换为该向量
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkResponse(cnActiveBuyRow({ 6: '91083', 7: '43668', 8: '47410', 30: '20261013095312' }), CN_002714_NAME_GBK),
+    }])
+    // When 取主动买盘快照（取数时刻注入同一时刻，读数不随宿主时钟漂移）
+    const snapshot = await client('cn', { fetchImpl: impl, now: () => FIXED_NOW_0953 }).getActiveBuySnapshot('002714')
+    // Then 与报价同一请求、字段映射与占比口径可逐项核对
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=sz002714'])
+    expect(snapshot).toMatchObject({
+      symbol: '002714.SZ',
+      date: '2026-10-13',
+      time: '09:53:12',
+      totalLots: 91083,
+      outerLots: 43668,
+      innerLots: 47410,
+      buySharePct: 47.94,
+      netSharePct: -4.11,
+      limitUp: 45.96,
+      limitDown: 37.6,
+      source: ACTIVE_BUY_SOURCE,
+      fetchedAt: '2026-10-13T09:53:12+08:00',
+    })
+    // 总量 91083 与外盘+内盘 91078 差 5 手：源读数原样返回，不被残差修正。
+    expect(snapshot.totalLots - snapshot.outerLots - snapshot.innerLots).toBe(5)
+  })
+
+  it('用户读 002714 主动买盘时，Given 10:09 的原始响应字节 When 解析 Then 逐字段对上实测值', async () => {
+    // Given spikes/impl-active-buy/r1-raw-sz002714.gbk 的原文（未改写任何字段）
+    const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow(), CN_002714_NAME_GBK) }])
+    // When 按 GBK 解码取快照
+    const snapshot: ActiveBuySnapshot = await client('cn', { fetchImpl: impl, now: () => Date.UTC(2026, 9, 13, 2, 9, 30) }).getActiveBuySnapshot('SZ002714')
+    // Then 6/7/8/30/47/48 位与实测原文一致（规范形输入 → 规范形输出）
+    expect(snapshot).toEqual({
+      symbol: '002714.SZ',
+      date: '2026-10-13',
+      time: '10:09:30',
+      totalLots: 121808,
+      outerLots: 54093,
+      innerLots: 67703,
+      buySharePct: 44.41,
+      netSharePct: -11.17,
+      limitUp: 45.96,
+      limitDown: 37.6,
+      source: 'qt.gtimg.cn',
+      fetchedAt: '2026-10-13T10:09:30+08:00',
+    })
+  })
+
+  it('用户遇到总量为 0 的行情行时，Given 总量读数 0 When 取快照 Then 抛 TRADING_EXCHANGE_ERROR（不补 0）', async () => {
+    // Given 唯一被改写的是总量位（0 手）
+    const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow({ 6: '0' }), CN_002714_NAME_GBK) }])
+    // When 取快照
+    // Then 报上游读数错误，不做「总量 0 → 占比 0」的静默降级
+    await expect(client('cn', { fetchImpl: impl }).getActiveBuySnapshot('002714'))
+      .rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR' })
+    await expect(client('cn', { fetchImpl: impl }).getActiveBuySnapshot('002714'))
+      .rejects.toThrow(/field 6 "0"/)
+  })
+
+  it('用户遇到外盘字段异常时，Given 空串/非数字/负值 When 取快照 Then 一律抛 TRADING_EXCHANGE_ERROR（缺失 ≠ 0）', async () => {
+    // Given 三种坏读数（空串不能被 Number('') === 0 伪装成「主动买为 0」）
+    const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow({ 7: '' }), CN_002714_NAME_GBK) }])
+    // When 依次取其快照
+    const empty = client('cn', { fetchImpl: impl }).getActiveBuySnapshot('002714')
+    // Then 空串、非数字、负值三条路径都是同一条 TRADING_EXCHANGE_ERROR
+    await expect(empty).rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR' })
+    await expect(empty).rejects.toThrow(/fields 7\/8 ""/)
+    const nonNumeric = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow({ 8: 'abc' }), CN_002714_NAME_GBK) }])
+    await expect(client('cn', { fetchImpl: nonNumeric.impl }).getActiveBuySnapshot('002714'))
+      .rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR' })
+    const negative = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow({ 7: '-1' }), CN_002714_NAME_GBK) }])
+    await expect(client('cn', { fetchImpl: negative.impl }).getActiveBuySnapshot('002714'))
+      .rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR' })
+  })
+
+  it('用户查不存在的代码时，Given 腾讯返回 v_pv_none_match 短 body When 取快照 Then 抛 TRADING_UNSUPPORTED_SYMBOL', async () => {
+    // Given 未知/退市代码的真实响应体（spikes/impl-active-buy/r2-raw-unknown-sz999999.gbk）
+    const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: 'v_pv_none_match="1";' }])
+    // When 取快照
+    // Then 按「无此标的」而非「读数为 0」上报
+    await expect(client('cn', { fetchImpl: impl }).getActiveBuySnapshot('999999'))
+      .rejects.toMatchObject({ code: 'TRADING_UNSUPPORTED_SYMBOL' })
+  })
+
+  it('访客直连 hk 客户端取主动买盘时，Given r_hk 行 7/8 位恒为 0 When 调用 Then 抛 TRADING_NOT_IMPLEMENTED 且不发请求', async () => {
+    // Given hk 客户端（r_hk 行没有外盘/内盘字段，见 spikes/impl-active-buy/r2-raw-hk00700.gbk）
+    const { impl, urls } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(HK_TICKER_TEMPLATE, HK_NAME_GBK) }])
+    // When 调用
+    // Then 结构性不支持，且在取数前就拒绝（不把 0 当读数返回）
+    await expect(client('hk', { fetchImpl: impl }).getActiveBuySnapshot('00700'))
+      .rejects.toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
+    expect(urls).toEqual([])
+  })
+
+  it('用户经 cn 服务实例取主动买盘时，Given market=cn 的实例 When 调用 Then 委派到同一报价行解析', async () => {
+    // Given market=cn 的行情服务实例
+    const { impl } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(cnActiveBuyRow({ 6: '91083', 7: '43668', 8: '47410', 30: '20261013095312' }), CN_002714_NAME_GBK) }])
+    const service = new TencentMarketDataService(duckCtx().ctx, 'cn', { fetchImpl: impl, now: () => FIXED_NOW_0953 })
+    // When 经服务面取快照（能力挂在实例上，不在类原型上）
+    const method = service.getActiveBuySnapshot
+    // Then 能力存在，且读数与客户端一致
+    expect(typeof method).toBe('function')
+    if (method === undefined) throw new Error('cn 实例应挂载 getActiveBuySnapshot')
+    const snapshot = await method('002714')
+    expect(snapshot).toMatchObject({ symbol: '002714.SZ', buySharePct: 47.94, netSharePct: -4.11, totalLots: 91083 })
+  })
+
+  it('用户经 hk 服务实例取主动买盘时，Given market=hk 的实例 When 探测能力 Then 方法缺席（无此能力，不是读数为 0）', () => {
+    // Given market=hk 的行情服务实例
+    const service = new TencentMarketDataService(duckCtx().ctx, 'hk')
+    // When 探测可选能力是否存在
+    // Then 实例上不存在该方法（也没有原型上的占位实现）——消费方据此隐藏面板
+    expect('getActiveBuySnapshot' in service).toBe(false)
+    expect(service.getActiveBuySnapshot).toBeUndefined()
   })
 })
 

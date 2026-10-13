@@ -662,6 +662,43 @@ export interface SouthboundHoldingHistory {
 }
 
 /**
+ * 当日累计主动买盘快照（cn 行情行盘口推断口径，2026-10-13）。
+ *
+ * **口径**：`outerLots`/`innerLots` 是行情源按「成交价对盘口的主动方向」推断的当日累计
+ * 外盘/内盘（外盘 = 主动买、内盘 = 主动卖），**不是交易所官方逐笔方向**；涨跌停一字板与
+ * 对倒（自成交）交易日读数会系统性失真。占比一律按「÷当日总量」口径。
+ * `totalLots` 与 `outerLots + innerLots` 存在残差（未归向成交：集合竞价与价间成交计入总量
+ * 但不计入外/内盘），实测 2026-10-13 为 002714 12/121808 手（0.0099%）、600519
+ * 45/7154 手（0.629%）——残差**不是**固定量级，且**不据它修正读数**，源读数原样返回。
+ */
+export interface ActiveBuySnapshot {
+  /** 市场规范词汇 symbol（如 002714.SZ）。 */
+  readonly symbol: string
+  /** 快照所属交易日 `YYYY-MM-DD`（源字段 30，交易所本地墙钟）。 */
+  readonly date: string
+  /** 快照时刻 `HH:MM:SS`（源字段 30，交易所本地墙钟）。 */
+  readonly time: string
+  /** 当日累计总量（手）。 */
+  readonly totalLots: number
+  /** 当日累计外盘 = 主动买（手）。 */
+  readonly outerLots: number
+  /** 当日累计内盘 = 主动卖（手）。 */
+  readonly innerLots: number
+  /** 主动买占比 `outer/total*100`（2 位小数）。 */
+  readonly buySharePct: number
+  /** 净主动买占比 `(outer-inner)/total*100`（2 位小数，负值 = 净主动卖）。 */
+  readonly netSharePct: number
+  /** 涨停价（源字段 47；指数/ETF 等无涨跌停的标的不带此字段）。 */
+  readonly limitUp?: number
+  /** 跌停价（源字段 48；同上缺省）。 */
+  readonly limitDown?: number
+  /** 数据源标识（如 'qt.gtimg.cn'）。 */
+  readonly source: string
+  /** 取数时刻，ISO 8601 带偏移（交易所本地墙钟，如 2026-10-13T09:53:12+08:00）。 */
+  readonly fetchedAt: string
+}
+
+/**
  * 行情服务契约：由市场连接器实现，注册到按市场命名空间的 ctx 键（如 ctx.tradingCrypto）。
  * 符号词汇（2026-08-31 规范，docs/guides/symbol-vocabulary.md）：入参接受市场规范形与连接器原生形，
  * 输出 `symbol` 一律市场规范形——消费方（GUI/Agent/工作流）与数据源方言解耦。
@@ -719,6 +756,16 @@ export interface MarketDataService {
    * 入参接受规范形与连接器原生形，输出 `symbol` 一律市场规范词汇。
    */
   getSouthboundHoldings?(symbol: string): Promise<SouthboundHoldingHistory>
+  /**
+   * 当日累计主动买盘快照（外盘/内盘/买占比/净买占比，cn 专用，2026-10-13）。
+   * 可选方法：仅 cn 数据源实现（腾讯行情行的盘口推断口径，**非交易所官方逐笔方向**）；
+   * 涨跌停一字板与对倒交易日读数失真。hk 等无该字段的市场**方法缺席**——消费方据此
+   * 降级（隐藏该面板），**不回退成 0**：缺席表示「无此读数」，不是「主动买为 0」。
+   * 读数非法（总量 <= 0、外盘/内盘字段缺失或非有限）时抛 TRADING_EXCHANGE_ERROR，
+   * 绝不补 0、绝不返回 NaN。
+   * 入参接受规范形与连接器原生形，输出 `symbol` 一律市场规范词汇。
+   */
+  getActiveBuySnapshot?(symbol: string): Promise<ActiveBuySnapshot>
 }
 
 /**
