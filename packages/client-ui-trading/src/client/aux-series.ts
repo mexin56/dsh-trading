@@ -40,12 +40,17 @@ export function activeBuyToAuxPoints(history: ActiveBuyHistory | undefined): rea
   return history.points.map(point => ({ date: Date.parse(`${point.date}T00:00:00Z`), value: point.netSharePct }))
 }
 
-/** Asia/Shanghai（UTC+8，无夏令时），起止分钟均包含。 */
+/**
+ * Asia/Shanghai（UTC+8，无夏令时），起止分钟均包含。
+ * 尾段延至 15:12，覆盖 15:05 采集任务落盘后的五分钟复取，使 live 收敛为 close。
+ * 15:00 收盘至 close 行落盘前仍取 live 点、显示「盘中」（数值即当日终值读数）；
+ * 这段差异是有意的，不按时间猜徽标：节假日无 live 点，数据门控保证徽标不误显。
+ */
 export function isCnPollingWindow(nowMs: number): boolean {
   const shanghai = new Date(nowMs + 8 * 60 * 60 * 1000)
   const day = shanghai.getUTCDay()
   const minute = shanghai.getUTCHours() * 60 + shanghai.getUTCMinutes()
-  return day >= 1 && day <= 5 && ((minute >= 9 * 60 + 25 && minute <= 11 * 60 + 32) || (minute >= 12 * 60 + 58 && minute <= 15 * 60 + 2))
+  return day >= 1 && day <= 5 && ((minute >= 9 * 60 + 25 && minute <= 11 * 60 + 32) || (minute >= 12 * 60 + 58 && minute <= 15 * 60 + 12))
 }
 
 export interface AuxSeriesSnapshot {
