@@ -1912,7 +1912,7 @@
     "params": [
       {
         "name": "itemsJson",
-        "type": "string",
+        "type": "json",
         "required": true
       }
     ],
@@ -2334,37 +2334,37 @@
       },
       {
         "name": "coreClaimsJson",
-        "type": "string",
+        "type": "json",
         "required": true
       },
       {
         "name": "factCheckJson",
-        "type": "string",
+        "type": "json",
         "required": true
       },
       {
         "name": "takeawaysJson",
-        "type": "string",
+        "type": "json",
         "required": false
       },
       {
         "name": "boundariesJson",
-        "type": "string",
+        "type": "json",
         "required": false
       },
       {
         "name": "tagsJson",
-        "type": "string",
+        "type": "json",
         "required": true
       },
       {
         "name": "tickersJson",
-        "type": "string",
+        "type": "json",
         "required": false
       },
       {
         "name": "relatedJson",
-        "type": "string",
+        "type": "json",
         "required": false
       }
     ],
