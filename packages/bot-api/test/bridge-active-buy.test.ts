@@ -115,13 +115,39 @@ describe('active buy daily history bridge', () => {
     expect(readFileSync(file, 'utf8')).toBe(original)
     console.log('ACTIVE_BUY_RESPONSE', JSON.stringify(result.payload))
   })
-  it('user keeps today file snapshot instead of injecting live', async () => {
-    // Given: today already exists as manual in the file
-    seed([row(today())])
-    // When: requesting with live capability
-    const result = await request(service(async () => snapshot()))
-    // Then: manual remains and no live metadata appears
-    expect(result.payload).toEqual({ ok: true, symbol, points: [point(today())] })
+  it('user receives tier 1 today close ahead of live and a later manual', async () => {
+    // Given: today's final close and a later manual coexist with live capability
+    const rows = [row(today(), 'close', '15:05:00', 62), row(today(), 'manual', '16:00:00', 70)]
+    seed(rows)
+    const live = { ...snapshot(), time: '16:01:00', buySharePct: 75 }
+    // When: requesting today's series
+    const result = await request(service(async () => live))
+    // Then: close is the only point and live metadata is absent
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point(today(), 'close', '15:05:00', 62)] } })
+    expect(result.payload).not.toHaveProperty('live')
+    console.log('ACTIVE_BUY_TIER_1', JSON.stringify({ input: { rows, snapshot: live }, response: result.payload }))
+  })
+  it('user receives tier 2 today live instead of a manual snapshot', async () => {
+    // Given: today's manual is an earlier cumulative reading, not a final close
+    const rows = [row(today(), 'manual', '09:30:00', 48), row(today(), 'manual', '09:45:00', 52)]
+    seed(rows)
+    const live = { ...snapshot(), buySharePct: 65 }
+    // When: requesting with live capability and today's upstream date
+    const result = await request(service(async () => live))
+    // Then: live replaces manual, with one point for today and live metadata
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point(today(), 'live', '09:53:03', 65, 'live')], live: { at: live.fetchedAt } } })
+    console.log('ACTIVE_BUY_TIER_2', JSON.stringify({ input: { rows, snapshot: live }, response: result.payload }))
+  })
+  it('user receives tier 3 latest today manual when live capability is absent', async () => {
+    // Given: today's manual readings arrive out of time order and no live capability exists
+    const rows = [row(today(), 'manual', '14:00:00', 60), row(today(), 'manual', '10:00:00', 48)]
+    seed(rows)
+    // When: requesting with a service lacking the optional capability
+    const result = await request(service())
+    // Then: the latest manual is best available without fabricated live metadata
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point(today(), 'manual', '14:00:00', 60)] } })
+    expect(result.payload).not.toHaveProperty('live')
+    console.log('ACTIVE_BUY_TIER_3', JSON.stringify({ input: { rows, capability: 'absent' }, response: result.payload }))
   })
   it('user receives history without live metadata when capability is absent', async () => {
     // Given: history and a service without the optional method
@@ -132,20 +158,20 @@ describe('active buy daily history bridge', () => {
     expect(result.payload).toEqual({ ok: true, symbol, points: [point('2026-09-18')] })
   })
   it('user receives history when live fetching throws', async () => {
-    // Given: history and an unavailable upstream
-    seed([row('2026-09-18')])
+    // Given: history, today's manual and an unavailable upstream
+    seed([row('2026-09-18'), row(today(), 'manual', '14:00:00', 60)])
     // When: requesting with a failing service
     const result = await request(service(async () => { throw new Error('upstream unavailable') }))
-    // Then: history still succeeds without fabricated live data
-    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point('2026-09-18')] } })
+    // Then: file history including today's manual succeeds without fabricated live data
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point('2026-09-18'), point(today(), 'manual', '14:00:00', 60)] } })
   })
   it('user receives only history when upstream date is stale', async () => {
-    // Given: a historical upstream snapshot
-    seed([row('2026-09-18')])
+    // Given: today's manual and a historical upstream snapshot
+    seed([row('2026-09-18'), row(today(), 'manual', '14:00:00', 60)])
     // When: requesting with a stale live date
     const result = await request(service(async () => snapshot('2026-09-19')))
-    // Then: stale upstream is not appended
-    expect(result.payload).toEqual({ ok: true, symbol, points: [point('2026-09-18')] })
+    // Then: stale upstream does not replace today's file reading
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point('2026-09-18'), point(today(), 'manual', '14:00:00', 60)] } })
   })
   it('user receives valid rows while malformed JSON and malformed shapes are counted', async () => {
     // Given: syntax and shape failures mixed with a valid row

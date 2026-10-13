@@ -71,7 +71,8 @@ export function shanghaiDate(now: Date): string {
 
 /**
  * 纯归并：先按 symbol 过滤、按 date 去重；close 优先，否则 time 最晚。
- * live 只在日期等于上海今天且文件该标的今天无行时注入，才携带 live.at。
+ * 当日三段层级：1. 文件 close 终值优先；2. 无 close 且 live 日期为上海今天，用 live 替换 manual；
+ * 3. 无可用 live 时保留文件中该日最晚 manual。只有第 2 段确实注入 live 时携带 live.at。
  * 缺能力/调用失败由桥传 undefined；过期 live 不补零、不编值。
  * 日期升序，注入后只留最近 250 个交易日，不修改输入数组。
  */
@@ -89,8 +90,10 @@ export function mergeActiveBuyPoints(
       || (row.phase === 'close' && prior.phase !== 'close')
       || (row.phase === prior.phase && row.time > prior.time)) days.set(row.date, row)
   }
-  const points: ActiveBuyPoint[] = [...days.values()].map(row => ({ date: row.date, buySharePct: row.buySharePct, netSharePct: row.netSharePct, phase: row.phase, time: row.time, source: 'file' }))
-  const live = snapshot?.date === today && !days.has(today) ? snapshot : undefined
+  const live = snapshot?.date === today && days.get(today)?.phase !== 'close' ? snapshot : undefined
+  const points: ActiveBuyPoint[] = [...days.values()]
+    .filter(row => live === undefined || row.date !== today)
+    .map(row => ({ date: row.date, buySharePct: row.buySharePct, netSharePct: row.netSharePct, phase: row.phase, time: row.time, source: 'file' }))
   if (live !== undefined) points.push({ date: live.date, buySharePct: live.buySharePct, netSharePct: live.netSharePct, phase: 'live', time: live.time, source: 'live' })
   points.sort((a, b) => a.date.localeCompare(b.date))
   return { ok: true, symbol, points: points.slice(-250), ...(live === undefined ? {} : { live: { at: live.fetchedAt } }) }
