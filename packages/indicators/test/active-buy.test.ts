@@ -1,7 +1,8 @@
 /**
  * 主动买盘预置指标单测（冻结规格）：元数据与适用范围/说明、数值向量与口径恒等式
- * （买占 = (100 + 净买占比) / 2）、无数据返回空输出（空 ≠ 0）、交易日对齐（含周 K 与
- * 前段缺口）、脏数据断开、旧宿主误调 compute 不画线、市场可用性。
+ * （买占 = (100 + 净买占比) / 2）、无数据返回空输出（空 ≠ 0）、交易日对齐（只取 K 线
+ * 覆盖区间内的点，含周 K 端点、当日点缺席与区间内无点，无前向填充）、脏数据断开、
+ * 旧宿主误调 compute 不画线、市场可用性。
  */
 import { describe, expect, it } from 'vitest'
 import type { AuxPoint, IndicatorDefinition, Kline } from '../src/index.ts'
@@ -27,6 +28,15 @@ function weeklyBar(periodStart: number): Kline {
   return {
     openTime: periodStart,
     closeTime: periodStart + 7 * DAY - 1,
+    open: 10, high: 11, low: 9, close: 10.5, volume: 500,
+  }
+}
+
+/** 覆盖指定首末日（闭区间）的周 K：用于区间端点与区间内无点的边界用例。 */
+function spanBar(periodStart: number, periodEnd: number): Kline {
+  return {
+    openTime: periodStart,
+    closeTime: periodEnd + DAY - 1,
     open: 10, high: 11, low: 9, close: 10.5, volume: 500,
   }
 }
@@ -128,6 +138,54 @@ describe('主动买盘预置定义', () => {
     expect(outputs[0]?.values).toEqual([undefined, -9.25, 6])
     expect(outputs[1]?.values).toEqual([undefined, 45.375, 53])
     expect(outputs[0]?.values).toHaveLength(bars.length)
+  })
+
+  it('用户当期没取到主动买盘时，该日及之后的 K 线留空而不是沿用昨日读数', () => {
+    // Given: 外部序列只有 10-12 一条（10-13 与 10-20 当日点缺席：live 能力失败 / 漏采 / 上游日期过期）
+    const bars = [dailyBar(day(2026, 10, 12)), dailyBar(day(2026, 10, 13)), dailyBar(day(2026, 10, 20))]
+    const points: AuxPoint[] = [{ date: day(2026, 10, 12), value: 8.25 }]
+    // When: 计算副图序列（这条路径曾把 8.25 前向填充成三天同值）
+    const outputs = auxOutputs(bars, { [AUX_KEY]: points })
+    // Then: 只有 10-12 那根有值，其余两根 undefined——昨日读数不冒充当日累计
+    expect(outputs[0]?.values).toEqual([8.25, undefined, undefined])
+    expect(outputs[1]?.values).toEqual([54.125, undefined, undefined])
+    expect(outputs[0]?.values).toHaveLength(bars.length)
+  })
+
+  it('用户看日 K 时，某交易日的点只落在该交易日的 bar 上', () => {
+    // Given: 三个相邻交易日，只有中间 10-13 有净主动买占比
+    const bars = [dailyBar(day(2026, 10, 12)), dailyBar(day(2026, 10, 13)), dailyBar(day(2026, 10, 14))]
+    const points: AuxPoint[] = [{ date: day(2026, 10, 13), value: 6.73 }]
+    // When: 计算副图序列
+    const outputs = auxOutputs(bars, { [AUX_KEY]: points })
+    // Then: 既不前向铺到 10-14，也不回填到 10-12
+    expect(outputs[0]?.values).toEqual([undefined, 6.73, undefined])
+    expect(outputs[1]?.values).toEqual([undefined, 53.365, undefined])
+  })
+
+  it('用户看周 K 时，区间内无点的周留空而不是复用上一周的值', () => {
+    // Given: 两周（10-05~10-09、10-12~10-16），只有前一周区间内 10-07 有一条外部值
+    const bars = [spanBar(day(2026, 10, 5), day(2026, 10, 9)), spanBar(day(2026, 10, 12), day(2026, 10, 16))]
+    const points: AuxPoint[] = [{ date: day(2026, 10, 7), value: -4.5 }]
+    // When: 计算副图序列
+    const outputs = auxOutputs(bars, { [AUX_KEY]: points })
+    // Then: 前一周取区间内 10-07 的值，后一周区间内无点 → undefined（更早的周有点也不沿用）
+    expect(outputs[0]?.values).toEqual([-4.5, undefined])
+    expect(outputs[1]?.values).toEqual([47.75, undefined])
+  })
+
+  it('用户看周 K 时，区间首末日当天的点也算落在区间内', () => {
+    // Given: 一根覆盖 10-05~10-09 的周 K，区间首末日各有一条外部值
+    const bars = [spanBar(day(2026, 10, 5), day(2026, 10, 9))]
+    const points: AuxPoint[] = [
+      { date: day(2026, 10, 5), value: -1.5 },
+      { date: day(2026, 10, 9), value: 3.5 },
+    ]
+    // When: 计算副图序列
+    const outputs = auxOutputs(bars, { [AUX_KEY]: points })
+    // Then: 首末日都算命中，取区间内最新的 10-09
+    expect(outputs[0]?.values).toEqual([3.5])
+    expect(outputs[1]?.values).toEqual([51.75])
   })
 
   it('用户尚未取到外部数据时，该指标输出空数组而不是零线', () => {

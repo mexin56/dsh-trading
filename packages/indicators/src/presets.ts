@@ -5,7 +5,7 @@
  * （client-ui-indicators）注册进 tradingIndicators 服务。
  */
 import type { IndicatorDefinition, Kline } from './types.ts'
-import { alignAuxToBars } from './aux.ts'
+import { alignAuxToBars, type AuxPoint } from './aux.ts'
 import { bollinger, ema, kdj, macd, rsi, sma } from './math.ts'
 
 /** MA 线配色（富途系配色 + 扩展周期轮换调色板）。 */
@@ -69,6 +69,59 @@ function klineTradingDay(bar: Kline): number {
   const periodEnd = typeof closeTime === 'number' && Number.isFinite(closeTime) ? closeTime : bar.openTime
   const tradingDay = periodEnd - bar.openTime >= 2 * MS_PER_DAY ? periodEnd : bar.openTime
   return Math.floor(tradingDay / MS_PER_DAY) * MS_PER_DAY
+}
+
+/**
+ * K 线覆盖的 UTC 日区间 [首日 00:00, 末日 00:00]（含首尾）。日线开收盘同日 ⇒ 单日
+ * 区间（等价于精确当日匹配）；周 K/月 K 跨多日 ⇒ 多日区间。closeTime 非有限或早于
+ * openTime（脏数据）时退化为 openTime 当日。
+ */
+function klineCoverageRange(bar: Kline): readonly [number, number] {
+  const start = Math.floor(bar.openTime / MS_PER_DAY) * MS_PER_DAY
+  const closeTime = bar.closeTime
+  const closeDay = typeof closeTime === 'number' && Number.isFinite(closeTime)
+    ? Math.floor(closeTime / MS_PER_DAY) * MS_PER_DAY
+    : start
+  return closeDay > start ? [start, closeDay] : [start, start]
+}
+
+/**
+ * 把日频外部序列对齐到 K 线：每根只取**落在该 K 线覆盖区间内**的最新一条值，区间内
+ * 无点 ⇒ undefined，绝不沿用区间之前的点（无前向填充）。返回数组长度严格等于
+ * bars.length。只依赖 points 升序（契约要求）且每根 K 线独立二分，不假设 bars 升序。
+ */
+function alignAuxToBarCoverage(
+  bars: readonly Kline[],
+  points: readonly AuxPoint[],
+): Array<number | undefined> {
+  const aligned = new Array<number | undefined>(bars.length)
+  for (let index = 0; index < bars.length; index += 1) {
+    const bar = bars[index]
+    if (bar === undefined) { aligned[index] = undefined; continue }
+    const [start, end] = klineCoverageRange(bar)
+    aligned[index] = valueWithinRange(points, start, end)
+  }
+  return aligned
+}
+
+/** 升序序列里 date ∈ [start, end] 的最后一条值；区间内无点（或序列为空）返回 undefined。 */
+function valueWithinRange(points: readonly AuxPoint[], start: number, end: number): number | undefined {
+  let low = 0
+  let high = points.length - 1
+  let hit = -1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    const point = points[mid]
+    if (point === undefined) break
+    if (point.date <= end) {
+      hit = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  const point = hit < 0 ? undefined : points[hit]
+  return point !== undefined && point.date >= start ? point.value : undefined
 }
 
 /** 八个预置 definition（纯数据，注册时机归消费方）。 */
@@ -231,11 +284,12 @@ export function presetDefinitions(): IndicatorDefinition[] {
       params: [],
       markets: ['cn'],
       description: '数据源：本地累积的腾讯盘口快照推断的内外盘（非交易所官方逐笔方向，涨跌停/对倒日失真）。'
-        + '红柱为净主动买占当日总量百分比，蓝线为主动买占比 ((100 + 净买占比) / 2)。'
-        + '当日柱为盘中累计到最新取数时刻，收盘后收敛为当日终值。',
-      // 与港股通持股比例同款（决策 7）：数据是日频序列，分钟级上会被前向填充成一整段
-      // 平移直线，故新实例默认只勾 1d/1w/1M（GUI 挂载、indicator_activate 与桥 PUT
-      // 三条创建路径共用本声明）。
+        + '红柱为净主动买占当日总量百分比，蓝线为主动买占比 ((100 + 净买占比) / 2，前提是外盘 + 内盘 ≈ 当日总量，'
+        + '两者的差值是未归向成交、量级不固定)。'
+        + '当日柱为盘中累计到最新取数时刻，收盘后收敛为当日终值；某交易日没有采集到读数就是空的，不插值、不沿用前一交易日。',
+      // 与港股通持股比例同款（决策 7）：数据是日频序列，分钟级一根 bar 只匹配到当日
+      // 那一条点（同一交易日内重复取值、不给额外信息），故新实例默认只勾 1d/1w/1M
+      // （GUI 挂载、indicator_activate 与桥 PUT 三条创建路径共用本声明）。
       defaultApplyScope: { cn: { enabled: true, intervals: ['1d', '1w', '1M'] } },
       aux: [ACTIVE_BUY_AUX_KEY],
       compute() {
@@ -248,7 +302,8 @@ export function presetDefinitions(): IndicatorDefinition[] {
         // 无数据（未取到 / 该标的无盘口推断记录）→ 空输出：消费方据此隐藏整个副图
         // pane（决策 3），空 ≠ 0。
         if (points === undefined || points.length === 0) return []
-        const aligned = alignAuxToBars(bars, points, klineTradingDay)
+        // 区间内匹配（无前向填充）：只取本 bar 覆盖区间内的点，区间内无点即留空。
+        const aligned = alignAuxToBarCoverage(bars, points)
         // 非有限值（脏数据）按 warm-up 处理：曲线断开，不把 NaN 交给渲染层。
         const net = aligned.map(value => (typeof value === 'number' && Number.isFinite(value) ? value : undefined))
         return [
@@ -270,6 +325,8 @@ export function presetDefinitions(): IndicatorDefinition[] {
             // 单条报价行盘中可达 0.63%（600519 2026-10-13 10:09 实测）。故本式是**派生值**，
             // 与源记录里的 buySharePct 相差「残差 / 2」（本数据集 ≤0.036 个百分点）。只取一条
             // aux 序列（净买）而不注入两条，是有意的取舍：偏差比读图分辨率低一个量级。
+            // 对齐上不做前向填充（上面的区间内匹配）：aux 值语义是「某一日的当日累计占比」，
+            // 跨日沿用会把昨日读数画成今日累计——把「没数据」伪装成「有数据」，比留空更糟。
             values: net.map(value => (value === undefined ? undefined : (100 + value) / 2)),
             precision: 2,
           },
