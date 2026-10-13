@@ -565,6 +565,7 @@ export type MarketLocaleKey =
   | 'prediction.noComparable'
   | 'prediction.eventInsufficient'
   | 'prediction.fetchedAt'
+  | 'indicator.live'
   | 'indicator.picker'
   | 'indicator.group.main'
   | 'indicator.group.sub'

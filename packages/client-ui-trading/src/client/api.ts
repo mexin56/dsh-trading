@@ -1072,6 +1072,30 @@ export async function fetchSouthboundHoldings(market: MarketId, symbol: string, 
   }
 }
 
+export interface ActiveBuyHistory {
+  symbol: string
+  points: readonly {
+    date: string
+    buySharePct: number
+    netSharePct: number
+    phase: 'close' | 'manual' | 'live'
+    time: string
+    source: 'file' | 'live'
+  }[]
+  live?: { at: string }
+}
+
+export async function fetchActiveBuy(market: MarketId, symbol: string, signal?: AbortSignal): Promise<ActiveBuyHistory | undefined> {
+  try {
+    const query = new URLSearchParams({ market, symbol })
+    const wire = await getJson<ActiveBuyHistory & { ok: boolean }>(`/dshtrading/api/active-buy?${query.toString()}`, signal)
+    return wire.ok ? wire : undefined
+  } catch (err) {
+    console.warn(`[dsh-trading] fetchActiveBuy ${market}/${symbol} failed:`, err)
+    return undefined
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* 统一资产台账（Issue #65，契约 §3）：导入持仓 CRUD + staged 待确认区 + FX   */
 /* ------------------------------------------------------------------ */

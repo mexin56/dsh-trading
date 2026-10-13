@@ -18,6 +18,7 @@ export interface DispatchedIndicatorGroup {
   pane: 'main' | 'sub'
   title: string
   key: string
+  live?: true
   outputs: readonly IndicatorOutput[]
 }
 
@@ -39,6 +40,7 @@ export function dispatchIndicatorGroups(input: {
   market?: string | undefined
   symbol?: string | undefined
   aux: AuxSeriesMap
+  liveKeys?: readonly string[]
   deps: IndicatorDispatchDeps
 }): DispatchedIndicatorGroup[] {
   const { klines, instances, market, symbol, aux, deps } = input
@@ -63,6 +65,7 @@ export function dispatchIndicatorGroups(input: {
         pane: definition.pane,
         key: deps.instanceKey(instance),
         outputs: definition.computeAux(klines, params, aux),
+        ...(declared.some(key => input.liveKeys?.includes(key)) ? { live: true as const } : {}),
       })
       continue
     }

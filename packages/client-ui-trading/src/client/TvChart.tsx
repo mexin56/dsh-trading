@@ -45,6 +45,8 @@ export interface TvVolume {
 /** 一个指标实例的渲染输入（key = instanceKey，diff 锚点）。 */
 export interface TvIndicatorGroup {
   key: string
+  title?: string
+  live?: true
   outputs: readonly IndicatorOutput[]
 }
 
@@ -110,6 +112,7 @@ export interface TvChartProps {
   markerTexts?: { entry: string; exit: string } | undefined
   /** 数值紧凑单位 locale（zh = 亿/万，en = K/M/B；缺省 zh 现网口径）。 */
   numLocale?: 'zh' | 'en' | undefined
+  liveText?: string | undefined
   /**
    * 右键某根 K 线（KDAS 关键日菜单入口）：index = 命中柱逻辑下标，x/y = 容器坐标。
    * 返回 true 表示已处理（阻止浏览器默认菜单）；缺省/返回 false 保留默认菜单。
@@ -117,6 +120,15 @@ export interface TvChartProps {
    * + 左轴宽修正）。
    */
   onBarContextMenu?: (info: { index: number; x: number; y: number }) => boolean
+}
+
+export function IndicatorPaneTitle(props: { title?: string | undefined; live?: true | undefined; liveText?: string | undefined }): React.JSX.Element {
+  return (
+    <span style={{ color: 'var(--dsw-futu-text-secondary, #5f6672)', fontWeight: 600, display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+      <span>{props.title}</span>
+      {props.live === true && <span role="status" style={{ color: 'var(--dsw-futu-text-tertiary, #8a919c)', fontWeight: 500 }}>{props.liveText}</span>}
+    </span>
+  )
 }
 
 /** kline → 图表 bar（openTime 毫秒 → UTC 秒）。 */
@@ -841,7 +853,7 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
         if (top === undefined || readoutIndex === null) return null
         return (
           <div key={group.key} style={{ position: 'absolute', left: 8, top: top + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, display: 'flex', gap: 8 }}>
-            <span style={{ color: 'var(--dsw-futu-text-secondary, #5f6672)', fontWeight: 600 }}>{group.title}</span>
+            <IndicatorPaneTitle title={group.title} live={group.live} liveText={props.liveText} />
             {group.outputs.map((output) => {
               const value = output.values[readoutIndex]
               if (value === undefined || !Number.isFinite(value)) return null

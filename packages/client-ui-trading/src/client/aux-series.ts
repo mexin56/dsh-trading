@@ -9,10 +9,13 @@
 import type { AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance } from '@dshtrading/indicators'
 import { isDefinitionAvailableOn } from '@dshtrading/indicators'
 import type { SouthboundHoldingHistory } from '@dshtrading/api'
+import type { ActiveBuyHistory } from './api.ts'
 import type { MarketId } from './types.ts'
 
 /** 港股通持股比例的外部序列键（冻结字面量，与预置 definition.aux 同名）。 */
 export const HK_CONNECT_HOLDING_KEY: AuxSeriesKey = 'hk-connect-holding'
+export const CN_ACTIVE_BUY_KEY: AuxSeriesKey = 'cn-active-buy'
+export type ActiveBuyFetcher = (market: MarketId, symbol: string) => Promise<ActiveBuyHistory | undefined>
 
 /**
  * 外部序列取数缝：键之外的取数实现由调用方注入（生产传 api.ts 的
@@ -32,20 +35,48 @@ export function southboundHoldingsToAuxPoints(history: SouthboundHoldingHistory 
   return points.length === 0 ? undefined : points
 }
 
-/**
- * 按键取一条外部序列。未登记的键返回 undefined（后续新增 aux 键时宿主只需在此
- * 补一条分支，未接线即「没有数据」，不会静默画错线）。
- */
+export function activeBuyToAuxPoints(history: ActiveBuyHistory | undefined): readonly AuxPoint[] | undefined {
+  if (history === undefined || history.points.length === 0) return undefined
+  return history.points.map(point => ({ date: Date.parse(`${point.date}T00:00:00Z`), value: point.netSharePct }))
+}
+
+/** Asia/Shanghai（UTC+8，无夏令时），起止分钟均包含。 */
+export function isCnPollingWindow(nowMs: number): boolean {
+  const shanghai = new Date(nowMs + 8 * 60 * 60 * 1000)
+  const day = shanghai.getUTCDay()
+  const minute = shanghai.getUTCHours() * 60 + shanghai.getUTCMinutes()
+  return day >= 1 && day <= 5 && ((minute >= 9 * 60 + 25 && minute <= 11 * 60 + 32) || (minute >= 12 * 60 + 58 && minute <= 15 * 60 + 2))
+}
+
+export interface AuxSeriesSnapshot {
+  readonly points: readonly AuxPoint[] | undefined
+  readonly live: boolean
+}
+
+export async function loadAuxSeriesSnapshot(
+  key: AuxSeriesKey,
+  market: MarketId,
+  symbol: string,
+  fetchHoldings: HoldingsFetcher,
+  fetchActiveBuy?: ActiveBuyFetcher,
+): Promise<AuxSeriesSnapshot> {
+  if (key !== HK_CONNECT_HOLDING_KEY && key !== CN_ACTIVE_BUY_KEY) return { points: undefined, live: false }
+  if (key === CN_ACTIVE_BUY_KEY) {
+    const history = await fetchActiveBuy?.(market, symbol).catch(() => undefined)
+    return { points: activeBuyToAuxPoints(history), live: history?.points.some(point => point.phase === 'live') ?? false }
+  }
+  const history = await fetchHoldings(market, symbol).catch(() => undefined)
+  return { points: southboundHoldingsToAuxPoints(history), live: false }
+}
+
 export async function loadAuxSeries(
   key: AuxSeriesKey,
   market: MarketId,
   symbol: string,
   fetchHoldings: HoldingsFetcher,
+  fetchActiveBuy?: ActiveBuyFetcher,
 ): Promise<readonly AuxPoint[] | undefined> {
-  if (key !== HK_CONNECT_HOLDING_KEY) return undefined
-  // 取数缝理论上不抛（api 层已吞错），再兜一层：一个序列异常不得让 Promise.all 整体失败。
-  const history = await fetchHoldings(market, symbol).catch(() => undefined)
-  return southboundHoldingsToAuxPoints(history)
+  return (await loadAuxSeriesSnapshot(key, market, symbol, fetchHoldings, fetchActiveBuy)).points
 }
 
 /**
@@ -85,15 +116,14 @@ export interface AuxRequestHandle {
 }
 
 /**
- * 竞态守卫（对齐 QuoteStage 既有 requestRef 模式）：记录最新请求键，旧请求的应答
- * 回来时 isCurrent() 为假 → 调用方丢弃，换标的/换市场时在途慢响应不得覆盖新状态。
+ * 每次 start 都生成新代际，换标的后再切回同一键也不能复活旧应答。
  */
 export function createAuxRequestGuard(): { start: (key: string) => AuxRequestHandle } {
-  let current = ''
+  let generation = 0
   return {
     start(key) {
-      current = key
-      return { key, isCurrent: () => current === key }
+      const requestGeneration = ++generation
+      return { key, isCurrent: () => generation === requestGeneration }
     },
   }
 }

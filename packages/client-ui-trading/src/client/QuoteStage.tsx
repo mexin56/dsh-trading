@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import {
   fetchKlines, fetchTickers, fetchDerivatives, fetchDerivativesHistory, fetchOrderbook, fetchRecentTrades,
   fetchTradePositions, fetchTradeBalances, fetchTradeOpenOrders, fetchTradeFills, placeGuiOrder,
-  cancelGuiOrder, fetchSouthboundHoldings, type TradeRowsReason,
+  cancelGuiOrder, fetchSouthboundHoldings, fetchActiveBuy, type TradeRowsReason,
 } from './api.ts'
 import { setHoldingsPanelOpen } from './holdings-store.ts'
 import { tradeModeStore, writeTradeMode } from './trade-mode-store.ts'
@@ -37,11 +37,12 @@ import {
 } from './format.ts'
 import { indicators, isCustomIndicator } from './indicator-registry.ts'
 import { isTradFiPerp, resolveAssetClass, rowForm } from './instrument-meta.ts'
-import type { AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
+import type { IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
 import {
   effectiveInstanceParams, effectiveMarketScope, isInstanceVisibleOn, symbolScopeKey,
 } from '@dshtrading/indicators'
-import { createAuxRequestGuard, loadAuxSeries, requiredAuxKeys } from './aux-series.ts'
+import { requiredAuxKeys } from './aux-series.ts'
+import { useAuxSeries } from './useAuxSeries.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from './indicator-dispatch.ts'
 import { defaultScopeEntries } from './indicator-defaults.ts'
 import { MARKET_INTERVALS } from './store.ts'
@@ -145,15 +146,6 @@ function inferMarketFromSymbol(symbol?: string): MarketId | undefined {
 
 /** 信号 reason 的币种符号（按市场；crypto 以 USD 计价近似）。 */
 const CURRENCY_SYMBOL: Record<MarketId, string> = { cn: '¥', hk: 'HK$', us: '$', crypto: '$', futures: '¥', global: '$' }
-
-/** 指标外部序列的取数状态：request 命中当前标的时 series 才可消费（换标的残值不渲染）。 */
-interface AuxSeriesState {
-  /** 已结算的请求键 `${market}:${symbol}`（'' = 尚未取过）。 */
-  readonly request: string
-  /** 该请求已覆盖的外部序列键（含取不到数据的键——避免每次渲染重复请求）。 */
-  readonly keys: readonly AuxSeriesKey[]
-  readonly series: AuxSeriesMap
-}
 
 export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndicatorParams, setIndicatorVisible, setIndicatorScope, removeIndicator, deleteIndicator, guiSessionId }: QuoteStageProps) {
   const instrument = useSelection(value => value.instrument)
@@ -385,37 +377,9 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     return () => { cancelled = true }
   }, [market, symbol])
 
-  // 指标外部序列取数（契约 §5，决策 3/5）：只对当前市场可用、且声明了 aux 的实例
-  // 按需取数（如港股通持股比例）。按 `${market}:${symbol}` 取一次——同一标的切周期
-  // 不重取（日频序列与 K 线级别无关）；换标的/换市场重取并丢弃在途旧应答。
-  // 未取到（undefined / 空序列）不写进 series：消费侧据此隐藏整个副图 pane。
-  const auxRequestRef = useRef(createAuxRequestGuard())
-  const [auxState, setAuxState] = useState<AuxSeriesState>({ request: '', keys: [], series: {} })
-  const auxRequestKey = market !== undefined && symbol !== undefined ? `${market}:${symbol}` : ''
-  useEffect(() => {
-    if (auxRequestKey === '' || market === undefined || symbol === undefined) return
-    const keys = requiredAuxKeys(applicableInstances, market, id => indicators.get(id))
-    if (keys.length === 0) return
-    // 该标的的这批键已落地（含切周期触发的重跑）→ 不重取；新增的键仍需补取，
-    // 否则「后续挂载了另一个 aux 指标」会永远取不到数据。
-    if (auxState.request === auxRequestKey && keys.every(key => auxState.keys.includes(key))) return
-    const handle = auxRequestRef.current.start(auxRequestKey)
-    void Promise.all(keys.map(async key => [key, await loadAuxSeries(key, market, symbol, fetchSouthboundHoldings)] as const))
-      .then((entries) => {
-        if (!handle.isCurrent()) return
-        const series: Record<string, readonly AuxPoint[]> = {}
-        for (const [key, points] of entries) {
-          if (points !== undefined && points.length > 0) series[key] = points
-        }
-        setAuxState({ request: handle.key, keys, series })
-      })
-  }, [auxRequestKey, applicableInstances, market, symbol, auxState])
-
-  /** 可消费的外部序列：request 命中当前标的才交出，换标的残值一律不参与渲染。 */
-  const auxSeries = useMemo<AuxSeriesMap>(
-    () => (auxState.request !== '' && auxState.request === auxRequestKey ? auxState.series : {}),
-    [auxState, auxRequestKey],
-  )
+  const auxKeys = requiredAuxKeys(applicableInstances, market, id => indicators.get(id))
+  const auxState = useAuxSeries(market, symbol, auxKeys, fetchSouthboundHoldings, fetchActiveBuy)
+  const auxSeries = auxState.series
 
   // 衍生品指标轮询（issue #38，仅 crypto；现货输入由连接器升到对应永续）。
   // 竞态守卫（issue #54 评审 M3）：换标的后在途响应丢弃，不覆盖新标的 state。
@@ -712,13 +676,14 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
       market,
       symbol,
       aux: auxSeries,
+      liveKeys: auxState.liveKeys,
       deps: {
         getDefinition: id => indicators.get(id),
         clampParams: (definition, params) => indicators.clampParams(definition, params),
         instanceKey: instance => indicators.instanceKey(instance),
       },
     })
-  }, [klines, applicableInstances, rosterVersion, market, symbol, auxSeries])
+  }, [klines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys])
 
   const mainOverlays = useMemo(() => indicatorGroups.filter(group => group.pane === 'main'), [indicatorGroups])
   const subIndicators = useMemo(() => indicatorGroups.filter(group => group.pane === 'sub'), [indicatorGroups])
@@ -1150,6 +1115,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                 knowledgeMarkers={markerState.showKnowledgeEvents ? knowledgeMarkers : undefined}
                 onMarkerHover={setMarkerHover}
                 markerTexts={markerTexts}
+                liveText={t('indicator.live')}
                 numLocale={numLocale}
                 onBarContextMenu={openKdasMenu}
               />
