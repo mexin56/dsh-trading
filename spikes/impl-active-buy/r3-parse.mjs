@@ -69,7 +69,16 @@ const parsed = {
     hkActiveBuy: { code: hkError.code, message: hkError.message },
   },
 }
-writeFileSync(new URL('./r3-parsed.json', import.meta.url), `${JSON.stringify(parsed, null, 2)}\n`)
+// 默认只打印：复跑本脚本不得写脏工作区（2026-10-13 独立验收实测踩过——重放会改 tracked 的
+// r3-parsed.json 的 replayedAt，执行后 git status 从 0 变 1）。需要更新这份证据快照时显式加 --write。
+const serialized = `${JSON.stringify(parsed, null, 2)}\n`
+console.log(serialized)
+if (process.argv.includes('--write')) {
+  writeFileSync(new URL('./r3-parsed.json', import.meta.url), serialized)
+  console.log('=== 已写入 r3-parsed.json（--write）')
+} else {
+  console.log('=== 未落盘（默认 stdout-only；需要更新 r3-parsed.json 时加 --write）')
+}
 
 // 断言：读数与落盘字节逐项对上，占比口径固定，失败语义不降级成 0。
 const [sz, sh] = results

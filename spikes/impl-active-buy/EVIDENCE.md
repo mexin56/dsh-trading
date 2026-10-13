@@ -13,8 +13,10 @@ curl -sS "https://qt.gtimg.cn/q=sh600519" -o r2-raw-sh600519.gbk
 curl -sS "https://qt.gtimg.cn/q=sz999999" -o r2-raw-unknown-sz999999.gbk   # 未知/退市代码
 curl -sS "https://qt.gtimg.cn/q=r_hk00700" -o r2-raw-hk00700.gbk           # hk 对照（外/内盘位恒为 0）
 
-# 离线重放解析（仓库根目录）
+# 离线重放解析（仓库根目录；默认只打印，不写工作区）
 node spikes/impl-active-buy/r3-parse.mjs
+# 需要刷新下面这份证据快照时才落盘（会改 replayedAt，属有意更新）
+node spikes/impl-active-buy/r3-parse.mjs --write
 ```
 
 响应头（`r1-headers-sz002714.txt`）：`HTTP/2 200`、`content-type: text/html; charset=GBK`、`cache-control: max-age=0`、`access-control-allow-origin: *`——**必须 GBK 解码**（UTF-8 解出中文乱码，与 `#fetchQuoteFields` 既定实现一致）。
