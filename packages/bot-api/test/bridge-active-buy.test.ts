@@ -44,6 +44,47 @@ afterEach(() => {
 function seed(rows: unknown[]) { writeFileSync(file, rows.map(value => JSON.stringify(value)).join('\n')) }
 
 describe('active buy daily history bridge', () => {
+  it.each([
+    ['14:59:59', true],
+    ['15:00:30', true],
+    ['16:14:30', false],
+    ['09:10:00', false],
+    ['09:15:00', true],
+    ['15:05:00', true],
+    ['09:14:59', false],
+    ['15:05:01', false],
+  ] as const)('user receives today live at snapshot time %s only within the session', async (time, injectsLive) => {
+    // Given: an empty data file and today's snapshot with its own exchange-local time
+    seed([])
+    const live = { ...snapshot(), time, fetchedAt: `${today()}T${time}+08:00` }
+    // When: requesting the daily series regardless of the host/request wall clock
+    const result = await request(service(async () => live))
+    // Then: only session snapshots fill today's point and carry live metadata
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: injectsLive ? [point(today(), 'live', time, 53.37, 'live')] : [], ...(injectsLive ? { live: { at: live.fetchedAt } } : {}) } })
+    console.log('ACTIVE_BUY_SESSION', JSON.stringify({ input: { rows: [], snapshot: live }, response: result.payload }))
+  })
+  it('user receives a blank today when a session snapshot belongs to yesterday', async () => {
+    // Given: no collected rows and yesterday's session snapshot
+    seed([])
+    const yesterday = shanghaiDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
+    const live = snapshot(yesterday)
+    // When: requesting today's series
+    const result = await request(service(async () => live))
+    // Then: a valid session time cannot override the stale date guard
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [] } })
+    console.log('ACTIVE_BUY_STALE', JSON.stringify({ input: { rows: [], snapshot: live }, response: result.payload }))
+  })
+  it('user receives latest collected manual when today snapshot is after the session', async () => {
+    // Given: today's collected manual rows and an after-session upstream reading
+    const rows = [row(today(), 'manual', '14:00:00', 60), row(today(), 'manual', '10:00:00', 48)]
+    seed(rows)
+    const live = { ...snapshot(), time: '16:14:30' }
+    // When: requesting history with a live-capable service
+    const result = await request(service(async () => live))
+    // Then: the latest collected manual remains tier 3, not an uncollected live value
+    expect(result).toEqual({ status: 200, payload: { ok: true, symbol, points: [point(today(), 'manual', '14:00:00', 60)] } })
+    console.log('ACTIVE_BUY_SESSION_MANUAL', JSON.stringify({ input: { rows, snapshot: live }, response: result.payload }))
+  })
   it('user receives live from the active capable provider ahead of another registered source', async () => {
     // Given: active tencent has capability while an earlier provider offers a different live value
     seed([row('2026-09-18')])
@@ -119,7 +160,7 @@ describe('active buy daily history bridge', () => {
     // Given: today's final close and a later manual coexist with live capability
     const rows = [row(today(), 'close', '15:05:00', 62), row(today(), 'manual', '16:00:00', 70)]
     seed(rows)
-    const live = { ...snapshot(), time: '16:01:00', buySharePct: 75 }
+    const live = { ...snapshot(), time: '14:59:59', buySharePct: 75 }
     // When: requesting today's series
     const result = await request(service(async () => live))
     // Then: close is the only point and live metadata is absent
@@ -187,9 +228,11 @@ describe('active buy daily history bridge', () => {
     // Given: a valid file that must not be exposed for other markets
     seed([row('2026-09-18')])
     // When: requesting hk and an unknown non-cn market
-    const results = await Promise.all([request(undefined, 'hk'), request(undefined, 'jp')])
+    const live = snapshot()
+    const results = await Promise.all([request(service(async () => live), 'hk'), request(service(async () => live), 'jp')])
     // Then: both return the frozen non-cn empty response
     expect(results).toEqual([{ status: 200, payload: { ok: true, symbol, points: [] } }, { status: 200, payload: { ok: true, symbol, points: [] } }])
+    console.log('ACTIVE_BUY_NON_CN', JSON.stringify({ input: { markets: ['hk', 'jp'], rows: [row('2026-09-18')], snapshot: live }, responses: results }))
   })
   it('user receives only the latest 250 dates including a new live point', async () => {
     // Given: 251 historical days and a live-capable service
