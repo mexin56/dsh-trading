@@ -13,10 +13,11 @@
  * - Issue #19：提供 /indicators/custom 端点（GET/DELETE），供前端同步自定义指标。
  * - Issue #24：提供 /knowledge/cards 端点（GET），供前端读取沉淀的知识卡片。
  * - Issue #65：提供 /holdings 七个端点 + /fx 端点（统一资产台账，契约 §3/§4）。
+ * - 2026-10-13：提供 /active-buy 端点（cn 主动买盘日频文件序列 + 可选当日 live，只读）。
  * - 2026-10-13：提供 /southbound-holdings 端点（港股通持股副图；按能力跨 provider 解析）。
  */
 import { instrumentFormOf } from '@dshtrading/api'
-import type { AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, SouthboundHoldingHistory, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
+import type { ActiveBuySnapshot, AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, SouthboundHoldingHistory, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
 import { aggregateNews as aggregateCnNews, fetchCnFundamentalsPackage } from '@dshtrading/kit-cn'
 import { aggregateNews as aggregateHkNews, fetchHkFundamentalsPackage } from '@dshtrading/kit-hk'
 import { aggregateNews as aggregateUsNews, fetchUsFundamentalsPackage } from '@dshtrading/kit-us'
@@ -47,6 +48,7 @@ import type { FxFetchLike } from '@dshtrading/holdings/fx'
 import { createFxService } from '@dshtrading/holdings/fx'
 import { GuiApprovalDeniedError, type GuiApprovalSeat, type GuiLiveAction } from './gui-approval.ts'
 import { TtlCache } from './ttl-cache.ts'
+import { mergeActiveBuyPoints, readActiveBuySnapshots, shanghaiDate, type ActiveBuyWire } from './active-buy.ts'
 
 /** 本桥支持的市场（与连接器服务键一一对应）。 */
 export type MarketId = 'crypto' | 'us' | 'cn' | 'hk' | 'futures' | 'global'
@@ -348,6 +350,16 @@ type SouthboundCapableService = MarketDataService & {
 /** 能力探测（鸭子类型）：只认真正实现了可选方法的服务，缺席/非函数一律不算。 */
 function hasSouthboundHoldings(service: MarketDataService | undefined): service is SouthboundCapableService {
   return typeof (service as { getSouthboundHoldings?: unknown } | undefined)?.getSouthboundHoldings === 'function'
+}
+
+/** 实现了主动买盘快照端点的行情服务（可选能力；连接器选择性实现）。 */
+type ActiveBuyCapableService = MarketDataService & {
+  getActiveBuySnapshot(symbol: string): Promise<ActiveBuySnapshot>
+}
+
+/** 能力探测（鸭子类型）：只认真正实现了可选方法的服务，缺席/非函数一律不算。 */
+function hasActiveBuySnapshot(service: MarketDataService | undefined): service is ActiveBuyCapableService {
+  return typeof (service as { getActiveBuySnapshot?: unknown } | undefined)?.getActiveBuySnapshot === 'function'
 }
 
 export interface DerivativesWire {
@@ -1632,7 +1644,41 @@ export class TradingBridge {
     }
   }
 
-  /** 按能力解析港股通持股数据源（冻结顺序见 southboundHoldings 文档注释）。 */
+  /**
+   * 主动买盘历史只读文件；非 cn 一律空序列，不解析服务或文件。
+   * cn 按 active 优先、provider 名排序扫描注册项解析 live 能力；
+   * 能力缺席/调用抛错/非今天均只返回历史，
+   * 文件今天已有行时不注入 live。归并与 250 日截断规则归 active-buy 纯函数。
+   */
+  async activeBuy(market: string, symbol: string): Promise<ActiveBuyWire> {
+    const trimmed = symbol.trim()
+    if (market !== 'cn') return { ok: true, symbol: trimmed, points: [] }
+    if (trimmed === '') throw new BridgeProtocolError(400, 'activeBuy: symbol is required')
+    const { snapshots } = await readActiveBuySnapshots()
+    let snapshot: ActiveBuySnapshot | undefined
+    try {
+      const service = this.#resolveActiveBuyService()
+      if (service !== undefined) snapshot = await service.getActiveBuySnapshot(trimmed)
+    } catch {
+      // 可选盘中能力失败只保留文件历史，不报 500、不补零。
+    }
+    return mergeActiveBuyPoints(snapshots, trimmed, shanghaiDate(new Date()), snapshot)
+  }
+
+  /** 镜像 #resolveSouthboundService 的 active → provider 排序扫描；无能力保留历史。 */
+  #resolveActiveBuyService(): ActiveBuyCapableService | undefined {
+    const registry = this.host.marketRegistry
+    const active = registry === undefined ? this.host.getMarketService('cn') : registry.active('cn')?.service
+    if (hasActiveBuySnapshot(active)) return active
+    const entries = [...(registry?.list?.('cn') ?? [])]
+      .sort((a, b) => (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0))
+    for (const entry of entries) {
+      if (hasActiveBuySnapshot(entry.service)) return entry.service
+    }
+    return undefined
+  }
+
+  /** 按能力解析港股通持股数据源（冻结顺序见 southboundHoldings；同族见 #resolveActiveBuyService）。 */
   #resolveSouthboundService(market: string): SouthboundCapableService | undefined {
     const registry = this.host.marketRegistry
     const active = registry?.active(market)?.service
@@ -2268,6 +2314,11 @@ export async function dispatchBridgeRequest(
         const market = search.get('market') ?? ''
         const symbol = search.get('symbol') ?? ''
         return { status: 200, payload: await bridge.fundamentals(market, symbol) }
+      }
+      case '/active-buy': {
+        const market = search.get('market') ?? ''
+        const symbol = search.get('symbol') ?? ''
+        return { status: 200, payload: await bridge.activeBuy(market, symbol) }
       }
       case '/southbound-holdings': {
         const market = search.get('market') ?? ''
