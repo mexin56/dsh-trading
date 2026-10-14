@@ -41,6 +41,12 @@ node scripts/new-connector.mjs --slug bybit --title Bybit --market crypto
   不会生成半展开包。
 - 生成器**不跑** install/build。生成后第一步：
   `pnpm install && pnpm --filter @dshtrading/connector-<slug> build`。
+- **README 与 package.json description 是模板逐字拷贝**：标题还写着 `connector-template`，
+  正文声称「本包是脚手架源，不是可安装的连接器」「不入任何 bundle 依赖」——对已生成包全是反话
+  （2026-10-14 一次性修了 13 个这样的包）。生成后必须改写成该包真实能力面，体例照
+  `packages/connector-eastmoney/README.md`；无网络实证的段落如实写「未实证」。
+  `scripts/docs-link-check.mjs` 只扫 AGENTS.md/docs/.agents，**不扫 `packages/**`**，
+  README 内的相对链接得自己核。
 
 > 模板包本身（`packages/connector-template`）也在 `pnpm -r build/test` 基线内，
 > 仅作脚手架源，**不入任何 bundle 依赖**——不要把它加进 `<market>/package.json`。
