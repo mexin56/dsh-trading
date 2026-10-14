@@ -10,9 +10,11 @@
  *   node spikes/impl-qmt-alpaca-dataplane-activation/run-loader-activation-probe.mjs
  *
  * 对照组：
- *   A 修复后——仓库构建产物 packages/connector-<slug>/lib/dataplane.js
- *   B 修复前——桌面实例当前加载的 profile 副本
- *             ~/.dsh-trading/profiles/trading-web/node_modules/@dshtrading/connector-<slug>/lib/dataplane.js
+ *   A 仓库当前构建产物 packages/connector-<slug>/lib/dataplane.js
+ *   B 宿主实际加载的那份 profile 副本
+ *     ~/.dsh-trading/profiles/trading-web/node_modules/@dshtrading/connector-<slug>/lib/dataplane.js
+ *     （2026-10-14 经授权刷新后它已是修复后构建，两组同为 activated；修复前的
+ *      `did not activate + TypeError` 判定见 note 与 dsh-host.log 原文，不在本脚本复现）
  *   B 组缺失时跳过（不伪造对照）。
  *
  * 行 config 取自 bundle patch：cn/us 两行的 dataplane 行只写 `enabled: true`
@@ -34,8 +36,8 @@ const ROWS = [
 
 /** 桌面宿主实际加载的那份与仓库构建产物的路径。 */
 const BUILDS = [
-  { label: 'repo（修复后）', path: (slug) => join(REPO, 'packages', slug, 'lib/dataplane.js') },
-  { label: 'profile 副本（修复前）', path: (slug) => join(PROFILE_COPY, slug, 'lib/dataplane.js') },
+  { label: 'repo（仓库当前构建）', path: (slug) => join(REPO, 'packages', slug, 'lib/dataplane.js') },
+  { label: 'profile 副本（宿主实际加载的那份）', path: (slug) => join(PROFILE_COPY, slug, 'lib/dataplane.js') },
 ]
 
 /** 真实 router 插件：两张注册表由它同 fiber 提供（base patch 行零改动）。 */
