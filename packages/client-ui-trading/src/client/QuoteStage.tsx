@@ -49,9 +49,9 @@ import { defaultScopeEntries } from './indicator-defaults.ts'
 import { ensureMarketProviders, useMarketProviders } from './market-providers.ts'
 import { useDarkTheme } from './theme-mode.ts'
 import {
-  FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
-  chartIntervals, fiveDayCapability, fiveDayDayStarts, fiveDayVolumeColor, rememberableInterval,
-  toFiveDayBars, type FiveDayTier,
+  FIVE_DAY_DEFAULT_DAYS, FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
+  chartIntervals, clampFiveDayDays, fiveDayCapability, fiveDayDayStarts, fiveDayDisplayRange,
+  fiveDayVolumeColor, rememberableInterval, toFiveDayBars, type FiveDayTier,
 } from './five-day-series.ts'
 import { MARKET_TAB_KEY } from './market-vocab.ts'
 import { SCOPE_MARKETS, normalizeMarketScope, selectApplicableInstances, supportedIntervals } from './indicator-scope.ts'
@@ -665,9 +665,63 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     }
   }, [kdasMenu])
 
+  /**
+   * 五日级别显示档位（滚轮换档，1..5 个交易日，默认 1 个）：档位只决定图上画几段，
+   * 不参与量比计算——比较窗口恒为取数落地的最近 5 个交易日（见 five-day-series
+   * 模块头注释）。会话内记住上次档位，重挂载回默认档。
+   */
+  const [fiveDayDays, setFiveDayDays] = useState<number>(FIVE_DAY_DEFAULT_DAYS)
+  const stepFiveDayDays = useCallback((delta: -1 | 1): void => {
+    setFiveDayDays(current => clampFiveDayDays(current + delta))
+  }, [])
+
+  /**
+   * 五日级别视图（客户端纯计算）：量比档位 + 日界，恒为比较窗口的 5 个交易日。
+   * klines 已是窗口内 5 个交易日的 1m bar（取数处截取），这里只做同分钟对齐与分档。
+   */
+  const fiveDayBars = useMemo(
+    () => (chartInterval === FIVE_DAY_INTERVAL && klinesInterval === FIVE_DAY_INTERVAL && klines !== null
+      ? toFiveDayBars(activeMarket, klines)
+      : null),
+    [chartInterval, klinesInterval, klines, activeMarket],
+  )
+
+  /**
+   * 图表实际消费的序列：五日级别按档位截取比较窗口尾部 N 段，其余级别原样。
+   * fiveDayBars 与 klines 一一对齐（同一批 bar、同序），故下标区间可直接切片——
+   * 十字光标下标、框选区间与指标调度都以「图表喂进去的那条序列」为坐标系，
+   * 一律不能再混用未截断的 klines。
+   */
+  const seriesKlines = useMemo(() => {
+    if (klines === null || fiveDayBars === null) return klines
+    const range = fiveDayDisplayRange(fiveDayBars, fiveDayDays)
+    // 常规情形两者等长（同一批 bar）；ticker 合并跨日多出一根时 fiveDayBars 仍是
+    // 最近 5 日，故按长度差补偿后再切，不让这种瞬态把窗口整体错位一根。
+    const offset = klines.length - fiveDayBars.length
+    if (range.start === 0 && offset === 0) return klines
+    return klines.slice(range.start + offset, range.end + offset)
+  }, [klines, fiveDayBars, fiveDayDays])
+
+  /** 图表侧五日视图：只给显示窗口内的日界与档位色，数组与 seriesKlines 逐根对齐。 */
+  const fiveDayProps = useMemo(() => {
+    if (fiveDayBars === null || fiveDayBars.length === 0) return undefined
+    const range = fiveDayDisplayRange(fiveDayBars, fiveDayDays)
+    const windowed = fiveDayBars.slice(range.start, range.end)
+    return {
+      dayStarts: fiveDayDayStarts(windowed).map(ms => Math.floor(ms / 1000)),
+      volumeTiers: windowed.map(bar => bar.tier),
+    }
+  }, [fiveDayBars, fiveDayDays])
+
+  /**
+   * 滚轮换档的接线只在真正的五日级别路由下成立（不可得的路由已被守卫回落为日K）。
+   * 与数据是否到位无关：换级别后 1m 在途的那一瞬，滚轮仍应换档而不是缩放。
+   */
+  const fiveDayWheel = chartInterval === FIVE_DAY_INTERVAL && fiveDayCap === 'yes' ? stepFiveDayDays : undefined
+
   const rangeStats = useMemo(
-    () => (rangeSelection !== null && klines !== null ? computeRangeStats(klines, rangeSelection.start, rangeSelection.end) : null),
-    [rangeSelection, klines],
+    () => (rangeSelection !== null && seriesKlines !== null ? computeRangeStats(seriesKlines, rangeSelection.start, rangeSelection.end) : null),
+    [rangeSelection, seriesKlines],
   )
 
   /* ---- KDAS 关键日右键菜单 ---- */
@@ -681,10 +735,10 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     : undefined
   /** 右键命中柱 → 菜单动作面（存储口径 UTC 取日，显示标签走本地口径）。 */
   const openKdasMenu = useCallback((info: { index: number; x: number; y: number }): boolean => {
-    if (!kdasMenuEnabled || klines === null || klines[info.index] === undefined) return false
+    if (!kdasMenuEnabled || seriesKlines === null || seriesKlines[info.index] === undefined) return false
     setKdasMenu({ ...info, placed: null })
     return true
-  }, [kdasMenuEnabled, klines])
+  }, [kdasMenuEnabled, seriesKlines])
 
   // 菜单钳位：挂载帧量测真实尺寸 → clampRectInto 收进图表容器（右缘/下缘越界平移）。
   // 全程容器系：style 的 left/top 相对 chartBox，outer 只取尺寸（原点归零），坐标不做视口混算。
@@ -719,13 +773,13 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     if (result.ok) applyKdasParams(result.params)
   }, [kdasScopeParams, applyKdasParams])
 
-  // 指标调度：适用实例 × klines × 外部序列 → 渲染输入（symbol visibility + 适用范围
+  // 指标调度：适用实例 × 图表序列 × 外部序列 → 渲染输入（symbol visibility + 适用范围
   // 双重过滤后的实例才参与计算与绘制；主图与副图同规则）。声明了 aux 的实例另需外部
   // 序列就绪，否则整体不进调度（决策 3：副图 pane 不存在）——见 indicator-dispatch。
   const indicatorGroups = useMemo(() => {
-    if (klines === null) return []
+    if (seriesKlines === null) return []
     return dispatchIndicatorGroups({
-      klines,
+      klines: seriesKlines,
       instances: applicableInstances,
       market,
       symbol,
@@ -737,44 +791,26 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
         instanceKey: instance => indicators.instanceKey(instance),
       },
     })
-  }, [klines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys])
+  }, [seriesKlines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys])
 
   const mainOverlays = useMemo(() => indicatorGroups.filter(group => group.pane === 'main'), [indicatorGroups])
   const subIndicators = useMemo(() => indicatorGroups.filter(group => group.pane === 'sub'), [indicatorGroups])
 
-  const bars = useMemo(() => klines?.map(toBar) ?? [], [klines])
-  const volumes = useMemo(() => klines?.map(k => toVolume(k, colorMode)) ?? [], [klines, colorMode])
+  const bars = useMemo(() => seriesKlines?.map(toBar) ?? [], [seriesKlines])
+  const volumes = useMemo(() => seriesKlines?.map(k => toVolume(k, colorMode)) ?? [], [seriesKlines, colorMode])
 
-  /**
-   * 五日级别视图（客户端纯计算）：量比档位 + 日界。klines 已是窗口内 5 个交易日
-   * 的 1m bar（取数处截取），这里只做同分钟对齐与分档，不再改序列。
-   */
-  const fiveDayBars = useMemo(
-    () => (chartInterval === FIVE_DAY_INTERVAL && klinesInterval === FIVE_DAY_INTERVAL && klines !== null
-      ? toFiveDayBars(activeMarket, klines)
-      : null),
-    [chartInterval, klinesInterval, klines, activeMarket],
-  )
-  const fiveDayProps = useMemo(() => {
-    if (fiveDayBars === null || fiveDayBars.length === 0) return undefined
-    return {
-      dayStarts: fiveDayDayStarts(fiveDayBars).map(ms => Math.floor(ms / 1000)),
-      volumeTiers: fiveDayBars.map(bar => bar.tier),
-    }
-  }, [fiveDayBars])
-
-  const readoutIndex = hoverIndex ?? (klines !== null && klines.length > 0 ? klines.length - 1 : null)
-  const readoutCandle = klines !== null && readoutIndex !== null ? klines[readoutIndex] : undefined
+  const readoutIndex = hoverIndex ?? (seriesKlines !== null && seriesKlines.length > 0 ? seriesKlines.length - 1 : null)
+  const readoutCandle = seriesKlines !== null && readoutIndex !== null ? seriesKlines[readoutIndex] : undefined
   // 读数行昨收跟随十字光标：悬停历史K线取当前周期序列的前一根收盘价（日K下即该日
   // 昨收）；未悬停或悬停最新一根沿用官方锚点 ticker.prevClose（日K补齐滞后时序列
   // 倒数第二根会错位一个交易日，见上方 stats 注释）；序列首根无前一根则留空。
-  const readoutPrevClose = klines === null || readoutIndex === null
+  const readoutPrevClose = seriesKlines === null || readoutIndex === null
     ? stats.prevClose
     : readoutIndex <= 0
       ? undefined
-      : readoutIndex >= klines.length - 1
+      : readoutIndex >= seriesKlines.length - 1
         ? stats.prevClose
-        : klines[readoutIndex - 1]?.close
+        : seriesKlines[readoutIndex - 1]?.close
 
   // 所有当前市场可用的指标（供底部词条栏横向快捷展示；决策 5：definition.markets
   // 白名单过滤，如港股通持股比例不出现在 crypto/us/cn 的词条带）
@@ -1178,6 +1214,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                 dataKey={`${market}:${symbol}:${chartInterval}`}
                 intraday={INTRADAY_INTERVALS.has(chartInterval)}
                 {...(fiveDayProps !== undefined ? { fiveDay: fiveDayProps } : {})}
+                onFiveDayWheel={fiveDayWheel}
                 colorMode={colorMode}
                 mainOverlays={mainOverlays}
                 subIndicators={subIndicators}
@@ -1196,15 +1233,15 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                 onBarContextMenu={openKdasMenu}
               />
             )}
-            {kdasMenu !== null && klines !== null && market !== undefined && symbol !== undefined && (() => {
-              const hitBar = klines[kdasMenu.index]
+            {kdasMenu !== null && seriesKlines !== null && market !== undefined && symbol !== undefined && (() => {
+              const hitBar = seriesKlines[kdasMenu.index]
               if (hitBar === undefined) return null
               // 守卫期（实例中途被摘/切标的）参数缺席 → 空表（菜单项自然退化为挂载/新增）。
               const params = kdasScopeParams ?? {}
               const slots = kdasSlots(params)
               // 命中柱交易日：取存储口径（与 compute 同源的 UTC 日）；标题显示走本地日。
               const barDay = utcDayNum(hitBar.openTime)
-              const anchorDay = kdasAnchorSourceDay(params, klines, barDay)
+              const anchorDay = kdasAnchorSourceDay(params, seriesKlines, barDay)
               const full = slots.length >= 8 && !isKdasDay(params, barDay)
               const mountedHere = kdasInstance !== undefined
               const colorOfDay = (kd: number): string =>

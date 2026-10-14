@@ -8,8 +8,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
-  chartIntervals, fiveDayCapability, fiveDayDayStarts, fiveDayVolumeColor, groupTradingDays,
+  FIVE_DAY_DEFAULT_DAYS, FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_MAX_DAYS,
+  FIVE_DAY_MIN_DAYS, FIVE_DAY_RESYNC_MS, FIVE_DAY_TRADING_DAYS,
+  chartIntervals, clampFiveDayDays, fiveDayCapability, fiveDayDayStarts, fiveDayDisplayRange,
+  fiveDayVolumeColor, fiveDayWheelStep, groupTradingDays,
   ratioTier, recentTradingDays, rememberableInterval, toFiveDayBars, viewportResetStrategy,
 } from '../src/client/five-day-series.ts'
 import type { FiveDayTier } from '../src/client/five-day-series.ts'
@@ -353,5 +355,118 @@ describe('五日级别的能力驱动出现规则', () => {
     expect(rememberableInterval('global', FIVE_DAY_INTERVAL)).toBe(false)
     expect(rememberableInterval('us', '10d')).toBe(false)
     expect(rememberableInterval('us', '1d')).toBe(true)
+  })
+})
+
+describe('五日级别的显示档位（滚轮换档）', () => {
+  /** 五个交易日、每日 3 根（m=0/1/2）：量逐日翻倍，末日的量比必然 >1（不是基准日灰）。 */
+  function fiveDayWindow(): ReturnType<typeof toFiveDayBars> {
+    return toFiveDayBars('us', fiveDays('us', [[10, 10, 10], [20, 20, 20], [30, 30, 30], [40, 40, 40], [50, 50, 50]], [1, 2, 3, 4, 5]))
+  }
+
+  it('用户进入五日级别默认只看最近 1 个交易日，向后滚每格加一天直到 5 日', () => {
+    // Given 五日级别的默认档位与可换档范围
+    // Then 默认 1 个交易日，两端夹在 1..5
+    expect(FIVE_DAY_DEFAULT_DAYS).toBe(1)
+    expect(FIVE_DAY_MIN_DAYS).toBe(1)
+    expect(FIVE_DAY_MAX_DAYS).toBe(FIVE_DAY_TRADING_DAYS)
+    expect(clampFiveDayDays(3)).toBe(3)
+    expect(clampFiveDayDays(5)).toBe(5)
+  })
+
+  it('用户一直向前滚到底时最少也保留 1 个交易日，不会滚成空图或负数', () => {
+    // Given 档位被滚过头（0、负数、非有限值）
+    // Then 一律回落到 1，且小数按四舍五入夹取
+    expect(clampFiveDayDays(0)).toBe(1)
+    expect(clampFiveDayDays(-3)).toBe(1)
+    expect(clampFiveDayDays(Number.NaN)).toBe(FIVE_DAY_DEFAULT_DAYS)
+    expect(clampFiveDayDays(Number.POSITIVE_INFINITY)).toBe(FIVE_DAY_DEFAULT_DAYS)
+    expect(clampFiveDayDays(3.4)).toBe(3)
+    expect(clampFiveDayDays(9)).toBe(FIVE_DAY_MAX_DAYS)
+  })
+
+  it('用户换档时窗口是最近 N 个交易日，交易日不足 N 时给全量而不是空窗', () => {
+    // Given 5 个交易日、每日 3 根共 15 根
+    const bars = fiveDayWindow()
+    expect(bars).toHaveLength(15)
+
+    // When 依次取 5 / 3 / 1 档的显示窗口区间
+    // Then 区间恒为尾部连续切片，逐档对应整段交易日
+    expect(fiveDayDisplayRange(bars, 5)).toEqual({ start: 0, end: 15 })
+    expect(fiveDayDisplayRange(bars, 3)).toEqual({ start: 6, end: 15 })
+    expect(fiveDayDisplayRange(bars, 1)).toEqual({ start: 12, end: 15 })
+    // 档位越界与不足窗：夹取到边界，数据不够时给全量
+    expect(fiveDayDisplayRange(bars, 9)).toEqual({ start: 0, end: 15 })
+    expect(fiveDayDisplayRange(bars, 0)).toEqual({ start: 12, end: 15 })
+    expect(fiveDayDisplayRange([], 3)).toEqual({ start: 0, end: 0 })
+  })
+
+  it('用户只显示 1 个交易日时量比照旧按前 4 个交易日算，整段不会退化成中性灰', () => {
+    // Given 5 个交易日的窗口（末日量比 = 50 ÷ (10+20+30+40)/4 = 2 → 深红档）
+    const bars = fiveDayWindow()
+    const range = fiveDayDisplayRange(bars, 1)
+    const shown = bars.slice(range.start, range.end)
+
+    // Then 显示窗口内每一根都带量比档位，没有一根退回基准日/无前值
+    expect(shown).toHaveLength(3)
+    expect(shown.every(bar => bar.dayIndex === 4)).toBe(true)
+    expect(shown.map(bar => bar.tier)).toEqual(['lt3', 'lt3', 'lt3'])
+    expect(shown[0]?.ratio).toBeCloseTo(2, 10)
+    // 比较窗口仍是 5 个交易日：显示 1 日时的前值天数仍是 4
+    expect(shown[0]?.priorDays).toBe(4)
+  })
+
+  it('用户滚轮向前滚（deltaY 为负）时少显示一个交易日，向后滚则多显示一个', () => {
+    // Given 一整格滚轮（像素模式 100px ≈ 一格）
+    // When 向前滚 / 向后滚
+    // Then 向前滚 = 天数变少（-1），向后滚 = 天数变多（+1），余量清零
+    expect(fiveDayWheelStep(0, -100, 0)).toEqual({ accum: 0, delta: -1 })
+    expect(fiveDayWheelStep(0, 100, 0)).toEqual({ accum: 0, delta: 1 })
+    expect(fiveDayWheelStep(0, -20, 0).delta).toBe(0)
+    expect(fiveDayWheelStep(0, 0, 0)).toEqual({ accum: 0, delta: 0 })
+  })
+
+  it('用户用触控板连续小幅滑动时攒满一格才换档，快速甩动一次至多换一档', () => {
+    // Given 触控板一次两指滑动拆成的若干小 delta
+    let accum = 0
+    for (const delta of [-30, -30, -30]) {
+      const step = fiveDayWheelStep(accum, delta, 0)
+      accum = step.accum
+      expect(step.delta).toBe(0)
+    }
+    // When 再滑一下补满一格
+    const filled = fiveDayWheelStep(accum, -20, 0)
+    // Then 只有这一次换了一档，余量归零
+    expect(filled).toEqual({ accum: 0, delta: -1 })
+
+    // When 一次甩出 5 格的量
+    // Then 也只换一档，不把 1..5 一冲到底
+    expect(fiveDayWheelStep(0, -500, 0)).toEqual({ accum: 0, delta: -1 })
+  })
+
+  it('用户在行模式（Firefox）与页模式下滚一格同样只换一档', () => {
+    // Given 行模式一格 = 3 行、页模式一格 = 1 页
+    // When 各滚一格
+    // Then 都判成一档，方向与像素模式一致
+    expect(fiveDayWheelStep(0, -3, 1)).toEqual({ accum: 0, delta: -1 })
+    expect(fiveDayWheelStep(0, 3, 1)).toEqual({ accum: 0, delta: 1 })
+    expect(fiveDayWheelStep(0, -1, 2)).toEqual({ accum: 0, delta: -1 })
+    expect(fiveDayWheelStep(0, 1, 2)).toEqual({ accum: 0, delta: 1 })
+    // 不足一格的余量留给下一次事件
+    expect(fiveDayWheelStep(0, -1, 1)).toEqual({ accum: -1 / 3, delta: 0 })
+  })
+
+  it('用户在一档到五档之间滚动时窗口始终是那一段，档位色与 bars 逐根对齐', () => {
+    // Given 五日窗口与 3 档显示窗口
+    const bars = fiveDayWindow()
+    const range = fiveDayDisplayRange(bars, 3)
+
+    // Then 切片与档位色同源同长：色数组取同一区间后仍与 bars 逐根对应
+    const tiers = bars.slice(range.start, range.end).map(bar => bar.tier)
+    expect(tiers).toHaveLength(range.end - range.start)
+    expect(tiers).toHaveLength(9)
+    // 显示窗口内最早的交易日不是基准日（基准日在前值窗口里，已滚出可见区）
+    expect(bars[range.start]?.dayIndex).toBe(2)
+    expect(tiers.every(tier => tier !== 'baseline')).toBe(true)
   })
 })

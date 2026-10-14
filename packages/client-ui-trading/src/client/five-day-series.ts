@@ -5,7 +5,12 @@
  * ÷ 前 1-4 个交易日同分钟成交量均值」的量比给成交量分档着色。窗口内最早一日是
  * 基准日（没有前值，只作参照），不着色。
  *
- * 三条不变量：
+ * 两个窗口必须分开：**比较窗口**恒为 5 个交易日（决定量比分档），**显示窗口**是
+ * 滚轮档位 N（1..5 个交易日，默认 1，见 FIVE_DAY_DEFAULT_DAYS）——只决定图上画
+ * 出最近几段。档位不参与量比计算：若按显示窗口重算前值，N=1 时当日没有任何前值，
+ * 整张图会退化成中性灰，该级别的量比语义就没了。
+ *
+ * 四条不变量：
  * 1. 该级别是**纯客户端视图**——'5d' 不属于 @dshtrading/api 的 Interval 联合
  *    （连接器不认识这个词汇），取数永远是 `fetchKlines(market, symbol, '1m', n)`
  *    加本地按交易日分组。
@@ -13,6 +18,8 @@
  *    （见 fiveDayCapability，事实来源 spikes/impl-five-day-1m-probe/EVIDENCE.md）。
  *    不可得即不出现，绝不裁剪/复制数据冒充五个交易日。
  * 3. 无副作用：本模块只做纯计算，localStorage/DOM/网络都不碰。
+ * 4. 取数不随档位变：显示窗口是纯截取（fiveDayDisplayRange），永远不为档位换请求
+ *    ——5 个交易日的 1m 已经在手上，N 段只是它的尾部切片。
  *
  * x 轴拼接：lightweight-charts 的横轴是「一根 bar 一个槽位」，相邻槽位之间没有
  * 时间距离——隔夜与午休空档天然被压缩掉。日界由 fiveDayDayStarts 显式标出。
@@ -24,8 +31,15 @@ import { MARKET_INTERVALS } from './store.ts'
 /** 客户端视图级别 id（不进连接器词汇表）。 */
 export const FIVE_DAY_INTERVAL = '5d'
 
-/** 窗口交易日数。 */
+/** 比较窗口交易日数（量比分档的前值范围，也是取数落地的窗口）。 */
 export const FIVE_DAY_TRADING_DAYS = 5
+
+/** 显示档位：滚轮每格 ±1 个交易日，范围 1..5。 */
+export const FIVE_DAY_MIN_DAYS = 1
+export const FIVE_DAY_MAX_DAYS = FIVE_DAY_TRADING_DAYS
+
+/** 默认档位：进入该级别先看最近 1 个交易日（当日一整个会话铺满整幅）。 */
+export const FIVE_DAY_DEFAULT_DAYS = 1
 
 /** 取数上限：cn 每日 241 根、hk 331 根、us 390 根，5 日最坏 5×390=1950，留余量取 2500。 */
 export const FIVE_DAY_KLINE_LIMIT = 2500
@@ -91,10 +105,11 @@ export function rememberableInterval(market: MarketId, interval: string): boolea
 }
 
 /**
- * 数据重置（dataKey 变化 / 首帧落地）时的默认视窗策略：
- * - `fit-window`：五日级别铺满整个 5 日窗口——该级别的语义就是「5 段拼接 + 4 条
- *   日界」，沿用常规级别的默认 barSpacing 会只露出最近一两个小时（user 点「五日」
- *   却看到一张一小时的图）。不锁定视窗，`fitContent` 之后仍可自由缩放平移。
+ * 数据重置（dataKey 变化 / 首帧落地 / 换档）时的默认视窗策略：
+ * - `fit-window`：五日级别铺满当前显示窗口（档位 N 段拼接 + N-1 条日界）——该级别
+ *   的「缩放」就是交易日档位，沿用常规级别的默认 barSpacing 会只露出最近一两个
+ *   小时（user 点「五日」却看到一张一小时的图）。换档后序列被重新截断，走的是同一
+ *   条重置路径，于是每档都自动铺满整幅。
  * - `recent-edge`：常规级别维持既有 `resetTimeScale + scrollToRealTime`（默认
  *   barSpacing、最新价贴右缘）。
  */
@@ -228,6 +243,64 @@ export function fiveDayDayStarts(bars: readonly FiveDayBar[]): number[] {
     seenDayIndex = bar.dayIndex
   }
   return starts
+}
+
+/** 档位夹取：非有限值回落到默认档，其余四舍五入后夹进 1..5（滚轮只会 ±1，夹取是防御）。 */
+export function clampFiveDayDays(days: number): number {
+  if (!Number.isFinite(days)) return FIVE_DAY_DEFAULT_DAYS
+  return Math.min(FIVE_DAY_MAX_DAYS, Math.max(FIVE_DAY_MIN_DAYS, Math.round(days)))
+}
+
+/**
+ * 显示窗口 = 比较窗口尾部最近 count 个交易日对应的下标区间 `[start, end)`。
+ * 入参必须是同一批 bar（`toFiveDayBars` 的输出，dayIndex 非递减），返回值可直接
+ * 切成图序列与档位色数组——两者同源同长，不会错位。交易日不足 count 时给全量。
+ */
+export function fiveDayDisplayRange(bars: readonly FiveDayBar[], days: number): { start: number; end: number } {
+  const end = bars.length
+  if (end === 0) return { start: 0, end }
+  const lastDayIndex = (bars[end - 1] as FiveDayBar).dayIndex
+  const target = lastDayIndex - clampFiveDayDays(days) + 1
+  let start = end
+  for (let index = end - 1; index >= 0; index--) {
+    if ((bars[index] as FiveDayBar).dayIndex < target) break
+    start = index
+  }
+  return { start, end }
+}
+
+/**
+ * 滚轮换档：把 wheel 事件归一成「格数」。像素模式 100px ≈ 一格（Chrome 一格
+ * deltaY=100），行模式 3 行 ≈ 一格（Firefox），页模式一页 ≈ 一格。
+ */
+const WHEEL_NOTCH_PX = 100
+const WHEEL_NOTCH_LINES = 3
+
+export function fiveDayWheelNotches(deltaY: number, deltaMode: number): number {
+  if (deltaMode === 1) return deltaY / WHEEL_NOTCH_LINES
+  if (deltaMode === 2) return deltaY
+  return deltaY / WHEEL_NOTCH_PX
+}
+
+/**
+ * 一次 wheel 事件的换档判定：不足一格先攒着（触控板一次两指滑动是几十个小事件），
+ * 攒满一格才换一档，且**每次事件至多换一档**——快速甩动不会把 1..5 一冲到底。
+ *
+ * 方向：向前滚（deltaY<0，与「放大」直觉一致）= 少显示一个交易日。
+ * 调用方负责夹取与持久化，本函数只报「这一格往哪边走」。
+ */
+export interface FiveDayWheelStep {
+  /** 攒下的余量，交给下一次事件。 */
+  accum: number
+  /** -1 = 少显示一个交易日，+1 = 多显示一个，0 = 还不足一格。 */
+  delta: -1 | 0 | 1
+}
+
+export function fiveDayWheelStep(accum: number, deltaY: number, deltaMode: number): FiveDayWheelStep {
+  const total = accum + fiveDayWheelNotches(deltaY, deltaMode)
+  if (total <= -1) return { accum: 0, delta: -1 }
+  if (total >= 1) return { accum: 0, delta: 1 }
+  return { accum: total, delta: 0 }
 }
 
 /** 成交量档位色（亮色主题）。 */

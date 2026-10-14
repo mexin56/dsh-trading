@@ -27,7 +27,7 @@ import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, 
 import { getColorPalette, type ColorMode } from './color-mode.ts'
 import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
 import { chartXToContainerX, containerXToChartX, visibleDayMarkXs } from './chart-coordinate.ts'
-import { fiveDayVolumeColor, viewportResetStrategy, type FiveDayTier } from './five-day-series.ts'
+import { fiveDayVolumeColor, fiveDayWheelStep, viewportResetStrategy, type FiveDayTier } from './five-day-series.ts'
 import type { IndicatorOutput } from '@dshtrading/indicators'
 import type { Kline } from './types.ts'
 
@@ -127,11 +127,17 @@ export interface TvChartProps {
   onBarContextMenu?: (info: { index: number; x: number; y: number }) => boolean
   /**
    * 五日级别（客户端视图级别 '5d'）：x 轴跨 5 个交易日拼接，成交量按「同分钟
-   * 量比」分档着色（不受红涨绿跌影响）。dayStarts = 除窗口首日外每个交易日首根
-   * bar 的 UTC 秒（日界竖线与日期刻度）；volumeTiers 与 bars 一一对齐。
+   * 量比」分档着色（不受红涨绿跌影响）。dayStarts = 除显示窗口首日外每个交易日
+   * 首根 bar 的 UTC 秒（日界竖线与日期刻度）；volumeTiers 与 bars 一一对齐。
    * 缺省即普通级别（成交量用涨跌色）。
    */
   fiveDay?: { dayStarts: readonly number[]; volumeTiers: readonly FiveDayTier[] } | undefined
+  /**
+   * 五日级别的滚轮换档（-1 = 少显示一个交易日，+1 = 多显示一个）。给了即表示当前
+   * 处于五日级别：库的滚轮缩放让位给换档——键在**级别**而不是数据是否到位，否则
+   * 换级别后数据在途的那一瞬滚轮会退回缩放。
+   */
+  onFiveDayWheel?: ((delta: -1 | 1) => void) | undefined
 }
 
 export function IndicatorPaneTitle(props: { title?: string | undefined; live?: true | undefined; liveText?: string | undefined }): React.JSX.Element {
@@ -765,13 +771,47 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     }
   }, [mainOverlays, subIndicators, bars, props.colorMode])
 
-  // ---- 区间统计框选模式：禁用图表自身的拖拽平移/缩放，指针事件留给框选 ----
+  // ---- 图表交互开关的唯一一处：框选模式全关；五日级别只关滚轮（滚轮改作换档，
+  // 拖拽平移保留）。传完整对象而非布尔，库的布尔展开会把滚轮一起带走。 ----
+  const fiveDayActive = props.onFiveDayWheel !== undefined
   useEffect(() => {
     const chart = chartRef.current
     if (chart === null) return
     const selecting = props.rangeSelectionMode === true
-    chart.applyOptions({ handleScroll: !selecting, handleScale: !selecting })
-  }, [props.rangeSelectionMode])
+    chart.applyOptions({
+      handleScroll: {
+        mouseWheel: !selecting && !fiveDayActive,
+        pressedMouseMove: !selecting,
+        horzTouchDrag: !selecting,
+        vertTouchDrag: !selecting,
+      },
+      handleScale: {
+        mouseWheel: !selecting && !fiveDayActive,
+        pinch: !selecting,
+        axisPressedMouseMove: { time: !selecting, price: !selecting },
+        axisDoubleClickReset: { time: !selecting, price: !selecting },
+      },
+    })
+  }, [props.rangeSelectionMode, fiveDayActive])
+
+  // ---- 五日级别滚轮换档：库的滚轮缩放已关，滚轮事件全归这里。触控板一次两指滑动
+  // 是一串小 delta，攒格判定交给 fiveDayWheelStep；回调经 propsRef 现取，
+  // 免得每次父级渲染重挂监听。 ----
+  useEffect(() => {
+    const container = containerRef.current
+    if (container === null || !fiveDayActive) return
+    let accum = 0
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault()
+      const step = propsRef.current.onFiveDayWheel
+      if (step === undefined) return
+      const next = fiveDayWheelStep(accum, event.deltaY, event.deltaMode)
+      accum = next.accum
+      if (next.delta !== 0) step(next.delta)
+    }
+    container.addEventListener('wheel', onWheel, { passive: false })
+    return () => { container.removeEventListener('wheel', onWheel) }
+  }, [fiveDayActive])
 
   // ---- 框选指针交互：按下记起点，移动更新矩形，抬起换算逻辑下标区间提交 ----
   const dragStartXRef = useRef<number | null>(null)
