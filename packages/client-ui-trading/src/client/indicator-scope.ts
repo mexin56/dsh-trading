@@ -13,6 +13,7 @@ import type { IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indica
 import { isInstanceApplicableOn } from '@dshtrading/indicators'
 import type { MarketId } from './types.ts'
 import { MARKET_INTERVALS } from './store.ts'
+import { chartIntervals } from './five-day-series.ts'
 
 /** 适用范围面板的市场行顺序（与系统支持的市场词汇一致；不新增市场或级别支持）。 */
 export const SCOPE_MARKETS = Object.keys(MARKET_INTERVALS) as MarketId[]
@@ -33,9 +34,13 @@ export function normalizeMarketScope(
   return scene
 }
 
-/** 某市场支持的全部级别（图表可提供的周期；未知市场返回空表）。 */
-export function supportedIntervals(market: MarketId): string[] {
-  return MARKET_INTERVALS[market] ?? []
+/**
+ * 某市场支持的全部级别（图表可提供的周期；未知市场返回空表）。
+ * provider 决定是否含能力驱动的客户端视图级别 '5d'（见 five-day-series.chartIntervals）：
+ * provider 缺省即未取到，此时不含 '5d'，也不把它当成不可得。
+ */
+export function supportedIntervals(market: MarketId, provider?: string | undefined): string[] {
+  return chartIntervals(market, provider)
 }
 
 /**

@@ -14,7 +14,7 @@
  * - 当前最新价水平虚线与坐标轴实心价签
  * - 紧凑网格与等宽数字
  */
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AreaSeries, CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, createChart, createSeriesMarkers,
 } from 'lightweight-charts'
@@ -25,8 +25,12 @@ import type { BarPrice, PriceFormatCustom } from 'lightweight-charts'
 import { fmtAxis, fmtCompact, priceDigits } from './format.ts'
 import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, percentLabel, percentLabelCandidates } from './axis-width.ts'
 import { getColorPalette, type ColorMode } from './color-mode.ts'
+import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
+import { fiveDayVolumeColor, type FiveDayTier } from './five-day-series.ts'
 import type { IndicatorOutput } from '@dshtrading/indicators'
 import type { Kline } from './types.ts'
+
+export { isDarkTheme }
 
 export interface TvBar {
   time: UTCTimestamp
@@ -120,6 +124,13 @@ export interface TvChartProps {
    * + 左轴宽修正）。
    */
   onBarContextMenu?: (info: { index: number; x: number; y: number }) => boolean
+  /**
+   * 五日级别（客户端视图级别 '5d'）：x 轴跨 5 个交易日拼接，成交量按「同分钟
+   * 量比」分档着色（不受红涨绿跌影响）。dayStarts = 除窗口首日外每个交易日首根
+   * bar 的 UTC 秒（日界竖线与日期刻度）；volumeTiers 与 bars 一一对齐。
+   * 缺省即普通级别（成交量用涨跌色）。
+   */
+  fiveDay?: { dayStarts: readonly number[]; volumeTiers: readonly FiveDayTier[] } | undefined
 }
 
 export function IndicatorPaneTitle(props: { title?: string | undefined; live?: true | undefined; liveText?: string | undefined }): React.JSX.Element {
@@ -168,6 +179,19 @@ export function toVolume(kline: Kline, colorMode: ColorMode = 'red-up'): TvVolum
   }
 }
 
+/**
+ * 成交量数据（含主题与级别口径）：普通级别 = 涨跌色（红涨绿跌设置驱动）；
+ * 五日级别 = 量比分档色（主题驱动，红涨绿跌设置不参与）。
+ */
+function resolveVolumes(props: TvChartProps, dark: boolean): readonly TvVolume[] {
+  const fiveDay = props.fiveDay
+  if (fiveDay === undefined) return props.volumes
+  return props.volumes.map((volume, index) => ({
+    ...volume,
+    color: fiveDayVolumeColor(fiveDay.volumeTiers[index] ?? 'noPrior', dark),
+  }))
+}
+
 const pad2 = (n: number): string => String(n).padStart(2, '0')
 
 function localDate(ms: number): string {
@@ -180,11 +204,11 @@ function localTime(ms: number): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
 }
 
-export function isDarkTheme(): boolean {
-  if (typeof document === 'undefined') return false
-  return document.body.hasAttribute('data-ds-dark-theme')
-    || document.documentElement.getAttribute('data-theme') === 'dark'
-    || document.body.getAttribute('data-theme') === 'dark'
+/** 五日级别的轴刻度：日界（该日首根 bar）带日期，其余只带时刻。 */
+function fiveDayTickLabel(ms: number, dayStartSet: ReadonlySet<number>, intraday: boolean): string {
+  const seconds = Math.floor(ms / 1000)
+  if (intraday && dayStartSet.has(seconds)) return `${localDate(ms).slice(5)} ${localTime(ms)}`
+  return fmtAxis(ms, intraday)
 }
 
 export function getChartThemeOptions(dark: boolean) {
@@ -304,7 +328,7 @@ export function getChartThemeOptions(dark: boolean) {
 function TvChartImpl(props: TvChartProps): React.JSX.Element {
   const { bars, volumes, dataKey, mainOverlays, subIndicators, readoutIndex } = props
 
-  const [dark, setDark] = useState<boolean>(() => isDarkTheme())
+  const dark = useDarkTheme()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
@@ -330,23 +354,11 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
   const propsRef = useRef(props)
   propsRef.current = props
 
-  // 监听宿主主题切换（body 属性与 media query）
-  useEffect(() => {
-    const updateTheme = (): void => {
-      setDark(isDarkTheme())
-    }
-    const mo = new MutationObserver(updateTheme)
-    if (typeof document !== 'undefined') {
-      mo.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'data-theme'] })
-      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
-    }
-    const mql = typeof matchMedia !== 'undefined' ? matchMedia('(prefers-color-scheme: dark)') : undefined
-    mql?.addEventListener('change', updateTheme)
-    return () => {
-      mo.disconnect()
-      mql?.removeEventListener('change', updateTheme)
-    }
-  }, [])
+  /** 五日级别日界集合（tick formatter 的 O(1) 判据；只跑一次的 chart 工厂经 propsRef 读）。 */
+  const dayStarts = props.fiveDay?.dayStarts
+  const dayStartSet = useMemo(() => new Set(dayStarts ?? []), [dayStarts])
+  const dayStartSetRef = useRef(dayStartSet)
+  dayStartSetRef.current = dayStartSet
 
   /** 参考价变化后 rAF 去抖刷新镜像 formatter（新 formatter 对象强制轴重绘）。 */
   const scheduleMirrorFormatRefresh = (): void => {
@@ -374,7 +386,12 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       },
       timeScale: {
         ...initialTheme.timeScale,
-        tickMarkFormatter: (time: Time): string => fmtAxis(Number(time) * 1000, propsRef.current.intraday),
+        // 五日级别：日界处显示日期（MM-DD HH:mm），其余刻度只显示时刻——跨 5 个
+        // 交易日的横轴没有日期锚点就分不清哪根是哪天。
+        tickMarkFormatter: (time: Time): string => {
+          const ms = Number(time) * 1000
+          return fiveDayTickLabel(ms, dayStartSetRef.current, propsRef.current.intraday)
+        },
       },
     })
     chartRef.current = chart
@@ -478,7 +495,8 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     chart.applyOptions(themeOpts)
   }, [dark])
 
-  // 涨跌配色热切换（红涨绿跌 ↔ 绿涨红跌）
+  // 涨跌配色/主题/级别热切换：蜡烛换色 + 成交量整表重着色（五日级别下量比档位色
+  // 随主题走，与红涨绿跌设置无关；普通级别下仍是涨跌色）。
   useEffect(() => {
     const palette = getColorPalette(props.colorMode)
     candleRef.current?.applyOptions({
@@ -490,9 +508,9 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       wickDownColor: palette.downColor,
     })
     if (volumeRef.current && props.volumes.length > 0) {
-      volumeRef.current.setData(props.volumes)
+      volumeRef.current.setData(resolveVolumes(props, dark) as TvVolume[])
     }
-  }, [props.colorMode, props.volumes])
+  }, [props.colorMode, props.volumes, dark, props.fiveDay])
 
   // ---- 蜡烛/成交量：dataKey 变化全量重置，否则尾部增量 ----
   const prevRef = useRef<{ key: string; bars: readonly TvBar[]; volumes: readonly TvVolume[] } | null>(null)
@@ -502,6 +520,7 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     const chart = chartRef.current
     if (candles === null || volume === null || chart === null) return
     const prev = prevRef.current
+    const resolved = resolveVolumes(props, dark)
     prevRef.current = { key: dataKey, bars, volumes }
 
     const last = bars[bars.length - 1]
@@ -515,16 +534,47 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
 
     if (prev === null || prev.key !== dataKey || bars.length < prev.bars.length || firstTimeDiffers(prev.bars, bars)) {
       candles.setData(bars as TvBar[])
-      volume.setData(volumes as TvVolume[])
+      volume.setData(resolved as TvVolume[])
       chart.timeScale().resetTimeScale()
       chart.timeScale().scrollToRealTime()
       return
     }
     for (let index = Math.max(prev.bars.length - 1, 0); index < bars.length; index++) {
       candles.update(bars[index] as TvBar)
-      volume.update(volumes[index] as TvVolume)
+      volume.update(resolved[index] as TvVolume)
     }
-  }, [bars, volumes, dataKey, props.colorMode])
+  }, [bars, volumes, dataKey, props.colorMode, dark, props.fiveDay])
+
+  // ---- 五日级别日界竖线：日界时刻 → 容器 x 坐标（滚动/缩放/换数据都要重算） ----
+  const [dayMarks, setDayMarks] = useState<number[]>([])
+  const dayMarkRafRef = useRef(0)
+  useEffect(() => {
+    const chart = chartRef.current
+    const starts = props.fiveDay?.dayStarts ?? []
+    if (chart === null || starts.length === 0) {
+      setDayMarks([])
+      return
+    }
+    const measure = (): void => {
+      const xs: number[] = []
+      for (const time of starts) {
+        const x = chart.timeScale().timeToCoordinate(time as UTCTimestamp)
+        // null = 该日界当前不可见（视窗外）；坐标四舍五入避免亚像素抖动。
+        if (x !== null && Number.isFinite(x)) xs.push(Math.round(x))
+      }
+      setDayMarks(current => (current.length === xs.length && current.every((x, index) => x === xs[index]) ? current : xs))
+    }
+    const schedule = (): void => {
+      cancelAnimationFrame(dayMarkRafRef.current)
+      dayMarkRafRef.current = requestAnimationFrame(measure)
+    }
+    schedule()
+    chart.timeScale().subscribeVisibleLogicalRangeChange(schedule)
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(schedule)
+      cancelAnimationFrame(dayMarkRafRef.current)
+    }
+  }, [props.fiveDay, dataKey, bars])
 
   // ---- 策略信号 & 知识事件标记（Issue #41）────────────────────────────
   useEffect(() => {
@@ -841,6 +891,24 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
           }}
         />
       )}
+      {/* 五日级别日界：每个交易日首根 K 线上的竖分隔线（隔夜/午休空档已被
+          lightweight-charts 的槽位横轴压缩掉，只有这根线标出跨日边界） */}
+      {dayMarks.map((x, index) => (
+        <div
+          key={`${x}-${index}`}
+          data-dshtrading-day-boundary=""
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: x,
+            width: 1,
+            background: dark ? 'rgba(240, 243, 250, 0.28)' : 'rgba(15, 23, 42, 0.28)',
+            zIndex: 1,
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
       {/* pane 1 legend：成交量读数（值按富途式蓝色着色） */}
       {paneTops[1] !== undefined && volumeReadout !== undefined && (
         <div style={{ position: 'absolute', left: 8, top: paneTops[1] + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, color: 'var(--dsw-futu-text-secondary, #5f6672)', fontWeight: 600 }}>

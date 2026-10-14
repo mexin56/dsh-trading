@@ -1,4 +1,5 @@
 import { getColorPalette, type ColorMode } from './color-mode.ts'
+import { FIVE_DAY_INTERVAL } from './five-day-series.ts'
 
 /** Default red-up constants for backward compatibility. */
 export const UP_COLOR = '#e64545'
@@ -92,7 +93,10 @@ export function fmtAxis(ms: number, intraday: boolean): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-export const INTRADAY_INTERVALS: ReadonlySet<string> = new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h'])
+/** 分钟级级别集（轴口径：时刻刻度；KDAS 等日线语义动作不适用）。五日级别
+ * （'5d'）由 1 分钟 bar 组成，同属此集合——它的跨日拼接轴由 TvChart 的
+ * fiveDay props 另行标日界。 */
+export const INTRADAY_INTERVALS: ReadonlySet<string> = new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', FIVE_DAY_INTERVAL])
 
 /** 资金费率结算倒计时（issue #54）：>1h 显示 "7h 32m"，<1h 显示 "32m 10s"；过期返回 undefined。 */
 export function fmtCountdown(targetMs: number | undefined, nowMs: number): string | undefined {

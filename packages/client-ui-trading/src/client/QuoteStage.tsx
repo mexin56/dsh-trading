@@ -45,9 +45,15 @@ import { requiredAuxKeys } from './aux-series.ts'
 import { useAuxSeries } from './useAuxSeries.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from './indicator-dispatch.ts'
 import { defaultScopeEntries } from './indicator-defaults.ts'
-import { MARKET_INTERVALS } from './store.ts'
+import { ensureMarketProviders, useMarketProviders } from './market-providers.ts'
+import { useDarkTheme } from './theme-mode.ts'
+import {
+  FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
+  chartIntervals, fiveDayCapability, fiveDayDayStarts, fiveDayVolumeColor, rememberableInterval,
+  toFiveDayBars, type FiveDayTier,
+} from './five-day-series.ts'
 import { MARKET_TAB_KEY } from './market-vocab.ts'
-import { SCOPE_MARKETS, normalizeMarketScope, selectApplicableInstances } from './indicator-scope.ts'
+import { SCOPE_MARKETS, normalizeMarketScope, selectApplicableInstances, supportedIntervals } from './indicator-scope.ts'
 import type { SelectionState } from './store.ts'
 import type { ChartState } from './chart-state.ts'
 import type { AccountBalance, DerivativesData, DerivativesHistory, Order, Orderbook, Position, TradeFill, TradeTick } from './types.ts'
@@ -105,6 +111,17 @@ const INTERVAL_KEY: Record<string, MarketLocaleKey> = {
   '1d': 'interval.1d',
   '1w': 'interval.1w',
   '1M': 'interval.1M',
+  '5d': 'interval.5d',
+}
+
+/** 五日级别量比档位的图例文案键（阈值语义 + 基准日/无前值）。 */
+const RATIO_TIER_KEY: Record<FiveDayTier, MarketLocaleKey> = {
+  lt1: 'volumeRatio.tier.lt1',
+  lt2: 'volumeRatio.tier.lt2',
+  lt3: 'volumeRatio.tier.lt3',
+  gte3: 'volumeRatio.tier.gte3',
+  baseline: 'volumeRatio.tier.baseline',
+  noPrior: 'volumeRatio.tier.noPrior',
 }
 
 export type Translate = (key: MarketLocaleKey, params?: Record<string, unknown>) => string
@@ -156,6 +173,12 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   const activeMarket: MarketId = market ?? 'crypto'
 
   const colorMode = useSyncExternalStore(colorModeStore.subscribe, colorModeStore.getSnapshot)
+  /** 深色主题（五日级别成交量档位色与图例色块的口径，见 theme-mode.ts）。 */
+  const dark = useDarkTheme()
+  // 各市场当前路由 provider（市场级缓存，禁止按标的探测）：五日级别能力判定的唯一输入。
+  const providers = useMarketProviders()
+  const fiveDayCap = fiveDayCapability(activeMarket, providers[activeMarket])
+  useEffect(() => { void ensureMarketProviders() }, [])
   // 数值紧凑单位 locale（亿/万 vs K/M/B）：词典哨兵键判定，随语言切换响应。
   const numLocale = scaleLocaleOf(t)
 
@@ -195,6 +218,9 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   })
   const [daily, setDaily] = useState<Kline[] | null>(null)
   const [klines, setKlines] = useState<Kline[] | null>(null)
+  /** klines 所属级别：切级别后旧的上一级别数据在途期间不得被当成新级别数据消费
+   * （五日级别尤其致命——拿日 K 当 1m 分组会算出假的量比档位）。 */
+  const [klinesInterval, setKlinesInterval] = useState<string | null>(null)
   const [kError, setKError] = useState<string | null>(null)
   const [ticker, setTicker] = useState<Ticker | null>(null)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -349,23 +375,40 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     if (market !== undefined) setIntervalFor(readInterval(market))
   }, [market])
 
+  // 五日级别的路由回落：记忆里的 '5d' 只有在当前路由能诚实提供时才保留（tencent
+  // 路由下的 cn/hk、crypto/futures/global 一律回落到日 K 并改写记忆）。provider
+  // 未取到（unknown）时不动——不能把「还没问到」当成「不可得」。
+  useEffect(() => {
+    if (chartInterval !== FIVE_DAY_INTERVAL || fiveDayCap !== 'no') return
+    setIntervalFor('1d')
+    writeInterval(activeMarket, '1d')
+  }, [chartInterval, fiveDayCap, activeMarket])
+
   // K线取数 = poll：挂载/换标的/换周期立即触发；允许常驻的市场 30s resync，
   // global（金十 global_klines 同列 0 常驻预算）只在换标的/换周期时取一次。
+  // 五日级别（客户端视图级别）走 60s：一次约 1200-1950 根，30s 全量重取等于
+  // 把上游配额翻倍；盘中最新一根由既有 ticker 合并推进。
   const requestRef = useRef('')
   usePoll(async () => {
     if (!market || !symbol) return
+    // 能力未确认（provider 未回）或明确不可得：不取数、不渲染（回落由上面的守卫负责）。
+    if (chartInterval === FIVE_DAY_INTERVAL && fiveDayCap !== 'yes') return
     const request = `${market}:${symbol}:${chartInterval}`
     requestRef.current = request
     try {
-      const rows = await fetchKlines(market, symbol, chartInterval, chartInterval === '1d' ? DAILY_LIMIT : klineLimit(market))
+      const rows = chartInterval === FIVE_DAY_INTERVAL
+        // 冻结契约：永远是 1m 取数 + 客户端按市场时区分组取最近 5 个交易日。
+        ? toFiveDayBars(market, await fetchKlines(market, symbol, '1m', FIVE_DAY_KLINE_LIMIT)).map(bar => bar.kline)
+        : await fetchKlines(market, symbol, chartInterval, chartInterval === '1d' ? DAILY_LIMIT : klineLimit(market))
       if (requestRef.current !== request) return
       setKlines(rows)
+      setKlinesInterval(chartInterval)
       setKError(null)
     } catch (error) {
       if (requestRef.current !== request) return
       setKError(String((error as { message?: string })?.message ?? error))
     }
-  }, residentPollMs(market, KLINE_RESYNC_MS), [market, symbol, chartInterval])
+  }, residentPollMs(market, chartInterval === FIVE_DAY_INTERVAL ? FIVE_DAY_RESYNC_MS : KLINE_RESYNC_MS), [market, symbol, chartInterval, fiveDayCap])
 
   // 日K参考（头部涨跌/昨收）：每标的只拉一次。
   useEffect(() => {
@@ -523,6 +566,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   // 换标的：立即清场
   useEffect(() => {
     setKlines(null)
+    setKlinesInterval(null)
     setDaily(null)
     setTicker(null)
     setHoverIndex(null)
@@ -691,6 +735,24 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   const bars = useMemo(() => klines?.map(toBar) ?? [], [klines])
   const volumes = useMemo(() => klines?.map(k => toVolume(k, colorMode)) ?? [], [klines, colorMode])
 
+  /**
+   * 五日级别视图（客户端纯计算）：量比档位 + 日界。klines 已是窗口内 5 个交易日
+   * 的 1m bar（取数处截取），这里只做同分钟对齐与分档，不再改序列。
+   */
+  const fiveDayBars = useMemo(
+    () => (chartInterval === FIVE_DAY_INTERVAL && klinesInterval === FIVE_DAY_INTERVAL && klines !== null
+      ? toFiveDayBars(activeMarket, klines)
+      : null),
+    [chartInterval, klinesInterval, klines, activeMarket],
+  )
+  const fiveDayProps = useMemo(() => {
+    if (fiveDayBars === null || fiveDayBars.length === 0) return undefined
+    return {
+      dayStarts: fiveDayDayStarts(fiveDayBars).map(ms => Math.floor(ms / 1000)),
+      volumeTiers: fiveDayBars.map(bar => bar.tier),
+    }
+  }, [fiveDayBars])
+
   const readoutIndex = hoverIndex ?? (klines !== null && klines.length > 0 ? klines.length - 1 : null)
   const readoutCandle = klines !== null && readoutIndex !== null ? klines[readoutIndex] : undefined
   // 读数行昨收跟随十字光标：悬停历史K线取当前周期序列的前一根收盘价（日K下即该日
@@ -807,7 +869,8 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     )
   }
 
-  const intervals = MARKET_INTERVALS[market] ?? ['1d']
+  // 级别胶囊条：连接器级别 + 能力驱动时插入的 '5d'（当前路由诚实可得才出现）。
+  const intervals = chartIntervals(market, providers[market])
   const color = directionColor(stats.pct ?? 0, colorMode)
 
   /**
@@ -1102,6 +1165,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                 volumes={volumes}
                 dataKey={`${market}:${symbol}:${chartInterval}`}
                 intraday={INTRADAY_INTERVALS.has(chartInterval)}
+                {...(fiveDayProps !== undefined ? { fiveDay: fiveDayProps } : {})}
                 colorMode={colorMode}
                 mainOverlays={mainOverlays}
                 subIndicators={subIndicators}
@@ -1268,6 +1332,20 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
               />
             )}
             </div>
+            {/* 五日级别量比档位图例：阈值 1/2/3、基准日与无前值语义（色块与图上
+                成交量同源，深色主题用等语义高对比色） */}
+            {viewTab === 'chart' && chartInterval === FIVE_DAY_INTERVAL && (
+              <div className={css.ratioLegend} data-dshtrading-ratio-legend="">
+                <span className={css.ratioLegendTitle}>{t('volumeRatio.legend.title')}</span>
+                {FIVE_DAY_LEGEND_TIERS.map(tier => (
+                  <span key={tier} className={css.ratioLegendItem} data-dshtrading-ratio-tier={tier}>
+                    <span className={css.ratioLegendSwatch} style={{ background: fiveDayVolumeColor(tier, dark) }} />
+                    <span>{t(RATIO_TIER_KEY[tier])}</span>
+                  </span>
+                ))}
+                <span className={css.ratioLegendNote}>{t('volumeRatio.legend.note')}</span>
+              </div>
+            )}
           </div>
           {(orderbookOpen || tradeDeskOpen) && (
             <div className={css.rightSidebar}>
@@ -1623,9 +1701,10 @@ function PickerGroup(props: {
 
 /**
  * 适用范围编辑器：按市场分行，每行一个启用开关；展开后勾选该市场的 K 线级别。
- * 每市场另有「全部级别」「清空」批量动作。级别集取 MARKET_INTERVALS（系统支持的
- * 市场与级别，不新增支持）。未选任何级别时明确显示「未选择级别」——空选择绝不
- * 解释为全部。勾选态与开关都来自实例的 applyScope 有效值（条目缺席 = 全部应用）。
+ * 每市场另有「全部级别」「清空」批量动作。级别集按该市场当前路由的图表能力
+ * （supportedIntervals：能力驱动时含客户端视图级别 '5d'）。未选任何级别时明确
+ * 显示「未选择级别」——空选择绝不解释为全部。勾选态与开关都来自实例的
+ * applyScope 有效值（条目缺席 = 全部应用）。
  */
 function IndicatorScopeEditor(props: {
   instance: IndicatorInstance
@@ -1634,11 +1713,12 @@ function IndicatorScopeEditor(props: {
 }): React.JSX.Element {
   const { instance, t, onChange } = props
   const [expanded, setExpanded] = useState<MarketId | null>(null)
+  const providers = useMarketProviders()
   return (
     <div className={css.scopeEditor} data-dshtrading-scope="">
       <div className={css.scopeHint}>{t('indicator.scope.hint')}</div>
       {SCOPE_MARKETS.map(target => {
-        const supported = MARKET_INTERVALS[target] ?? []
+        const supported = supportedIntervals(target, providers[target])
         const scene = effectiveMarketScope(instance, target, supported)
         const open = expanded === target
         const commit = (next: IndicatorMarketScope): void => {
@@ -1782,7 +1862,10 @@ function fmtDay(ms: number): string {
 function readInterval(market: MarketId): string {
   try {
     const raw = localStorage.getItem(INTERVAL_KEY_PREFIX + market)
-    if (raw !== null && (MARKET_INTERVALS[market] ?? []).includes(raw)) return raw
+    // 读回判据按「市场是否属于五日级别可能可得族」，不按当前路由——路由切换
+    // （tencent ↔ eastmoney）不该把记住的级别静默丢掉；真正的路由回落由
+    // QuoteStage 的能力守卫负责改写。
+    if (raw !== null && rememberableInterval(market, raw)) return raw
   } catch { /* 忽略 */ }
   return '1d'
 }
