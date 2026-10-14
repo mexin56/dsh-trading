@@ -129,8 +129,15 @@ Status: implemented
   30 例，含档位夹取、显示窗口区间、只显示 1 日时量比不退化、滚轮方向与攒格/至多一档、
   行模式与页模式），`pnpm build` 全绿（lib/client.js 1.29 MB 未压缩 + gzip）。
   `scripts/typecheck-gate.mjs` 口径下该包 client tsconfig 错误数 21 ≤ 基线 23，无新增。
-- 该级别的 trading-web 真机验收（真实行情下默认 1 日铺满、滚轮逐档到 5 日）由验收环节
-  另行记录，本笔记不预先声称。
+- trading-web 真机验收（2026-10-14 午间休市，cn 牧原股份走 eastmoney 可得 5 日 1m）：
+  进入五日级别默认 1 个交易日（横轴只有 09:30–11:30 一段、日界竖线 0 条）；滚轮向后
+  每格 +1 档，日界竖线计数 0→1→2→3→4（即显示 1→5 个交易日），再向前滚一格回到 3 条
+  （4 个交易日）。N=1 时成交量仍是量比分档色而非全中性灰，直接证明比较窗口不随档位
+  收缩。手法：宿主 tokenized URL + 无头 Chrome CDP 真实 `Input.dispatchMouseEvent`
+  （type=mouseWheel）+ 读 `[data-dshtrading-day-boundary]` 计数与截图；profile 内
+  file: 副本是物化拷贝（pnpm 对内容变化不重连），本次以 `cp -R lib/. <副本>/lib/`
+  按内容同步重建产物，未走「删副本 + `dsh plugin install`」那条需要 registry 的物化
+  路径（无实例在跑，产物一致，事后按内容复核）。
 - `pnpm --filter @dshtrading/client-ui-trading test` 52 个文件 454 例全绿（含新增纯计算
   21 例：分组与 5 日截取、跨日同分钟对齐、缺分钟/缺日、首日基准、除零与全零量、
   边界 r=1/2/3、时区 cn/hk/us、颜色映射、能力三态与级别记忆读回；market-providers 4 例
