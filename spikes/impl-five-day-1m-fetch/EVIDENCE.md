@@ -20,7 +20,7 @@ cd /Users/zcl/code/dsh-trading
 |---|---|---|---|---|---|---|---|---|
 | cn | 600519.SH | trends2 `ndays=5`（`limit=2500`） | 1002 | 5 | 是 | 964 | 96.2% | 242 |
 | hk | 00700.HK | trends2 `ndays=5`（`limit=2500`） | 1362 | 5 | 是 | 1324 | 97.2% | 28 |
-| us | AAPL | chart `interval=1m&range=7d`（`limit=2500`） | 2500 | 7 | 是 | 不适用（雅虎无该缺陷） | 不适用 | 0（返回窗口内无空开价行） |
+| us | AAPL | chart `interval=1m&range=7d`（`limit=2500`） | 2500 | 7 | 是 | 不适用（雅虎无该缺陷） | 不适用 | 0 |
 
 - cn：`first=2026-10-08T01:30:00Z`（= 10-08 09:30 CST），`last=2026-10-14T02:07:00Z`（= 10-14 10:07 CST）。
 - hk：同窗口，`last` 同为 10-14 10:07 HKT。
