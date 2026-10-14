@@ -12,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-- 本地重建后重启桌面壳，必须用干净环境启动：`env -u DSH_HOME -u ELECTRON_RUN_AS_NODE open "/Applications/DSH Trading.app"`，或让用户从 Dock 点开（Dock 走 launchd 环境，不带会话变量）；禁止直接从可能携带这两个变量的 shell 裸 `open`。`open --env DSH_HOME=…` 只覆盖 home，其余变量照旧继承，所以发布抽查命令也要 `env -u ELECTRON_RUN_AS_NODE` 包一层（操作入口见 [dsh-trading-release skill](../../../skills/dsh-trading-release/SKILL.md) 第 5 节）。
+- 本地重建后重启桌面壳用干净环境启动：`env -u ELECTRON_RUN_AS_NODE open "/Applications/DSH Trading.app"`，或让用户从 Dock 点开（Dock 走 launchd 环境，不带会话变量）；`ELECTRON_RUN_AS_NODE` 是必剥的那个。继承来的 `DSH_HOME` 自 2026-10-14 起由壳内判据忽略（非 `-trading` 一律丢弃并告警，见 [2026-09-08-desktop-default-trading-home](2026-09-08-desktop-default-trading-home.md)），`-u DSH_HOME` 只剩稳妥作用。`open --env DSH_HOME=…` 只覆盖 home，其余变量照旧继承，所以发布抽查命令也要 `env -u ELECTRON_RUN_AS_NODE` 包一层（操作入口见 [dsh-trading-release skill](../../../skills/dsh-trading-release/SKILL.md) 第 5 节）。
 - 重建验证路径固化为：`cd desktop && npm run prepare-runtime && npm run dist:mac`，随后核对 `dist/mac-arm64/DSH Trading.app/Contents/Resources/runtime/VERSION.json` 的 `builtAt`，再替换 `/Applications`。
 - profile 新鲜度不靠 mtime 猜：用 `shasum` 对比工作区 `packages/<pkg>/lib` 产物、`~/.dsh-trading/profiles/trading-web/node_modules`、staged 载荷、已安装 app 载荷四方内容。实证发现 profile 安装与工作区构建产物是 pnpm 硬链接耦合（同 inode），工作区 `pnpm -r build` 后 profile 直接共享新产物——这是本机 pnpm 行为的实证，不是契约，每次仍以哈希对比为准。
 - `~/.dsh-trading/profiles/trading-web` 归属不变，继续 CLI 维护：加包/刷新走 `scripts/sync-profile-overrides.mjs` + `dsh plugin --profile trading-web` + `scripts/refresh-trading-web-profile.sh`，app/runtime 与全新 home 走完整安装包。不为启用应用内「立即更新」增量而让桌面壳接管这个 profile（见 Alternatives considered）。
@@ -38,7 +38,7 @@ Status: implemented
 
 ## Alternatives considered
 
-- 给桌面壳加「检测到 DSH_HOME 指向非 trading home 时告警」的启动诊断：能兜底但为一个启动姿势问题改主进程启动逻辑，收益不抵面；先以操作纪律覆盖，若再撞同类坑再评估。
+- ~~给桌面壳加「检测到 DSH_HOME 指向非 trading home 时告警」的启动诊断~~ **改判为已采纳（2026-10-14）**：当天同类坑再次命中——从 agent/harness 会话 shell 启动的桌面壳沿用了继承来的 `DSH_HOME=~/.dsh`，`dsh-host.log` 第 9-15 行出现 `[desktop] dsh home: /Users/zcl/.dsh`、`[dsh-home] 解析到缺省 home /Users/zcl/.dsh，而本机存在 /Users/zcl/.dsh-trading` 告警与 `profile action: reseed`（把 `~/.dsh/profiles/trading-web` 播种成 app 载荷），该 home 下没有 `indicators/custom.json` ⇒ 自定义指标（KDAS）为空。改判：判据落在 `selectDshHome` 里（非 `-trading` 的显式值一律忽略 + main.cjs 告警），与 CLI wrapper 同判据，见 [2026-09-08-desktop-default-trading-home](2026-09-08-desktop-default-trading-home.md)；原先「收益不抵面、先以操作纪律覆盖」的估计被这次实证推翻。
 - 删除 `~/.dsh/profiles/trading-web` 残留：属用户数据清理，未获授权不执行；且它在 DSH_HOME=~/.dsh 显式覆盖场景仍有语义，只报告不动。
 - 重建后顺手 reseed CLI profile（删标记重装）：多余——硬链接耦合已让 profile 拿到新构建，重装反而引入 cohort 漂移风险。
 - **给 CLI 维护的 profile 补 `.dsh-desktop-seed.json` 换 supported=true**：能点亮应用内增量，但等于把这个开发工作流 profile 交给桌面壳所有——下一次 runtime stamp 变更就按 reseed 语义整体重装 node_modules，覆盖 `file:` 工作区链接与 CLI 安装代数（[dual-dsh-scope-symbol](../bug-fix/2026-09-05-desktop-host-dual-dsh-scope-symbol.md) 已因此否决 app 独占/reseed profile），拒绝；桌面端更新继续走 CLI 刷新 + 干净重启。
@@ -46,8 +46,8 @@ Status: implemented
 
 ## Consequences
 
-- 桌面壳从 shell 启动时继承的任何 `DSH_HOME` 都会压过内置缺省；排障时先看 `dsh-host.log` 的 `[desktop] dsh home:` 行确认实际 home。
-- harness 派生的 shell 启动 Electron 应用（`open`，或从该 shell 起的任何 Electron 进程）被 `ELECTRON_RUN_AS_NODE=1` 降级时，`dsh-host.log` 零痕迹：排查「点图标没反应」要先看启动 shell 的环境，而不是只看 home/profile。
+- 桌面壳从 shell 启动时继承的 `DSH_HOME` 已不再压过内置缺省：非 `-trading` 的值被忽略，`dsh-host.log` 会同时打出 `[desktop] ignored inherited DSH_HOME=…` 与 `[desktop] dsh home:` 两行——排障时按后者确认实际 home。
+- harness 派生的 shell 启动 Electron 应用（`open`，或从该 shell 起的任何 Electron 进程）被 `ELECTRON_RUN_AS_NODE=1` 降级时，`dsh-host.log` 仍零痕迹（进程没进主进程、日志流没建立）：排查「点图标没反应」要先看启动 shell 的环境，而不是只看 home/profile。渲染进程内部的 warn/error 不在此列——2026-10-14 起它们以 `[renderer]` 前缀落盘。
 - 本机桌面部署的应用内「立即更新」增量通道不可用（CLI 维护 profile 无 seed 标记）：桌面端拿新版 = `scripts/refresh-trading-web-profile.sh` 刷新 profile + 干净重启，app/runtime 走完整安装包。
 - 「Failed to load plugins / failed to import loader entry」的真实根因是 dsh 会话 cookie 按端口累积、撑爆宿主请求头预算（HTTP 431），见 [auth cookie note](../bug-fix/2026-09-11-desktop-auth-cookie-header-overflow.md)；本条早期把同一现象归因于 profile cohort 链接漂移属误判——Electron cookie jar 持久化在 user-data-dir，重启 app 不清，归一后仍复现。
 - `~/.dsh/profiles/trading-web` 残留现状：已被本次误启动 reseed 成新载荷 + 旧用户层 patch，处于「若用 DSH_HOME=~/.dsh 启动会崩 overlay」状态；正常 Dock 启动（`~/.dsh-trading`）不触碰它。
@@ -61,3 +61,12 @@ Status: implemented
 - **app 自带 seed 通路（全新 home / 新装分发）**：`desktop/resources/runtime/profile-trading` 也要重建，否则新机器播种的是旧载荷。本次 `npm run build-runtime` + `npm run dist:mac`，`VERSION.json` `builtAt 2026-10-03T06:42:18Z`、`profileHash 56ef2856…`；产物 `dsh-trading-desktop-0.2.1-mac-arm64.{dmg,zip}`（`dist/`），已安装 `/Applications/DSH Trading.app` 一并替换（旧包备份 `/tmp/DSH-Trading-0.5.0-old-20261003144557.app`）。脚本已按第 28 行的同版本陷阱在 install 前清生成态 lock+node_modules。
 - **验证（本次实测）**：安装位 `profile-trading/.../base/lib/market-tools.js` 与工作区构建产物 md5 同为 `1be4a276…`；`desktop npm test` 29/29；干净启动（`env -u DSH_HOME -u ELECTRON_RUN_AS_NODE open`）后 `dsh-host.log` 出现 `GUI ready`，tokenized URL `curl` 得 303，带 cookie 的 `/dshtrading/api/markets` 返回六市场 `crypto:okx / us:yahoo / cn:tencent / hk:tencent / futures:hithink / global:jin10`；headless Chrome 截图 1600x1000 实测渲染（左栏自选、行情/策略/知识库/特殊指标页签、空态提示），非空白页（unique colors 1571、主色占比 0.949）。冒烟用的临时实例已停止，临时 home 已清理。
 - **口径边界**：本次只验证「桌面壳起来、六市场在、UI 正常渲染」这条链路；不构成对"桌面内实际调工具返回值形状"的运行时验收——那属于 headless 侧已记录的证据范围。
+
+## 补充实证（2026-10-14：home 守卫生效 + 渲染进程 console 落盘）
+
+KDAS「自建指标不见了」排查引出两处壳内改动，都以 `dsh-host.log` 的可读性为落点：
+
+- **home 守卫**：`selectDshHome` 只沿用路径含 `-trading` 的显式 `DSH_HOME`，其余忽略并回落 `~/.dsh-trading`，main.cjs 打 `[desktop] ignored inherited DSH_HOME=<值> (not a trading home); using <回落 home>`（判据与 CLI wrapper 同源，见 [2026-09-08-desktop-default-trading-home](2026-09-08-desktop-default-trading-home.md)）。
+- **渲染进程 console 落盘**：`main.cjs` 在 `createWindow` 挂 `webContents.on('console-message')`，`runtime.cjs` 的纯函数 `consoleMessageArgsToEntry` + `rendererLogLine` 决定收谁、长什么样：只收 warning/error（info/log/debug 丢弃），行形如 `[renderer] <level> <sourceId>:<行号> <message>`，换行收成空格，整行上限 500 字符、超出加 `...[truncated]` 且来源段保留在正文前。未捕获异常另走两条主进程可见通道，同样打 `[renderer]` 行：`preload-error`（preload 未处理异常）与 `render-process-gone`（`reason=` / `exitCode=`，`clean-exit` 是正常退出、不落盘）。
+- **API 形状核对依据**：desktop 实际 Electron 为 44.1.1（`desktop/package.json` 的 `^44.1.1`，`desktop/node_modules/electron/package.json` 与 `dist/version` 实测 44.1.1）。该版本 `webContents.on('console-message')` 首参是详情对象 `Event<WebContentsConsoleMessageEventParams>`（`{message, level: 'info'|'warning'|'error'|'debug', lineNumber, sourceId, frame}`），其后仍带已标 deprecated 的位置参数 `(level: number, message: string, line: number, sourceId: string)`（`node_modules/electron/electron.d.ts:16209` 与结构定义 `:24277`）；`preload-error` 为 `(event, preloadPath: string, error: Error)`（`:17447`），`render-process-gone` 为 `(event, details: RenderProcessGoneDetails)`（`:17466`）。改动按详情对象取值，同时兼容位置形状（`consoleMessageArgsToEntry`）。
+- **口径边界**：以上是静态核对（类型声明 + 单测），本次未启动 Electron 做运行时验证——`[renderer]` 行的真实到达路径未验证；页内未捕获 JS 异常是否经 Chromium 以 level=error 的 console-message 到达也未验证（`render-process-gone` / `preload-error` 是明确的兜底通道）。

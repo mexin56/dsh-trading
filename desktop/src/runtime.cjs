@@ -44,21 +44,45 @@ function resolveRuntimePaths(resourcesRoot, platform, arch, packaged = true) {
 }
 
 /**
- * Resolve the DSH home the desktop app manages: an explicit DSH_HOME from the
- * environment wins, everything else falls back to ~/.dsh-trading — this is the
- * DSH Trading dedicated shell, and Dock launches carry no environment, so the
- * trading home must be the built-in default (2026-09-08; 宿主 dsh CLI 自身的
- * 缺省仍是 ~/.dsh，两者语义不同是刻意的).
+ * 显式 DSH_HOME 能不能被这个专用壳沿用：判据是路径含 `-trading`，与 CLI wrapper
+ * `scripts/home/dsh-trading` 的 `case "${DSH_HOME:-}" in *-trading*` 是同一条判据。
+ * 判据落在**展开之前**的原文上，所以被接受的是 `~/.dsh-trading`、`~/probe-trading`
+ * 这类值——冒烟/取证用的独立 home 因此要命名成 *-trading。
+ * @param {unknown} value
+ */
+function isTradingHomePath(value) {
+  return typeof value === 'string' && value.includes('-trading');
+}
+
+/**
+ * 选出这个壳管理的 DSH home，并把被忽略的显式值回报给调用方（供告警用）。不是
+ * trading home 的一切显式值都回落到 ~/.dsh-trading：这是 DSH Trading 专用壳，
+ * Dock 直点不带环境变量，trading home 必须是内置缺省（2026-09-08；宿主 dsh CLI
+ * 自身的缺省仍是 ~/.dsh，两者语义不同是刻意的）。空白视为未设；`~` 与 `~/x` 对
+ * 判据接受的值照旧展开。
+ *
+ * 为什么要判据（2026-10-14 实证）：agent/harness 会话 shell 把宿主实例的
+ * DSH_HOME=~/.dsh 整份带给 GUI app，无条件沿用就落回宿主 home——交易数据、
+ * 自定义指标与 profile 全写错地方（dsh-host.log 第 9-15 行 `[desktop] dsh home:
+ * /Users/zcl/.dsh` + `[dsh-home] 解析到缺省 home …` 告警 + `profile action:
+ * reseed` 把 ~/.dsh/profiles/trading-web 播种成 app 载荷，而该 home 下没有
+ * indicators/custom.json ⇒ 自定义指标为空）。
  * @param {NodeJS.ProcessEnv} env
  * @param {string} homedir
+ * @returns {{ home: string, ignored: string | undefined }} `ignored` 是被忽略的显式
+ *   DSH_HOME 原文（未展开）；未忽略时为 undefined。
  */
-function resolveDshHome(env, homedir) {
+function selectDshHome(env, homedir) {
+  const tradingHome = path.join(homedir, '.dsh-trading');
   const configured = env.DSH_HOME;
-  if (configured === undefined || configured.trim() === '') return path.join(homedir, '.dsh-trading');
+  if (configured === undefined || configured.trim() === '') return { home: tradingHome, ignored: undefined };
   const trimmed = configured.trim();
-  if (trimmed === '~') return homedir;
-  if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) return path.join(homedir, trimmed.slice(2));
-  return path.resolve(trimmed);
+  if (!isTradingHomePath(trimmed)) return { home: tradingHome, ignored: trimmed };
+  if (trimmed === '~') return { home: homedir, ignored: undefined };
+  if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+    return { home: path.join(homedir, trimmed.slice(2)), ignored: undefined };
+  }
+  return { home: path.resolve(trimmed), ignored: undefined };
 }
 
 /**
@@ -577,6 +601,74 @@ function writeHostCliShims(hostDir, options = {}) {
   return { posix, windows };
 }
 
+/** 落盘的级别集合：GUI 的 info/debug 噪音大，丢弃。 */
+const RENDERER_LOG_LEVELS = new Set(['warning', 'error']);
+
+/** 单行上限：渲染进程一条超长 message 就能把宿主日志撑爆。 */
+const RENDERER_LOG_LINE_MAX = 500;
+
+/** 截断标记：留下「这条被截过」的证据，而不是静默丢尾。 */
+const RENDERER_LOG_TRUNCATION = ' ...[truncated]';
+
+/** 旧版位置参数级别的名字表：0 起依次 verbose / info / warning / error。 */
+const LEGACY_CONSOLE_LEVELS = ['verbose', 'info', 'warning', 'error'];
+
+/**
+ * 级别归一：Electron 用 warning/error 命名（`console.warn` 到达时是 warning），
+ * 旧版位置参数是 0..3 的数字。其余（verbose/info/debug）不落盘。
+ * @param {unknown} level
+ * @returns {'warning' | 'error' | undefined}
+ */
+function normalizeRendererLevel(level) {
+  const name = typeof level === 'string' ? level.toLowerCase() : LEGACY_CONSOLE_LEVELS[level];
+  const canonical = name === 'warn' ? 'warning' : name;
+  return RENDERER_LOG_LEVELS.has(canonical) ? canonical : undefined;
+}
+
+/**
+ * Electron 的 webContents `console-message` 在 44.1.1 把字段放进详情对象
+ * (`Event<WebContentsConsoleMessageEventParams>`)，同时保留早先的位置参数
+ * (event, level, message, line, sourceId)（node_modules/electron/electron.d.ts:16209
+ * 与 :24277）。两种形状归一到同一个描述对象，落盘代码只认这一个形状。
+ * @param {unknown} details
+ * @param {number} [legacyLevel]
+ * @param {string} [legacyMessage]
+ * @param {number} [legacyLine]
+ * @param {string} [legacySourceId]
+ * @returns {{ level: unknown, message: unknown, source: unknown, line: unknown }}
+ */
+function consoleMessageArgsToEntry(details, legacyLevel, legacyMessage, legacyLine, legacySourceId) {
+  const isDetails = details !== null && typeof details === 'object' && typeof details.message === 'string';
+  if (isDetails) {
+    return { level: details.level, message: details.message, source: details.sourceId, line: details.lineNumber };
+  }
+  return { level: legacyLevel, message: legacyMessage, source: legacySourceId, line: legacyLine };
+}
+
+/**
+ * 渲染进程 console 消息 → 一条 dsh-host.log 行；该丢弃的级别返回 undefined。
+ * 行形如 `[renderer] <level> <sourceId>:<行号> <message>`，来源放在正文前面，
+ * 这样超长消息被截断后仍能指认是谁在哪一行打的。
+ * @param {{ level: unknown, message: unknown, source?: unknown, line?: unknown }} entry
+ * @returns {string | undefined}
+ */
+function rendererLogLine(entry) {
+  const level = normalizeRendererLevel(entry.level);
+  if (level === undefined) return undefined;
+  const source = entry.source === undefined || entry.source === '' ? '' : String(entry.source);
+  const lineNumber = entry.line === undefined || entry.line === null ? '' : ':' + String(entry.line);
+  const head = '[renderer] ' + level + (source === '' ? '' : ' ' + source + lineNumber);
+  // 一条 message 里的换行必须收成一个空格：宿主日志一行一条记录。
+  const message = String(entry.message === undefined ? '' : entry.message).replace(/\s*\r?\n\s*/g, ' ');
+  const budget = RENDERER_LOG_LINE_MAX - head.length - 1 - RENDERER_LOG_TRUNCATION.length;
+  const body = message.length <= budget ? message : message.slice(0, Math.max(0, budget)) + RENDERER_LOG_TRUNCATION;
+  const rendered = head + ' ' + body;
+  // sourceId 畸形超长时仍守住单行上限。
+  return rendered.length <= RENDERER_LOG_LINE_MAX
+    ? rendered
+    : rendered.slice(0, RENDERER_LOG_LINE_MAX - RENDERER_LOG_TRUNCATION.length) + RENDERER_LOG_TRUNCATION;
+}
+
 module.exports = {
   SEED_MARKER,
   RUNTIME_STAMP,
@@ -584,7 +676,13 @@ module.exports = {
   hostCliShimPath,
   writeHostCliShims,
   normalizeProfileCohort,
-  resolveDshHome,
+  isTradingHomePath,
+  selectDshHome,
+  RENDERER_LOG_LEVELS,
+  RENDERER_LOG_LINE_MAX,
+  normalizeRendererLevel,
+  consoleMessageArgsToEntry,
+  rendererLogLine,
   resolvePrimaryRuntime,
   readStampFile,
   PROFILE_SEED_FILES,

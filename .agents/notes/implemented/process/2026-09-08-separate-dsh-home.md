@@ -14,7 +14,8 @@ Status: implemented
 1. **宿主支持 `DSH_HOME`**：`@deepseek-ai/dsh-home-paths` 优先级为 显式配置 >
    `$DSH_HOME`（空白视为未设，支持 `~` 展开）> `~/.dsh`；`--profile` 从
    `$DSH_HOME/profiles` 解析。桌面壳 `main.cjs` 亦从 env 读
-   `resolveDshHome(...)` 并 seed `$DSH_HOME/profiles/trading-web`。
+   `selectDshHome(...)`（只认含 `-trading` 的显式值）并 seed
+   `$DSH_HOME/profiles/trading-web`。
 2. **dsh-trading 包不感知 `DSH_HOME`**：7 个包（client-ui-trading、strategies、
    indicators、knowledge、watchlist、holdings、client-ui-updater）共 14 处默认
    数据路径写死 `path.join(os.homedir(), '.dsh', ...)`——只设 env 时插件数据仍落

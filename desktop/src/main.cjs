@@ -19,7 +19,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   resolveRuntimePaths,
-  resolveDshHome,
+  selectDshHome,
   resolvePrimaryRuntime,
   readStampFile,
   runtimeSeedStamp,
@@ -31,6 +31,8 @@ const {
   parseTokenUrlLine,
   formatHostExitDiagnostic,
   toNodeImportSpecifier,
+  consoleMessageArgsToEntry,
+  rendererLogLine,
 } = require('./runtime.cjs');
 
 const READY_TIMEOUT_MS = 180000;
@@ -220,6 +222,22 @@ function createWindow() {
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     }
   });
+  // 渲染进程的 warn/error 落盘：客户端插件失败（例如 trading 客户端取自定义指标
+  // 失败）此前只在渲染进程 console 里说，宿主日志零痕迹，排障时无法指认触发点
+  // （2026-10-14 KDAS 排查）。info/log/debug 丢弃——GUI 的 info 噪音大。
+  window.webContents.on('console-message', (...args) => {
+    const line = rendererLogLine(consoleMessageArgsToEntry(...args));
+    if (line !== undefined) pushLogLine(line);
+  });
+  // 未捕获异常的另外两条主进程可见通道：preload 抛未处理异常、渲染进程消失。
+  window.webContents.on('preload-error', (_event, preloadPath, error) => {
+    pushLogLine('[renderer] preload error ' + preloadPath + ': ' + String(error && error.message ? error.message : error));
+  });
+  window.webContents.on('render-process-gone', (_event, details) => {
+    // clean-exit 是正常退出（关窗/退出 app），只有异常消失才是证据。
+    if (details.reason === 'clean-exit') return;
+    pushLogLine('[renderer] render process gone: reason=' + details.reason + ' exitCode=' + String(details.exitCode));
+  });
   return window;
 }
 
@@ -262,10 +280,13 @@ async function pruneStaleAuthCookies(targetSession, origin) {
 
 async function boot() {
   const runtime = resolveRuntimePaths(resourcesRoot(), process.platform, process.arch, app.isPackaged);
-  const home = resolveDshHome(process.env, os.homedir());
+  const { home, ignored } = selectDshHome(process.env, os.homedir());
+  // 继承来的显式 DSH_HOME 若是宿主 home，落回它就会把交易数据、自定义指标与
+  // profile 写进宿主实例（2026-10-14 实证），所以忽略它并明说忽略了什么。
+  if (ignored !== undefined) {
+    pushLogLine('[desktop] ignored inherited DSH_HOME=' + ignored + ' (not a trading home); using ' + home);
+  }
   pushLogLine('[desktop] dsh home: ' + home);
-
-
 
   if (!fs.existsSync(runtime.nodeBin)) throw new Error('bundled Node runtime is missing: ' + runtime.nodeBin);
   if (!fs.existsSync(runtime.hostBin)) throw new Error('bundled dsh host is missing: ' + runtime.hostBin);

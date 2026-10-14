@@ -11,7 +11,11 @@ const {
   resolveRuntimePaths,
   hostCliShimPath,
   writeHostCliShims,
-  resolveDshHome,
+  isTradingHomePath,
+  selectDshHome,
+  consoleMessageArgsToEntry,
+  rendererLogLine,
+  RENDERER_LOG_LINE_MAX,
   resolvePrimaryRuntime,
   profileSeedFingerprint,
   runtimeSeedStamp,
@@ -40,11 +44,122 @@ test('resolveRuntimePaths keeps the per-platform dir unpackaged', () => {
   assert.equal(devWin.nodeBin, path.join('/res', 'runtime', 'node-win32-x64', 'node.exe'));
 });
 
-test('resolveDshHome: explicit env wins, default is the trading home', () => {
-  assert.equal(resolveDshHome({}, '/home/u'), path.join('/home/u', '.dsh-trading'));
-  assert.equal(resolveDshHome({ DSH_HOME: '' }, '/home/u'), path.join('/home/u', '.dsh-trading'));
-  assert.equal(resolveDshHome({ DSH_HOME: '~/custom' }, '/home/u'), path.join('/home/u', 'custom'));
-  assert.equal(resolveDshHome({ DSH_HOME: '/data/dsh' }, '/home/u'), path.resolve('/data/dsh'));
+test('operator falls back to the trading home when DSH_HOME is unset or blank', () => {
+  // Given a Dock launch (no environment) and an explicitly blank value
+  // When the managed home is selected
+  const unset = selectDshHome({}, '/home/u');
+  const blank = selectDshHome({ DSH_HOME: '   ' }, '/home/u');
+
+  // Then both fall back to the built-in trading home and nothing is reported as ignored
+  assert.equal(unset.home, path.join('/home/u', '.dsh-trading'));
+  assert.equal(unset.ignored, undefined);
+  assert.equal(blank.home, path.join('/home/u', '.dsh-trading'));
+  assert.equal(blank.ignored, undefined);
+});
+
+test('operator keeps an explicit trading-home DSH_HOME and still expands ~', () => {
+  // Given explicit DSH_HOME values whose path contains -trading
+  // When the managed home is selected
+  const tilde = selectDshHome({ DSH_HOME: '~/probe-trading' }, '/home/u');
+  const absolute = selectDshHome({ DSH_HOME: '/data/dsh-trading' }, '/home/u');
+  const windowsTilde = selectDshHome({ DSH_HOME: '~\\probe-trading' }, '/home/u');
+
+  // Then the value wins with ~ expanded against the home directory, and nothing is reported as ignored
+  assert.equal(tilde.home, path.join('/home/u', 'probe-trading'));
+  assert.equal(absolute.home, path.resolve('/data/dsh-trading'));
+  assert.equal(windowsTilde.home, path.join('/home/u', 'probe-trading'));
+  assert.deepEqual([tilde.ignored, absolute.ignored, windowsTilde.ignored], [undefined, undefined, undefined]);
+  assert.equal(isTradingHomePath('/Users/u/.dsh-trading'), true);
+});
+
+test('operator ignores an inherited DSH_HOME that is not a trading home', () => {
+  // Given the host instance's home, an unrelated custom home, and a bare ~ inherited by the launch shell
+  // When the managed home is selected
+  const host = selectDshHome({ DSH_HOME: '~/.dsh' }, '/home/u');
+  const custom = selectDshHome({ DSH_HOME: '~/custom' }, '/home/u');
+  const hostAbsolute = selectDshHome({ DSH_HOME: '/Users/u/.dsh' }, '/home/u');
+
+  // Then each is ignored, reported verbatim for the warning line, and the trading home is used
+  assert.equal(host.home, path.join('/home/u', '.dsh-trading'));
+  assert.equal(host.ignored, '~/.dsh');
+  assert.equal(custom.home, path.join('/home/u', '.dsh-trading'));
+  assert.equal(custom.ignored, '~/custom');
+  assert.equal(hostAbsolute.home, path.join('/home/u', '.dsh-trading'));
+  assert.equal(hostAbsolute.ignored, '/Users/u/.dsh');
+  assert.equal(isTradingHomePath('/Users/u/.dsh'), false);
+  assert.equal(isTradingHomePath(undefined), false);
+});
+
+test('operator logs renderer warnings and errors and drops the info chatter', () => {
+  // Given console messages the renderer emits, at every level
+  // When they are rendered as host log lines
+  const warn = rendererLogLine({
+    level: 'warning',
+    message: 'failed to fetch custom indicators',
+    source: 'http://127.0.0.1:8888/plugins/??a.js',
+    line: 42,
+  });
+  const error = rendererLogLine({ level: 'error', message: 'Uncaught Error: boom' });
+  const alias = rendererLogLine({ level: 'warn', message: 'aliased warning' });
+
+  // Then warn/error reach the log prefixed [renderer] with their source, and info/debug do not
+  assert.equal(
+    warn,
+    '[renderer] warning http://127.0.0.1:8888/plugins/??a.js:42 failed to fetch custom indicators',
+  );
+  assert.equal(alias, '[renderer] warning aliased warning');
+  assert.equal(error, '[renderer] error Uncaught Error: boom');
+  assert.equal(rendererLogLine({ level: 'info', message: 'GUI ready' }), undefined, 'info must be dropped');
+  assert.equal(rendererLogLine({ level: 'debug', message: 'trace' }), undefined, 'debug must be dropped');
+});
+
+test('operator stores a renderer message as a single log line', () => {
+  // Given a renderer message that spans several lines
+  // When it is rendered
+  const line = rendererLogLine({ level: 'warn', message: 'first\n  second\nthird' });
+
+  // Then the newlines collapse to spaces so one message stays one record
+  assert.equal(line, '[renderer] warning first second third');
+});
+
+test('operator truncates an overlong renderer log line at the 500 character cap', () => {
+  // Given a renderer message far longer than the line budget
+  const message = 'x'.repeat(4000);
+
+  // When it is rendered
+  const line = rendererLogLine({
+    level: 'error',
+    message,
+    source: 'http://127.0.0.1:8888/plugins/??b.js',
+    line: 7,
+  });
+
+  // Then the line fits the cap, keeps the head that identifies it, and marks the truncation
+  assert.equal(line.length, RENDERER_LOG_LINE_MAX);
+  assert.ok(line.startsWith('[renderer] error http://127.0.0.1:8888/plugins/??b.js:7 '));
+  assert.ok(line.endsWith('...[truncated]'));
+});
+
+test('operator reads both the Electron details object and its legacy positional arguments', () => {
+  // Given Electron 44's console-message details object and the older positional form
+  // When each is normalized for the log formatter
+  const details = consoleMessageArgsToEntry(
+    { level: 'warning', message: 'w', sourceId: 'http://x/a.js', lineNumber: 3 }, 1, 'deprecated');
+  const legacy = consoleMessageArgsToEntry({ preventDefault() {} }, 2, 'old warning', 9, 'http://x/b.js');
+
+  // Then both describe the same fields, and the legacy 0..3 level maps to its name
+  assert.deepEqual(details, { level: 'warning', message: 'w', source: 'http://x/a.js', line: 3 });
+  assert.deepEqual(legacy, { level: 2, message: 'old warning', source: 'http://x/b.js', line: 9 });
+  assert.equal(rendererLogLine(legacy), '[renderer] warning http://x/b.js:9 old warning');
+  assert.equal(
+    rendererLogLine(consoleMessageArgsToEntry({ preventDefault() {} }, 3, 'legacy error')),
+    '[renderer] error legacy error',
+  );
+  assert.equal(
+    rendererLogLine(consoleMessageArgsToEntry({ preventDefault() {} }, 1, 'legacy info')),
+    undefined,
+    'legacy verbose/info levels are dropped too',
+  );
 });
 
 test('profileAction seeds missing, leaves user-managed, reseeds stale', () => {
