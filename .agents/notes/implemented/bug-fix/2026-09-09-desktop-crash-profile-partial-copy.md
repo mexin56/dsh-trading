@@ -34,7 +34,7 @@ Status: implemented
 
 - 模拟 Dock 启动（`env -u DSH_HOME open -a "DSH Trading"`）：日志 `[desktop] dsh home: /Users/zcl/.dsh-trading`、宿主进程存活、`dsh web: http://127.0.0.1:<port>/?token=...`、`GUI ready, loading the tokenized URL`。
 - 对照证据：带会话环境 `DSH_HOME=/Users/zcl/.dsh` 启动则 `[desktop] dsh home: /Users/zcl/.dsh`，宿主崩在旧 home profile 的 dsh-session-archive / dsh-im 缺包上——证明桌面壳尊重显式环境变量、且旧 home 残留确实会崩，本次修复与用户的 Dock 路径无关。
-- UI 验证按 [ui-screenshot-verify 手法]：宿主 HTTP curl 303（token 鉴权重定向，存活证据）+ 无头 Chrome `--timeout` 截图——自选列表（加密/美股/A股/港股）、行情/策略/知识库页签、K 线面板完整渲染。
+- UI 验证按 [ui-screenshot-verify 手法]：宿主 HTTP curl 303（token 鉴权重定向，存活证据）+ 无头 Chrome `--timeout` 截图——自选列表（加密/美股/A股/港股）、行情/策略/知识库页签、K 线面板完整渲染。（括号内是 2026-09-09 当时的手法；现行 UI 验证手法见 [2026-09-04 Note 的 2026-10-14 Decision](../process/2026-09-04-ui-verification-hosted-http-headless-chrome.md)——桌面壳 + Computer Use 窗口级点击/截图。）
 - 仓库工作树零改动（纯环境修复），pnpm build 产物新鲜度对齐 main。
 
 ## Alternatives considered

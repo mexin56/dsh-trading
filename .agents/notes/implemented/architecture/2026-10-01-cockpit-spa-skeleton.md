@@ -40,6 +40,8 @@
 
 ## 截图验证（ui-screenshot-verify）与它抓出的两个真问题
 
+> 本节是 2026-10-01/02 当时按旧 skill 拍下的证据（临时回环服务 + 无头 Chrome 截图），保留原样；现行 UI 验证手法见 [2026-09-04 Note 的 2026-10-14 Decision](../process/2026-09-04-ui-verification-hosted-http-headless-chrome.md)——桌面壳 + Computer Use 窗口级点击/截图。
+
 流程按 skill：临时服务（仅回环、跑完即杀）托管 dist + 夹具卡片 → curl 可达性 → headless Chrome 截图（--headless=new --timeout）→ **读图断言**（不是"跑完没报错"）。
 
     GET /            -> 200 text/html
