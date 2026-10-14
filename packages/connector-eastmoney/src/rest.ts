@@ -199,6 +199,13 @@ const DATACENTER_EMPTY_CODE = 9201
 /** 数据中心报表端点的 Referer（该域校验 data.eastmoney.com，与 push2 的 quote 域不同）。 */
 const DATACENTER_REFERER = 'https://data.eastmoney.com/'
 
+/**
+ * 1m 的 trends2 取数窗口 = 最近 5 个交易日（2026-10-14 实测，spikes/impl-five-day-1m-probe/）：
+ * ndays=5 是上游上限（ndays=10 → rc:1），单次返回 cn 约 1205 根 / hk 约 1655 根
+ * （实测每个交易日 cn 241 根、hk 331 根）。
+ */
+const TRENDS_NDAYS = 5
+
 /** 数据中心 /api/data/v1/get 响应骨架（列名随报表而变，data 行按需解析）。 */
 interface EastmoneyDataCenterResponse {
   success?: boolean
@@ -292,11 +299,11 @@ export class EastmoneyRestClient {
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
-    const { secid, market } = toEastmoneySecid(symbol, this.market)
-    // 港股 1m 走 trends2 分时端点（当日完整分钟序列；kline/get 的 klt=1 对 hk 未实证，
-    // 5m/日 K 已实证可用，spikes/impl-eastmoney-hk/）。
-    if (market === 'hk' && interval === '1m') {
-      return this.getHkIntradayTrends(secid, limit)
+    const { secid } = toEastmoneySecid(symbol, this.market)
+    // 1m 对 cn 与 hk 都走 trends2：kline/get 的 klt=1 只有当日（实测 lmt 与 end 均被
+    // 上游忽略），多日窗口的唯一通道是 trends2 的 ndays；5m 及以上仍走 kline/get。
+    if (interval === '1m') {
+      return this.getIntradayTrends(secid, limit)
     }
     const klt = mapIntervalToKlt(interval)
     const stepMs = parseIntervalMs(interval)
@@ -341,30 +348,61 @@ export class EastmoneyRestClient {
   }
 
   /**
-   * 港股当日分时（trends2，ndays=1 = 最近一个交易日全天分钟序列，非交易日自然回落）。
-   * 行格式同 kline/get：`时间,开,收,高,低,量,额,均价`；时间 'YYYY-MM-DD HH:MM' 为 UTC+8 墙钟。
+   * trends2 分时序列（最近 TRENDS_NDAYS 个交易日的全天分钟序列，非交易日自然回落到
+   * 最近交易日；cn/hk 共用）。行格式同 kline/get：`时间,开,收,高,低,量,额,均价`；
+   * 时间为 'YYYY-MM-DD HH:MM' 的 UTC+8 墙钟，序列按时间升序。
+   *
+   * 开价的派生语义（2026-10-14 实测，spikes/impl-five-day-1m-probe/）：ndays>1 时上游
+   * 只给「当日」那一段真实开价，历史交易日每根的第 2 列恒为 0.00（cn 241/241、hk 331/331
+   * 全为 0），close 与腾讯 m1 逐根一致、high/low 有 ≤0.5 的舍入差。因此：
+   *   - 上游 open > 0：用上游值（当日、以及非当日偶发的真实值）；
+   *   - 上游 open = 0：用同日前一根的 close（1m 粒度下，前一根收盘是该分钟开盘价
+   *     最佳可得近似）；每个交易日首根没有同日前一根，取该根自身 close——该根自洽，
+   *     且不把上游未给出的跨日缺口算进来（午后首根用的是午休前最后一根的 close，
+   *     午休不移动价格，同日前一根语义成立）。
+   * 重建后的 open 是派生值而非取数：实测有少量根的开价落在该根 [low, high] 之外
+   * （2026-10-14 五日窗口：cn 242/1002、hk 28/1362，多数是最小变动价位量级，单根最大
+   * 差值 cn 2.99 元，来自 2026-10-09 09:31 的分钟边界跳空）——消费方按「近似开价」用。
    */
-  private async getHkIntradayTrends(secid: string, limit: number): Promise<Kline[]> {
-    const url = `${this.historyBaseUrl}/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=1&iscr=0`
+  private async getIntradayTrends(secid: string, limit: number): Promise<Kline[]> {
+    const url = `${this.historyBaseUrl}/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=${TRENDS_NDAYS}&iscr=0`
     const res = await this.requestJson<{ data?: { trends?: string[] } }>(url)
     const trends = res.data?.trends
     if (!Array.isArray(trends)) return []
 
     const stepMs = parseIntervalMs('1m')
     const klines: Kline[] = []
+    let prevDay = ''
+    let prevClose = 0
     for (const line of trends) {
       const parts = line.split(',')
       if (parts.length < 6) continue
-      const openTime = utc8WallTimeToEpochMs(parts[0] ?? '')
+      const timeStr = parts[0] ?? ''
+      const day = timeStr.slice(0, 10)
+      const close = parseFloat(parts[2] ?? '')
+      const upstreamOpen = parseFloat(parts[1] ?? '')
+      const open = upstreamOpen > 0
+        ? upstreamOpen
+        : day === prevDay && prevClose > 0 ? prevClose : close
+
+      let openTime: number
+      try {
+        openTime = utc8WallTimeToEpochMs(timeStr)
+      } catch {
+        continue
+      }
+
       klines.push({
         openTime,
-        open: parseFloat(parts[1] ?? ''),
+        open,
         high: parseFloat(parts[3] ?? ''),
         low: parseFloat(parts[4] ?? ''),
-        close: parseFloat(parts[2] ?? ''),
+        close,
         volume: parseFloat(parts[5] ?? ''),
         closeTime: openTime + stepMs - 1,
       })
+      prevDay = day
+      prevClose = close
     }
     return klines.slice(-Math.max(limit, 1))
   }

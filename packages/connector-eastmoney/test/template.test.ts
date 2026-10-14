@@ -163,6 +163,74 @@ describe('EastmoneyRestClient.getKlines', () => {
       volume: 5000,
     })
   })
+
+  it('用户取 A 股 1m 时走 trends2 五日窗口，open=0 的行按同日前一根 close 重建', async () => {
+    // Given 上游 trends2 ndays=5 的真实形态：历史交易日每根的第 2 列为 0.00，
+    // 当日那一段带真实开价（2026-10-14 实测，spikes/impl-five-day-1m-probe/p4）
+    const { impl, urls } = stubFetch([
+      {
+        match: '/api/qt/stock/trends2/get',
+        body: {
+          data: {
+            trends: [
+              '2026-10-13 14:59,0.00,1285.00,1287.80,1280.14,1200,1540000.000,0.00',
+              '2026-10-13 15:00,0.00,1286.00,1288.00,1284.00,1300,1670000.000,0.00',
+              '2026-10-14 09:30,1287.00,1287.50,1288.20,1286.80,900,1160000.000,0.00',
+              '2026-10-14 09:31,1287.50,1290.00,1290.50,1287.20,1100,1420000.000,0.00',
+            ],
+          },
+        },
+      },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户以五日窗口的取数上限查询 A 股 1m
+    const klines = await client.getKlines('600519.SH', '1m', 2500)
+
+    // Then 请求落在 trends2 且 ndays=5（kline/get 的 klt=1 只有当日，表达不了五日窗口）
+    expect(urls[0]).toContain('/api/qt/stock/trends2/get')
+    expect(urls[0]).toContain('secid=1.600519')
+    expect(urls[0]).toContain('ndays=5')
+    // Then 序列升序，closeTime 与 1m 名义时长自洽
+    expect(klines.map((k) => k.openTime)).toEqual([
+      Date.UTC(2026, 9, 13, 6, 59),
+      Date.UTC(2026, 9, 13, 7, 0),
+      Date.UTC(2026, 9, 14, 1, 30),
+      Date.UTC(2026, 9, 14, 1, 31),
+    ])
+    expect(klines[0]!.closeTime).toBe(Date.UTC(2026, 9, 13, 6, 59) + 60_000 - 1)
+    // Then 开价重建：上游为 0 时同日前一根 close；窗口内某交易日首根用该根自身 close；
+    // 当日（上游有真实开价）直接用上游值
+    expect(klines.map((k) => k.open)).toEqual([1285.0, 1285.0, 1287.0, 1287.5])
+    expect(klines.map((k) => k.close)).toEqual([1285.0, 1286.0, 1287.5, 1290.0])
+  })
+
+  it('用户请求的 limit 小于 trends2 窗口时只拿到最近 limit 根', async () => {
+    // Given 上游回 3 根（跨两个交易日）
+    const { impl } = stubFetch([
+      {
+        match: '/api/qt/stock/trends2/get',
+        body: {
+          data: {
+            trends: [
+              '2026-10-13 15:00,0.00,1286.00,1288.00,1284.00,1300,1670000.000,0.00',
+              '2026-10-14 09:30,1287.00,1287.50,1288.20,1286.80,900,1160000.000,0.00',
+              '2026-10-14 09:31,1287.50,1290.00,1290.50,1287.20,1100,1420000.000,0.00',
+            ],
+          },
+        },
+      },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户只要最近 2 根
+    const klines = await client.getKlines('600519.SH', '1m', 2)
+
+    // Then 截尾保留最新两根，跨日首根仍用该根自身 close
+    expect(klines).toHaveLength(2)
+    expect(klines.map((k) => k.openTime)).toEqual([Date.UTC(2026, 9, 14, 1, 30), Date.UTC(2026, 9, 14, 1, 31)])
+    expect(klines.map((k) => k.open)).toEqual([1287.0, 1287.5])
+  })
 })
 
 describe('EastmoneyRestClient.listInstruments', () => {
@@ -213,13 +281,15 @@ describe('EastmoneyRestClient 港股面（2026-09-08，实证 spikes/impl-eastmo
     })
   })
 
-  it('港股 1m 走 trends2 分时端点，时间按 UTC+8 墙钟锚定（与机器时区无关）', async () => {
+  it('用户取港股 1m 时拿到 trends2 五日窗口，时间按 UTC+8 墙钟锚定（与机器时区无关）', async () => {
+    // Given 上游 trends2 回五日窗口：前一日全部 0.00 开价，当日带真实开价
     const { impl, urls } = stubFetch([
       {
         match: '/api/qt/stock/trends2/get',
         body: {
           data: {
             trends: [
+              '2026-09-07 15:59,0.00,436.000,436.400,435.600,100000,43600000.000,436.0000',
               '2026-09-08 09:30,437.000,437.000,437.400,437.000,159900,69876300.000,437.0000',
               '2026-09-08 09:31,437.400,436.200,437.800,435.800,183300,80009040.000,436.7288',
             ],
@@ -228,14 +298,21 @@ describe('EastmoneyRestClient 港股面（2026-09-08，实证 spikes/impl-eastmo
       },
     ])
     const client = new EastmoneyRestClient({ fetchImpl: impl, market: 'hk' })
+
+    // When 用户查询港股 1m
     const klines = await client.getKlines('00700.HK', '1m', 500)
+
+    // Then 请求是港股 secid 的五日 trends2 窗口
     expect(urls[0]).toContain('secid=116.00700')
-    expect(urls[0]).toContain('ndays=1')
-    expect(klines).toHaveLength(2)
-    // 2026-09-08 09:30 UTC+8 = 2026-09-08 01:30 UTC
-    expect(klines[0].openTime).toBe(Date.UTC(2026, 8, 8, 1, 30))
-    expect(klines[0]).toMatchObject({ open: 437, close: 437, high: 437.4, low: 437, volume: 159900 })
-    expect(klines[1]).toMatchObject({ open: 437.4, close: 436.2 })
+    expect(urls[0]).toContain('ndays=5')
+    expect(klines).toHaveLength(3)
+    // Then 时间锚定 UTC+8 墙钟（2026-09-08 09:30 UTC+8 = 2026-09-08 01:30 UTC）
+    expect(klines[1]!.openTime).toBe(Date.UTC(2026, 8, 8, 1, 30))
+    expect(klines[0]!.openTime).toBe(Date.UTC(2026, 8, 7, 7, 59))
+    // Then 开价：上游 0 的首根用该根自身 close，当日带真实开价的行用上游值
+    expect(klines.map((k) => k.open)).toEqual([436.0, 437.0, 437.4])
+    expect(klines[1]).toMatchObject({ open: 437, close: 437, high: 437.4, low: 437, volume: 159900 })
+    expect(klines[2]).toMatchObject({ open: 437.4, close: 436.2 })
   })
 
   it('港股 5m 走 kline/get（klt=5，secid=116）', async () => {
