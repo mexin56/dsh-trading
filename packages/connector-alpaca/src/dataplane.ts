@@ -17,14 +17,24 @@ import type { MarketDataService, TradeRegistry } from '@dshtrading/api'
 import {
   AlpacaMarketDataService,
   AlpacaTradeService,
+  Config,
   credentialRefsFor,
   resolveCredentials,
   TRADING_US_MARKET_DATA_KEY,
   TRADING_US_TRADE_KEY,
-  type Config,
 } from './index.js'
 
 export const inject: string[] = []
+
+// 本行 patch 行只写 `enabled: true`：loader 只认**本模块**导出的 Config 补默认值
+// （cordis resolveConfig：模块无 Config → 行 config 原样传入）。缺它就丢掉 schema 默认
+// 值（env/dryRun/liveTrading/凭证 ref），AlpacaTradeService 构造时 OrderIntentLedger
+// 拿不到 environment（requireNonEmpty 抛 TypeError）→ 整行 apply 失败 → 行情与交易两个
+// 服务都不注册（2026-10-14 实测）。与主行共用同一份 schema，避免默认值漂移。
+export { Config }
+
+/** schema 的运行时可调用形态（schemastery 校验即补默认值）；手工 ctx 不传 config 时用。 */
+const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)
 
 /** 注册表服务的最小消费面（鸭式，不定死接口——连接器对 router 包保持零依赖）。 */
 interface MarketDataRegistryLike {
@@ -48,7 +58,7 @@ const ROUTER_PROVIDER = 'alpaca'
 /** 市场短前缀。 */
 const MARKET = 'us'
 
-export function apply(ctx: Context, config: Config): void {
+export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {

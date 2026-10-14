@@ -154,10 +154,16 @@ loader 只从 patch 行 `name` 解析到的**那个模块**读 `name` / `inject`
   （2026-09-13 桌面壳实测，host 退出码 1）。
 - 子路径行（`@dshtrading/connector-<slug>/dataplane` → `lib/dataplane.js`）同理：`Config`
   必须由**该模块**导出。否则行内不写 `config:` 时 loader 按 `undefined` 传入，`apply` 一读
-  `config.enabled` 就崩（同实测）。与主行共用同一份 schema（`export { Config } from './plugin.js'`）
+  `config.enabled` 就崩（同实测）；即便行内写了 `config:`，缺 schema 也意味着**一个默认值都补
+  不上**——服务构造若依赖某个 schema 默认字段（如 `env` 喂 OrderIntentLedger），抛错会让整行
+  加载失败、行情与交易两个服务一起不注册（qmt/alpaca 2026-10-14 实测，见
+  [note](../../.agents/notes/implemented/bug-fix/2026-10-14-qmt-alpaca-dataplane-config-schema.md)）。
+  与主行共用同一份 schema（`export { Config } from './plugin.js'`）
   避免默认值漂移，`apply(ctx, config?: Partial<Config>)` 再对 `undefined` 给缺省（单测/第三方宿主手搓 ctx）。
 - 护栏：包内单测直接 `apply(fakeCtx, config)` **不会**暴露这类缺失（假 ctx 不读 loader 元信息）。
-  至少留一条「根入口重导出 name/inject/Config/apply」断言（connector-jin10/test/plugin.test.ts 先例），
+  至少留一条「根入口重导出 name/inject/Config/apply」断言（connector-jin10/test/plugin.test.ts 先例）
+  与一条**加载路径**断言——`resolveConfig(子入口模块, 行 config)` 必须补出 schema 默认值、且
+  `apply` 后行情与交易两张注册表都拿到 `(market, provider)`（connector-qmt/test/dataplane.test.ts 先例），
   并在真实宿主（桌面壳/CLI）启动一次核对日志无 `failed to apply loader entry`。
 
 ---

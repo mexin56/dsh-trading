@@ -1,14 +1,24 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService, TradeRegistry } from '@dshtrading/api'
 import {
+  Config,
   QmtMarketDataService,
   QmtTradeService,
   TRADING_CN_MARKET_DATA_KEY,
   TRADING_CN_TRADE_KEY,
-  type Config,
 } from './index.js'
 
 export const inject: string[] = []
+
+// 本行 patch 行只写 `enabled: true`：loader 只认**本模块**导出的 Config 补默认值
+// （cordis resolveConfig：模块无 Config → 行 config 原样传入）。缺它就丢掉 schema 默认
+// 值（env/dryRun/liveTrading/gatewayUrl），QmtTradeService 构造时 OrderIntentLedger 拿
+// 不到 environment（requireNonEmpty 抛 TypeError）→ 整行 apply 失败 → 行情与交易两个
+// 服务都不注册（2026-10-14 实测）。与主行共用同一份 schema，避免默认值漂移。
+export { Config }
+
+/** schema 的运行时可调用形态（schemastery 校验即补默认值）；手工 ctx 不传 config 时用。 */
+const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)
 
 interface MarketDataRegistryLike {
   register(market: string, provider: string, service: MarketDataService): () => void
@@ -27,7 +37,7 @@ function resolveTradeRegistry(ctx: Context): TradeRegistry | undefined {
 const ROUTER_PROVIDER = 'qmt'
 const MARKET = 'cn'
 
-export function apply(ctx: Context, config: Config): void {
+export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
