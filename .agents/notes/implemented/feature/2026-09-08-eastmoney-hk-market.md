@@ -68,5 +68,7 @@ Status: implemented
   与 `spikes/impl-five-day-1m-probe/`（上游能力普查 + 腾讯 m1 交叉验证）。
 - 同批契约变更：雅虎 `getKlines` 增加 `limit` 形参并在 REST 层 `slice(-limit)`
   （1m `range=7d` 整窗 2730 根、覆盖 7 个会话）；桥 `MAX_KLINE_LIMIT` 1000 → 2500。
-  客户端「五日」级别由 `packages/client-ui-trading` 的 `five-day-series.ts` 消费。
+  客户端「五日」级别由同批的 `packages/client-ui-trading` 工作包消费（自选迷你走势仍按
+  最后一根 bar 的本地日过滤：cn 241 根/日、hk 331 根/日都小于 1m 的 500 根取数上限，
+  当日序列完整落在窗口内，行为不变）。
 
