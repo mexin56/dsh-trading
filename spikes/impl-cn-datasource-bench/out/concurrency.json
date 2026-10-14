@@ -1,0 +1,842 @@
+{
+  "rounds": [
+    {
+      "source": "tencent",
+      "concurrency": 1,
+      "requests": 20,
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 40.2,
+          "p50": 41.7,
+          "p95": 42.7,
+          "max": 228.4,
+          "mean": 50.8
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 39.9,
+          "p50": 41.1,
+          "p95": 42.2,
+          "max": 180.5,
+          "mean": 48
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 11.5,
+          "p50": 11.5,
+          "p95": 11.5,
+          "max": 11.5,
+          "mean": 11.5
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.5,
+          "p50": 0.5,
+          "p95": 0.5,
+          "max": 0.5,
+          "mean": 0.5
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 125.1,
+          "p50": 125.1,
+          "p95": 125.1,
+          "max": 125.1,
+          "mean": 125.1
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 137.1,
+          "mean": 6.9
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 39.8,
+          "p50": 40.8,
+          "p95": 41.9,
+          "max": 42.6,
+          "mean": 40.8
+        },
+        "bytes": {
+          "n": 20,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "statusDist": {
+        "200": 20
+      },
+      "wallMsTotal": 1016.1
+    },
+    {
+      "source": "tencent",
+      "concurrency": 4,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 16,
+        "failed": 0,
+        "reusedConnections": 12,
+        "errors": [],
+        "statusDist": {
+          "200": 16
+        },
+        "wallMs": {
+          "n": 16,
+          "min": 153,
+          "p50": 226.2,
+          "p95": 302.8,
+          "max": 302.8,
+          "mean": 225.2
+        },
+        "httpMs": {
+          "n": 16,
+          "min": 152.5,
+          "p50": 226,
+          "p95": 302.7,
+          "max": 302.7,
+          "mean": 225
+        },
+        "dnsMs": {
+          "n": 4,
+          "min": 1.3,
+          "p50": 1.6,
+          "p95": 1.8,
+          "max": 1.8,
+          "mean": 1.6
+        },
+        "tcpMs": {
+          "n": 4,
+          "min": 0.3,
+          "p50": 0.3,
+          "p95": 0.7,
+          "max": 0.7,
+          "mean": 0.5
+        },
+        "tlsMs": {
+          "n": 4,
+          "min": 113.4,
+          "p50": 119.1,
+          "p95": 135.7,
+          "max": 135.7,
+          "mean": 122.3
+        },
+        "connMs": {
+          "n": 16,
+          "min": 0,
+          "p50": 0,
+          "p95": 138,
+          "max": 138,
+          "mean": 31.1
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 37,
+          "p50": 225.9,
+          "p95": 302.6,
+          "max": 302.6,
+          "mean": 193.6
+        },
+        "bytes": {
+          "n": 16,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "statusDist": {
+        "200": 16
+      },
+      "wallMsTotal": 304.1
+    },
+    {
+      "source": "tencent",
+      "concurrency": 8,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 16,
+        "failed": 0,
+        "reusedConnections": 8,
+        "errors": [],
+        "statusDist": {
+          "200": 16
+        },
+        "wallMs": {
+          "n": 16,
+          "min": 160.3,
+          "p50": 192.1,
+          "p95": 233.7,
+          "max": 233.7,
+          "mean": 192.2
+        },
+        "httpMs": {
+          "n": 16,
+          "min": 159.3,
+          "p50": 191.4,
+          "p95": 232.7,
+          "max": 232.7,
+          "mean": 191.6
+        },
+        "dnsMs": {
+          "n": 8,
+          "min": 1.8,
+          "p50": 2.6,
+          "p95": 5.1,
+          "max": 5.1,
+          "mean": 3.1
+        },
+        "tcpMs": {
+          "n": 8,
+          "min": 0.6,
+          "p50": 0.8,
+          "p95": 1.1,
+          "max": 1.1,
+          "mean": 0.8
+        },
+        "tlsMs": {
+          "n": 8,
+          "min": 118.4,
+          "p50": 123.3,
+          "p95": 141.8,
+          "max": 141.8,
+          "mean": 127.6
+        },
+        "connMs": {
+          "n": 16,
+          "min": 0,
+          "p50": 0,
+          "p95": 147.5,
+          "max": 147.5,
+          "mean": 65.8
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 36.4,
+          "p50": 43.8,
+          "p95": 232.6,
+          "max": 232.6,
+          "mean": 125.4
+        },
+        "bytes": {
+          "n": 16,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "statusDist": {
+        "200": 16
+      },
+      "wallMsTotal": 238.5
+    },
+    {
+      "source": "tencent",
+      "concurrency": 16,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 16,
+        "failed": 0,
+        "reusedConnections": 0,
+        "errors": [],
+        "statusDist": {
+          "200": 16
+        },
+        "wallMs": {
+          "n": 16,
+          "min": 155.3,
+          "p50": 173.5,
+          "p95": 192.2,
+          "max": 192.2,
+          "mean": 172.6
+        },
+        "httpMs": {
+          "n": 16,
+          "min": 154.6,
+          "p50": 173.4,
+          "p95": 192,
+          "max": 192,
+          "mean": 172.4
+        },
+        "dnsMs": {
+          "n": 16,
+          "min": 2.8,
+          "p50": 4,
+          "p95": 8.5,
+          "max": 8.5,
+          "mean": 5.4
+        },
+        "tcpMs": {
+          "n": 16,
+          "min": 0.7,
+          "p50": 1.2,
+          "p95": 6.3,
+          "max": 6.3,
+          "mean": 2.1
+        },
+        "tlsMs": {
+          "n": 16,
+          "min": 112.4,
+          "p50": 122.2,
+          "p95": 137.1,
+          "max": 137.1,
+          "mean": 124.1
+        },
+        "connMs": {
+          "n": 16,
+          "min": 117.8,
+          "p50": 131.4,
+          "p95": 146.4,
+          "max": 146.4,
+          "mean": 131.6
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 36.5,
+          "p50": 39.6,
+          "p95": 45.5,
+          "max": 45.5,
+          "mean": 40.6
+        },
+        "bytes": {
+          "n": 16,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "statusDist": {
+        "200": 16
+      },
+      "wallMsTotal": 195.9
+    },
+    {
+      "source": "eastmoney",
+      "concurrency": 1,
+      "requests": 20,
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 39.7,
+          "p50": 40.5,
+          "p95": 45.4,
+          "max": 133.1,
+          "mean": 45.6
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 39.4,
+          "p50": 40.1,
+          "p95": 45.2,
+          "max": 129.4,
+          "mean": 45
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 2.5,
+          "p50": 2.5,
+          "p95": 2.5,
+          "max": 2.5,
+          "mean": 2.5
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 1.2,
+          "p50": 1.2,
+          "p95": 1.2,
+          "max": 1.2,
+          "mean": 1.2
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 84.9,
+          "p50": 84.9,
+          "p95": 84.9,
+          "max": 84.9,
+          "mean": 84.9
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 88.6,
+          "mean": 4.4
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 39,
+          "p50": 39.9,
+          "p95": 41.6,
+          "max": 45.1,
+          "mean": 40.2
+        },
+        "bytes": {
+          "n": 20,
+          "min": 213,
+          "p50": 213,
+          "p95": 213,
+          "max": 213,
+          "mean": 213
+        }
+      },
+      "statusDist": {
+        "200": 20
+      },
+      "wallMsTotal": 911.6
+    },
+    {
+      "source": "eastmoney",
+      "concurrency": 4,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 0,
+        "failed": 16,
+        "reusedConnections": 0,
+        "errors": [
+          {
+            "i": 0,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 1,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 2,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 3,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 4,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 5,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 6,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 7,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 8,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 9,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 10,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 11,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 12,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 13,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 14,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 15,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          }
+        ],
+        "statusDist": {
+          "network-error": 16
+        },
+        "wallMs": null,
+        "httpMs": {
+          "n": 16,
+          "min": 148,
+          "p50": 346.6,
+          "p95": 686.3,
+          "max": 686.3,
+          "mean": 408.7
+        },
+        "dnsMs": {
+          "n": 16,
+          "min": 2.6,
+          "p50": 170.7,
+          "p95": 526.1,
+          "max": 526.1,
+          "mean": 249.4
+        },
+        "tcpMs": {
+          "n": 16,
+          "min": 0.4,
+          "p50": 0.7,
+          "p95": 4.2,
+          "max": 4.2,
+          "mean": 1.3
+        },
+        "tlsMs": {
+          "n": 16,
+          "min": 80.1,
+          "p50": 87.3,
+          "p95": 98.6,
+          "max": 98.6,
+          "mean": 87.6
+        },
+        "connMs": {
+          "n": 16,
+          "min": 83.9,
+          "p50": 267.6,
+          "p95": 617.3,
+          "max": 617.3,
+          "mean": 338.3
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 64.2,
+          "p50": 69.4,
+          "p95": 79,
+          "max": 79,
+          "mean": 70.5
+        },
+        "bytes": {
+          "n": 16,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "statusDist": {
+        "network-error": 16
+      },
+      "wallMsTotal": 687.6
+    },
+    {
+      "source": "eastmoney",
+      "concurrency": 8,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 0,
+        "failed": 16,
+        "reusedConnections": 0,
+        "errors": [
+          {
+            "i": 0,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 1,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 2,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 3,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 4,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 5,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 6,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 7,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 8,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 9,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 10,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 11,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 12,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 13,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 14,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 15,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          }
+        ],
+        "statusDist": {
+          "network-error": 16
+        },
+        "wallMs": null,
+        "httpMs": {
+          "n": 16,
+          "min": 145.9,
+          "p50": 181.4,
+          "p95": 345.7,
+          "max": 345.7,
+          "mean": 243.8
+        },
+        "dnsMs": {
+          "n": 16,
+          "min": 1.8,
+          "p50": 3.4,
+          "p95": 181,
+          "max": 181,
+          "mean": 83.2
+        },
+        "tcpMs": {
+          "n": 16,
+          "min": 0.5,
+          "p50": 1,
+          "p95": 2.7,
+          "max": 2.7,
+          "mean": 1.2
+        },
+        "tlsMs": {
+          "n": 16,
+          "min": 75.7,
+          "p50": 89.2,
+          "p95": 99.4,
+          "max": 99.4,
+          "mean": 87.9
+        },
+        "connMs": {
+          "n": 16,
+          "min": 80.6,
+          "p50": 101.1,
+          "p95": 272.1,
+          "max": 272.1,
+          "mean": 172.4
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 64.5,
+          "p50": 70.1,
+          "p95": 80.3,
+          "max": 80.3,
+          "mean": 71.4
+        },
+        "bytes": {
+          "n": 16,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "statusDist": {
+        "network-error": 16
+      },
+      "wallMsTotal": 348.8
+    },
+    {
+      "source": "eastmoney",
+      "concurrency": 16,
+      "requests": 16,
+      "summary": {
+        "samples": 16,
+        "ok": 0,
+        "failed": 16,
+        "reusedConnections": 0,
+        "errors": [
+          {
+            "i": 0,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 1,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 2,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 3,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 4,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 5,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 6,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 7,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 8,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 9,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 10,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 11,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 12,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 13,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 14,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          },
+          {
+            "i": 15,
+            "error": "TradingServiceError: Eastmoney network error: socket hang up"
+          }
+        ],
+        "statusDist": {
+          "network-error": 16
+        },
+        "wallMs": null,
+        "httpMs": {
+          "n": 16,
+          "min": 157.3,
+          "p50": 174.9,
+          "p95": 184.9,
+          "max": 184.9,
+          "mean": 174.1
+        },
+        "dnsMs": {
+          "n": 16,
+          "min": 4.5,
+          "p50": 6.7,
+          "p95": 9,
+          "max": 9,
+          "mean": 6.5
+        },
+        "tcpMs": {
+          "n": 16,
+          "min": 2.2,
+          "p50": 3.2,
+          "p95": 6.6,
+          "max": 6.6,
+          "mean": 3.7
+        },
+        "tlsMs": {
+          "n": 16,
+          "min": 80.4,
+          "p50": 93.6,
+          "p95": 101.2,
+          "max": 101.2,
+          "mean": 93.7
+        },
+        "connMs": {
+          "n": 16,
+          "min": 92,
+          "p50": 103,
+          "p95": 111.1,
+          "max": 111.1,
+          "mean": 103.9
+        },
+        "serverMs": {
+          "n": 16,
+          "min": 65.3,
+          "p50": 69.8,
+          "p95": 75.4,
+          "max": 75.4,
+          "mean": 70.2
+        },
+        "bytes": {
+          "n": 16,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "statusDist": {
+        "network-error": 16
+      },
+      "wallMsTotal": 190.4
+    }
+  ]
+}

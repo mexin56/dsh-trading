@@ -39,8 +39,11 @@ Status: implemented
 - 符号归一近恒等：接受规范形 \`600519.SH\` / 裸 6 位 \`600519\` / \`sh600519\` 前缀形，
   输出恒规范形；裸 6 位按首位推断 SH/SZ/BJ（6/9→SH，0/2/3→SZ，4/8→BJ，覆盖北交所 348 只）；
   港股与加密形态显式拒绝（fail-closed，绝不串味到 A 股查询）。
-- 周期词汇 \`1m/3m/5m/15m/30m/1h/2h/1d/1w/1M\` 映射上游 AmazingData \`Period\`；
-  上游未覆盖的周期（\`4h\`/\`3d\`）抛 \`TRADING_UNSUPPORTED_INTERVAL\`，不静默降级。
+- 周期白名单 \`1m/3m/5m/15m/30m/1h/2h/1d/1w/1M\`；连接器**不做映射**，\`interval\` 原样透传给 xysz-api
+  （\`_INTERVAL_TO_PERIOD\` 映射表在封装服务侧，不在本仓）。白名单外的规范周期（\`4h\`/\`3d\` 等）
+  抛 \`TRADING_UNSUPPORTED_INTERVAL\`，不静默降级。
+- 上游官方手册的 \`Period\` 枚举有 13 项（含 \`min10\`/季度/年线），**宽于**本白名单；白名单内已实证的只有
+  \`1d/1m/1w/1M\`，\`3m/5m/15m/30m/1h/2h\` 六项零真实响应证据。
 - 错误映射：上游 400 → \`TRADING_UNSUPPORTED_SYMBOL\`；5xx/502 → \`TRADING_UPSTREAM_ERROR\`；
   不可达 → \`TRADING_NETWORK\`（消息带地址，便于用户识别隧道/防火墙问题）；非 JSON → \`TRADING_EXCHANGE_ERROR\`。
 - 接线走注册表模式（\`(cn, xysz)\` 注册进 \`tradingMarketDataRegistry\`，不占根市场键），
@@ -111,3 +114,7 @@ Status: implemented
 - 证明「装到 ubuntu 服务器」：服务器 \`~/venvs/py\` 内 \`import tgw\` 与 \`import AmazingData\` 均成功，
   \`ad.login(...)\` 返回 \`True\` 且获得权限码与 \`A010010001\` 等 FunctionIdPermission；
   \`get_code_list(EXTRA_STOCK_A)\` 返回 5570 只（SH 2320 / SZ 2902 / BJ 348）。
+- 该名册是**纯股票**列表（\`security_type=EXTRA_STOCK_A\`），**不含 ETF 与指数**——上游另有 \`EXTRA_ETF\` /
+  \`EXTRA_INDEX_A\` 名册，连接器未暴露（证据 \`spikes/impl-xysz-capability-recon/EVIDENCE.md\` §2.2）。
+- 与「公开源 vs 券商源」的横向对照（周期 / 品种 / 历史深度 / 时延并发实测与选型判据）见
+  [2026-10-14-cn-public-data-source-comparison.md](2026-10-14-cn-public-data-source-comparison.md)。

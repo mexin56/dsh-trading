@@ -64,4 +64,5 @@
 | 移动端落仓方案（含 Expo/RN 退役裁决）与分发决策 | 卫星仓 dsh-trading-bot 的 docs/client/mobile-app-plan.md |
 | systemd 安装清单 | 卫星仓 dsh-trading-bot 的 deploy/README.md |
 | 加密永续与 TradFi 永续（形态轴、名册/行情分流、检索面、GUI 形态面） | docs/roadmap/crypto-perp-and-tradfi.md（设计与卡拆分）、docs/guides/symbol-vocabulary.md（词汇权威）、.agents/notes/implemented/feature/2026-10-08-crypto-perp-gui-instrument-form.md（GUI 落地与判据） |
+| cn 数据源横向对比（周期 / 品种 / 历史深度 / 并发时延实测、选型口径） | docs/guides/cn-data-source-comparison.md |
 | 历史决策（Owning Note） | .agents/notes/implemented/ |

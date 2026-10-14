@@ -1,0 +1,80 @@
+{
+  "rows": [
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "600519.SH",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/coverage-eastmoney-cn-600519.SH.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 19.566542000000013,
+        "tcpMs": 2.015999999999991,
+        "tlsMs": 132.09387500000003,
+        "connMs": 153.67641700000001,
+        "serverMs": 70.11066599999998,
+        "ttfbMs": 223.787083,
+        "totalMs": 223.787083,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "000001.SZ",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/coverage-eastmoney-cn-000001.SZ.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 1.8093339999999785,
+        "tcpMs": 0.5409999999999968,
+        "tlsMs": 148.20404100000002,
+        "connMs": 150.554375,
+        "serverMs": 88.12337500000001,
+        "ttfbMs": 238.67775,
+        "totalMs": 238.67775,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "300750.SZ",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/coverage-eastmoney-cn-300750.SZ.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 2.908457999999996,
+        "tcpMs": 0.9934590000000298,
+        "tlsMs": 152.460333,
+        "connMs": 156.36225000000002,
+        "serverMs": 72.69345800000008,
+        "ttfbMs": 229.0557080000001,
+        "totalMs": 229.0557080000001,
+        "reused": false
+      },
+      "reused": false
+    }
+  ],
+  "aborted": "eastmoney: 连续 3 次传输层失败（socket hang up），按预算保护停止后续抽样"
+}

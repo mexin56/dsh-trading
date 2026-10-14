@@ -1,0 +1,114 @@
+{
+  "rows": [
+    {
+      "source": "tencent",
+      "kind": "batch",
+      "n": 8,
+      "requests": 1,
+      "wallMs": 173.6,
+      "rowsReturned": 8,
+      "bytes": 3430,
+      "status": 200,
+      "detail": "返回 8/8"
+    },
+    {
+      "source": "tencent",
+      "kind": "batch",
+      "n": 24,
+      "requests": 1,
+      "wallMs": 46,
+      "rowsReturned": 22,
+      "bytes": 10077,
+      "status": 200,
+      "detail": "返回 22/24"
+    },
+    {
+      "source": "tencent",
+      "kind": "batch",
+      "n": 60,
+      "requests": 1,
+      "wallMs": 49.6,
+      "rowsReturned": 47,
+      "bytes": 21868,
+      "status": 200,
+      "detail": "返回 47/60"
+    },
+    {
+      "source": "tencent",
+      "kind": "batch",
+      "n": 100,
+      "requests": 1,
+      "wallMs": 55.4,
+      "rowsReturned": 87,
+      "bytes": 39501,
+      "status": 200,
+      "detail": "返回 87/100"
+    },
+    {
+      "source": "tencent",
+      "kind": "sequential",
+      "n": 8,
+      "requests": 8,
+      "wallMs": 331.9,
+      "rowsReturned": 8,
+      "bytes": 3995,
+      "status": 200,
+      "detail": "8/8 只成功"
+    },
+    {
+      "source": "eastmoney",
+      "kind": "batch",
+      "n": 8,
+      "requests": 1,
+      "wallMs": 153,
+      "rowsReturned": 0,
+      "bytes": 0,
+      "status": 0,
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up"
+    },
+    {
+      "source": "eastmoney",
+      "kind": "batch",
+      "n": 24,
+      "requests": 1,
+      "wallMs": 155.3,
+      "rowsReturned": 0,
+      "bytes": 0,
+      "status": 0,
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up"
+    },
+    {
+      "source": "eastmoney",
+      "kind": "batch",
+      "n": 60,
+      "requests": 1,
+      "wallMs": 156.5,
+      "rowsReturned": 0,
+      "bytes": 0,
+      "status": 0,
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up"
+    },
+    {
+      "source": "eastmoney",
+      "kind": "batch",
+      "n": 100,
+      "requests": 1,
+      "wallMs": 157.7,
+      "rowsReturned": 0,
+      "bytes": 0,
+      "status": 0,
+      "detail": "TradingServiceError: Eastmoney network error: socket hang up"
+    },
+    {
+      "source": "eastmoney",
+      "kind": "sequential",
+      "n": 8,
+      "requests": 8,
+      "wallMs": 1566,
+      "rowsReturned": 0,
+      "bytes": 0,
+      "status": 0,
+      "detail": "0/8 只成功"
+    }
+  ]
+}

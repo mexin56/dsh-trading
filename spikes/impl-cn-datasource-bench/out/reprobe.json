@@ -1,0 +1,130 @@
+{
+  "rows": [
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "159869.SZ",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "[push2 默认] TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/reprobe-push2-159869.SZ.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 18.638875,
+        "tcpMs": 0.9236659999999972,
+        "tlsMs": 258.377209,
+        "connMs": 277.93975,
+        "serverMs": 233.10474999999997,
+        "ttfbMs": 511.04449999999997,
+        "totalMs": 511.04449999999997,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "000001.SH",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "[push2his 镜像] TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/reprobe-mirror-000001.SH.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 15.941124999999943,
+        "tcpMs": 76.91287499999999,
+        "tlsMs": 182.07799999999997,
+        "connMs": 274.9319999999999,
+        "serverMs": 80.31950000000006,
+        "ttfbMs": 355.25149999999996,
+        "totalMs": 355.25149999999996,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "000300.SH",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "[push2his 镜像] TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/reprobe-mirror-000300.SH.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 1.7409580000000915,
+        "tcpMs": 42.67812499999991,
+        "tlsMs": 165.2722920000001,
+        "connMs": 209.6913750000001,
+        "serverMs": 80.74991599999998,
+        "ttfbMs": 290.4412910000001,
+        "totalMs": 290.4412910000001,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "cn",
+      "input": "835185.BJ",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "[push2his 镜像] TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/reprobe-mirror-835185.BJ.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 1.583458999999948,
+        "tcpMs": 47.47941600000013,
+        "tlsMs": 232.757292,
+        "connMs": 281.8201670000001,
+        "serverMs": 160.2853329999998,
+        "ttfbMs": 442.1054999999999,
+        "totalMs": 442.1054999999999,
+        "reused": false
+      },
+      "reused": false
+    },
+    {
+      "source": "eastmoney",
+      "market": "hk",
+      "input": "00700.HK",
+      "requestsMade": 1,
+      "status": 0,
+      "verdict": "取不到",
+      "detail": "[push2his 镜像] TradingServiceError: Eastmoney network error: socket hang up",
+      "rawLine": "",
+      "rawFile": "raw/reprobe-mirror-00700.HK.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transportError": "socket hang up",
+      "timing": {
+        "dnsMs": 1.8507079999999405,
+        "tcpMs": 57.73433400000022,
+        "tlsMs": 282.01416599999993,
+        "connMs": 341.5992080000001,
+        "serverMs": 51.04325000000017,
+        "ttfbMs": 392.64245800000026,
+        "totalMs": 392.64245800000026,
+        "reused": false
+      },
+      "reused": false
+    }
+  ],
+  "note": "push2 直连仍 hang up；其余项改走 push2his 镜像域（非产品默认域，已在每行标注）"
+}

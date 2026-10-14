@@ -1,0 +1,5932 @@
+{
+  "groups": [
+    {
+      "source": "tencent",
+      "pathId": "P1",
+      "label": "单标的报价",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 40.2,
+          "p50": 41.7,
+          "p95": 42.7,
+          "max": 228.4,
+          "mean": 50.8
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 39.9,
+          "p50": 41.1,
+          "p95": 42.2,
+          "max": 180.5,
+          "mean": 48
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 11.5,
+          "p50": 11.5,
+          "p95": 11.5,
+          "max": 11.5,
+          "mean": 11.5
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.5,
+          "p50": 0.5,
+          "p95": 0.5,
+          "max": 0.5,
+          "mean": 0.5
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 125.1,
+          "p50": 125.1,
+          "p95": 125.1,
+          "max": 125.1,
+          "mean": 125.1
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 137.1,
+          "mean": 6.9
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 39.8,
+          "p50": 40.8,
+          "p95": 41.9,
+          "max": 42.6,
+          "mean": 40.8
+        },
+        "bytes": {
+          "n": 20,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 228.4,
+          "httpMs": 180.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 11.491582999999991,
+            "tcpMs": 0.4991250000000065,
+            "tlsMs": 125.14016699999999,
+            "connMs": 137.130875,
+            "serverMs": 42.589,
+            "ttfbMs": 179.719875,
+            "totalMs": 180.512541,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 1,
+          "wallMs": 41.8,
+          "httpMs": 41.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.878457999999966,
+            "ttfbMs": 40.878457999999966,
+            "totalMs": 41.05979199999996,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 2,
+          "wallMs": 41.9,
+          "httpMs": 41.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.167958,
+            "ttfbMs": 41.167958,
+            "totalMs": 41.35804099999996,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 3,
+          "wallMs": 42,
+          "httpMs": 41.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.83391700000004,
+            "ttfbMs": 40.83391700000004,
+            "totalMs": 41.189959000000044,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 4,
+          "wallMs": 42.1,
+          "httpMs": 41.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.08295799999996,
+            "ttfbMs": 41.08295799999996,
+            "totalMs": 41.298625000000015,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 5,
+          "wallMs": 42.6,
+          "httpMs": 42,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.87179200000014,
+            "ttfbMs": 41.87179200000014,
+            "totalMs": 42.0166670000001,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 6,
+          "wallMs": 42.3,
+          "httpMs": 41.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.65174999999999,
+            "ttfbMs": 41.65174999999999,
+            "totalMs": 41.80816700000014,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 7,
+          "wallMs": 40.7,
+          "httpMs": 40.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.138958,
+            "ttfbMs": 40.138958,
+            "totalMs": 40.25370799999996,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 8,
+          "wallMs": 41.7,
+          "httpMs": 41.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.11612500000001,
+            "ttfbMs": 41.11612500000001,
+            "totalMs": 41.23737499999993,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 9,
+          "wallMs": 42.7,
+          "httpMs": 42.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.13641699999994,
+            "ttfbMs": 40.13641699999994,
+            "totalMs": 42.21983399999999,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 10,
+          "wallMs": 41.1,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.54841600000009,
+            "ttfbMs": 40.54841600000009,
+            "totalMs": 40.674790999999914,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 11,
+          "wallMs": 40.4,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.921125000000075,
+            "ttfbMs": 39.921125000000075,
+            "totalMs": 40.03341699999987,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 12,
+          "wallMs": 41.8,
+          "httpMs": 41.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.258000000000266,
+            "ttfbMs": 41.258000000000266,
+            "totalMs": 41.38270899999998,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 13,
+          "wallMs": 40.5,
+          "httpMs": 40.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.118625000000065,
+            "ttfbMs": 40.118625000000065,
+            "totalMs": 40.19391600000017,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 14,
+          "wallMs": 40.6,
+          "httpMs": 40.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.06929199999968,
+            "ttfbMs": 40.06929199999968,
+            "totalMs": 40.180875000000015,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 15,
+          "wallMs": 41.5,
+          "httpMs": 41.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.94975000000022,
+            "ttfbMs": 40.94975000000022,
+            "totalMs": 41.14025000000038,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 16,
+          "wallMs": 41,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.622249999999894,
+            "ttfbMs": 40.622249999999894,
+            "totalMs": 40.71654099999978,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 17,
+          "wallMs": 40.2,
+          "httpMs": 39.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.7963749999999,
+            "ttfbMs": 39.7963749999999,
+            "totalMs": 39.88341700000001,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 18,
+          "wallMs": 41.8,
+          "httpMs": 41.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.33341699999983,
+            "ttfbMs": 41.33341699999983,
+            "totalMs": 41.421957999999904,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        },
+        {
+          "i": 19,
+          "wallMs": 41,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.79316600000038,
+            "ttfbMs": 39.79316600000038,
+            "totalMs": 40.72383300000001,
+            "reused": true
+          },
+          "bytes": 500,
+          "sha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457"
+        }
+      ],
+      "rawFile": "raw/tencent-P1-keep-alive.gbk",
+      "rawSha256": "57bd7158005ff3f692f569b4054b4156e2dc9a9de472f8b28e3f3c5f3ca03457",
+      "rawBytes": 500,
+      "firstSampleMs": 228.4,
+      "steadyState": {
+        "n": 19,
+        "min": 40.2,
+        "p50": 41.7,
+        "p95": 42.7,
+        "max": 42.7,
+        "mean": 41.5
+      }
+    },
+    {
+      "source": "tencent",
+      "pathId": "P2",
+      "label": "批量报价 8 只",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 40.5,
+          "p50": 41.7,
+          "p95": 55.3,
+          "max": 166.4,
+          "mean": 48.8
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 40,
+          "p50": 41.2,
+          "p95": 54.8,
+          "max": 165.7,
+          "mean": 48.2
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 1.7,
+          "p50": 1.7,
+          "p95": 1.7,
+          "max": 1.7,
+          "mean": 1.7
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.5,
+          "p50": 0.5,
+          "p95": 0.5,
+          "max": 0.5,
+          "mean": 0.5
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 121.6,
+          "p50": 121.6,
+          "p95": 121.6,
+          "max": 121.6,
+          "mean": 121.6
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 123.8,
+          "mean": 6.2
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 39.8,
+          "p50": 40.5,
+          "p95": 42.7,
+          "max": 54.7,
+          "mean": 41.5
+        },
+        "bytes": {
+          "n": 20,
+          "min": 3887,
+          "p50": 3887,
+          "p95": 3887,
+          "max": 3887,
+          "mean": 3887
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 166.4,
+          "httpMs": 165.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.713416000000052,
+            "tcpMs": 0.495792000000165,
+            "tlsMs": 121.63695800000005,
+            "connMs": 123.84616600000027,
+            "serverMs": 41.82733399999961,
+            "ttfbMs": 165.67349999999988,
+            "totalMs": 165.748916,
+            "reused": false
+          },
+          "bytes": 3887,
+          "sha256": "f03d81f9b36682545e0c763a16843d7684961f2ba3d238ea534a190cb824071d"
+        },
+        {
+          "i": 1,
+          "wallMs": 40.9,
+          "httpMs": 40.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.23758399999997,
+            "ttfbMs": 40.23758399999997,
+            "totalMs": 40.32500000000027,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "91de9104ddb9b3523858d30808b0e65b4826d5d3bf3e898223fd9a96dab97bcb"
+        },
+        {
+          "i": 2,
+          "wallMs": 43,
+          "httpMs": 42.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.05358399999977,
+            "ttfbMs": 40.05358399999977,
+            "totalMs": 42.38045899999997,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "91de9104ddb9b3523858d30808b0e65b4826d5d3bf3e898223fd9a96dab97bcb"
+        },
+        {
+          "i": 3,
+          "wallMs": 41.5,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.540750000000116,
+            "ttfbMs": 40.540750000000116,
+            "totalMs": 40.74604200000067,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 4,
+          "wallMs": 43,
+          "httpMs": 42.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.21958300000006,
+            "ttfbMs": 40.21958300000006,
+            "totalMs": 42.41141599999992,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "91de9104ddb9b3523858d30808b0e65b4826d5d3bf3e898223fd9a96dab97bcb"
+        },
+        {
+          "i": 5,
+          "wallMs": 42.1,
+          "httpMs": 41.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.23399999999947,
+            "ttfbMs": 40.23399999999947,
+            "totalMs": 41.346166999999696,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "91de9104ddb9b3523858d30808b0e65b4826d5d3bf3e898223fd9a96dab97bcb"
+        },
+        {
+          "i": 6,
+          "wallMs": 41.9,
+          "httpMs": 41.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.164458999999624,
+            "ttfbMs": 41.164458999999624,
+            "totalMs": 41.25029199999972,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 7,
+          "wallMs": 42.8,
+          "httpMs": 42.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 42.11454099999992,
+            "ttfbMs": 42.11454099999992,
+            "totalMs": 42.24725000000035,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 8,
+          "wallMs": 41.3,
+          "httpMs": 40.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.31116699999984,
+            "ttfbMs": 40.31116699999984,
+            "totalMs": 40.45749999999953,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 9,
+          "wallMs": 40.5,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.830292000000554,
+            "ttfbMs": 39.830292000000554,
+            "totalMs": 39.96891700000015,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 10,
+          "wallMs": 41.1,
+          "httpMs": 40.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.476042000000234,
+            "ttfbMs": 40.476042000000234,
+            "totalMs": 40.5694169999997,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 11,
+          "wallMs": 40.9,
+          "httpMs": 40.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.214084000000184,
+            "ttfbMs": 40.214084000000184,
+            "totalMs": 40.30516699999953,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 12,
+          "wallMs": 43.3,
+          "httpMs": 42.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 42.6845000000003,
+            "ttfbMs": 42.6845000000003,
+            "totalMs": 42.771083000000544,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 13,
+          "wallMs": 40.9,
+          "httpMs": 40.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.2543340000002,
+            "ttfbMs": 40.2543340000002,
+            "totalMs": 40.327000000000226,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 14,
+          "wallMs": 40.5,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.93508399999973,
+            "ttfbMs": 39.93508399999973,
+            "totalMs": 40.01708400000007,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 15,
+          "wallMs": 43.6,
+          "httpMs": 42.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.68120799999997,
+            "ttfbMs": 40.68120799999997,
+            "totalMs": 42.94129200000043,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 16,
+          "wallMs": 41.7,
+          "httpMs": 41.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.97650000000067,
+            "ttfbMs": 40.97650000000067,
+            "totalMs": 41.08550000000014,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 17,
+          "wallMs": 42.9,
+          "httpMs": 42.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 42.30799999999999,
+            "ttfbMs": 42.30799999999999,
+            "totalMs": 42.385291999999936,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 18,
+          "wallMs": 55.3,
+          "httpMs": 54.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 54.71008299999994,
+            "ttfbMs": 54.71008299999994,
+            "totalMs": 54.793125000000146,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        },
+        {
+          "i": 19,
+          "wallMs": 41.7,
+          "httpMs": 41.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.133334000000104,
+            "ttfbMs": 41.133334000000104,
+            "totalMs": 41.2251669999996,
+            "reused": true
+          },
+          "bytes": 3887,
+          "sha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34"
+        }
+      ],
+      "rawFile": "raw/tencent-P2-keep-alive.gbk",
+      "rawSha256": "a8a51841550eb4a4ba65f5bdd15e7ebf5efbd4be6c81bca56b06a324498a7e34",
+      "rawBytes": 3887,
+      "firstSampleMs": 166.4,
+      "steadyState": {
+        "n": 19,
+        "min": 40.5,
+        "p50": 41.7,
+        "p95": 55.3,
+        "max": 55.3,
+        "mean": 42.6
+      }
+    },
+    {
+      "source": "tencent",
+      "pathId": "P3",
+      "label": "日 K 100 根",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 56.3,
+          "p50": 58.9,
+          "p95": 63.8,
+          "max": 197,
+          "mean": 66.1
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 56,
+          "p50": 58.6,
+          "p95": 63.6,
+          "max": 196.2,
+          "mean": 65.8
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 1.5,
+          "p50": 1.5,
+          "p95": 1.5,
+          "max": 1.5,
+          "mean": 1.5
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.4,
+          "p50": 0.4,
+          "p95": 0.4,
+          "max": 0.4,
+          "mean": 0.4
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 133.3,
+          "p50": 133.3,
+          "p95": 133.3,
+          "max": 133.3,
+          "mean": 133.3
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 135.2,
+          "mean": 6.8
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 56,
+          "p50": 58.4,
+          "p95": 61.9,
+          "max": 63.5,
+          "mean": 58.7
+        },
+        "bytes": {
+          "n": 20,
+          "min": 8894,
+          "p50": 8894,
+          "p95": 8894,
+          "max": 8894,
+          "mean": 8894
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 197,
+          "httpMs": 196.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5338339999998425,
+            "tcpMs": 0.36899999999968713,
+            "tlsMs": 133.34270800000013,
+            "connMs": 135.24554199999966,
+            "serverMs": 60.81483300000036,
+            "ttfbMs": 196.06037500000002,
+            "totalMs": 196.1579589999992,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 1,
+          "wallMs": 59.4,
+          "httpMs": 59.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 59.035249999999905,
+            "ttfbMs": 59.035249999999905,
+            "totalMs": 59.11445800000001,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 2,
+          "wallMs": 58.3,
+          "httpMs": 58,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 57.88633299999947,
+            "ttfbMs": 57.88633299999947,
+            "totalMs": 57.971958000000086,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "df859ec8a525c93d10808d02f152747ff7fefcc6c0f8a73873cd6080fa3a7695"
+        },
+        {
+          "i": 3,
+          "wallMs": 58.5,
+          "httpMs": 58.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 56.1875,
+            "ttfbMs": 56.1875,
+            "totalMs": 58.25183299999935,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 4,
+          "wallMs": 58.9,
+          "httpMs": 58.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.49804099999983,
+            "ttfbMs": 58.49804099999983,
+            "totalMs": 58.60245799999939,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "df859ec8a525c93d10808d02f152747ff7fefcc6c0f8a73873cd6080fa3a7695"
+        },
+        {
+          "i": 5,
+          "wallMs": 58.8,
+          "httpMs": 58.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.4156669999993,
+            "ttfbMs": 58.4156669999993,
+            "totalMs": 58.51820899999984,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 6,
+          "wallMs": 58.5,
+          "httpMs": 58.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.163542000000234,
+            "ttfbMs": 58.163542000000234,
+            "totalMs": 58.25416700000005,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "a9f334a6dc7eb7405a17245c039dcd40ef16bb3aaaaa33df5d64bdd87629d0be"
+        },
+        {
+          "i": 7,
+          "wallMs": 63.8,
+          "httpMs": 63.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 63.466709000000264,
+            "ttfbMs": 63.466709000000264,
+            "totalMs": 63.56354199999987,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 8,
+          "wallMs": 59.5,
+          "httpMs": 59.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 59.169832999999926,
+            "ttfbMs": 59.169832999999926,
+            "totalMs": 59.247832999999446,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "c20114263f71e799842a4e46f0f0d7cb4548bc05c21ae236acfcc4ac28b4d33b"
+        },
+        {
+          "i": 9,
+          "wallMs": 62.3,
+          "httpMs": 62,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 61.90279200000077,
+            "ttfbMs": 61.90279200000077,
+            "totalMs": 61.998750000000655,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 10,
+          "wallMs": 58.9,
+          "httpMs": 58.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.532374999998865,
+            "ttfbMs": 58.532374999998865,
+            "totalMs": 58.61841699999968,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 11,
+          "wallMs": 58.7,
+          "httpMs": 58.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.353415999999925,
+            "ttfbMs": 58.353415999999925,
+            "totalMs": 58.468957999999475,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 12,
+          "wallMs": 59.2,
+          "httpMs": 58.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.68133300000045,
+            "ttfbMs": 58.68133300000045,
+            "totalMs": 58.83337500000016,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "0a0a0b277dbc017204634990f7665842bf39abdcf3387548fefbb1a1cdb69f1d"
+        },
+        {
+          "i": 13,
+          "wallMs": 61.3,
+          "httpMs": 61,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 60.90550000000076,
+            "ttfbMs": 60.90550000000076,
+            "totalMs": 61.00120799999968,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 14,
+          "wallMs": 60.7,
+          "httpMs": 60.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.41733299999942,
+            "ttfbMs": 58.41733299999942,
+            "totalMs": 60.38020800000049,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "c20114263f71e799842a4e46f0f0d7cb4548bc05c21ae236acfcc4ac28b4d33b"
+        },
+        {
+          "i": 15,
+          "wallMs": 56.3,
+          "httpMs": 56,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 55.95012499999939,
+            "ttfbMs": 55.95012499999939,
+            "totalMs": 56.03195799999958,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "c20114263f71e799842a4e46f0f0d7cb4548bc05c21ae236acfcc4ac28b4d33b"
+        },
+        {
+          "i": 16,
+          "wallMs": 57.6,
+          "httpMs": 57.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 57.25908400000117,
+            "ttfbMs": 57.25908400000117,
+            "totalMs": 57.34883400000035,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 17,
+          "wallMs": 56.5,
+          "httpMs": 56.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 56.17270899999858,
+            "ttfbMs": 56.17270899999858,
+            "totalMs": 56.25970899999993,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 18,
+          "wallMs": 58.8,
+          "httpMs": 58.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.46191700000054,
+            "ttfbMs": 58.46191700000054,
+            "totalMs": 58.550874999998996,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "9d5f3e51e3f05c8206e606888a1a56e0fe80898fc50ce86c41975d3c7e7a2505"
+        },
+        {
+          "i": 19,
+          "wallMs": 59.8,
+          "httpMs": 59.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 58.22991600000023,
+            "ttfbMs": 58.22991600000023,
+            "totalMs": 59.49583299999904,
+            "reused": true
+          },
+          "bytes": 8894,
+          "sha256": "c20114263f71e799842a4e46f0f0d7cb4548bc05c21ae236acfcc4ac28b4d33b"
+        }
+      ],
+      "rawFile": "raw/tencent-P3-keep-alive.json",
+      "rawSha256": "c20114263f71e799842a4e46f0f0d7cb4548bc05c21ae236acfcc4ac28b4d33b",
+      "rawBytes": 8894,
+      "firstSampleMs": 197,
+      "steadyState": {
+        "n": 19,
+        "min": 56.3,
+        "p50": 58.9,
+        "p95": 63.8,
+        "max": 63.8,
+        "mean": 59.3
+      }
+    },
+    {
+      "source": "tencent",
+      "pathId": "P4",
+      "label": "分钟 K（腾讯 5m / 东财 1m）",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 67.5,
+          "p50": 71.7,
+          "p95": 79.6,
+          "max": 171.6,
+          "mean": 77.4
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 65.1,
+          "p50": 68.2,
+          "p95": 74.3,
+          "max": 168.4,
+          "mean": 73.9
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 2.7,
+          "p50": 2.7,
+          "p95": 2.7,
+          "max": 2.7,
+          "mean": 2.7
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.4,
+          "p50": 0.4,
+          "p95": 0.4,
+          "max": 0.4,
+          "mean": 0.4
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 93,
+          "p50": 93,
+          "p95": 93,
+          "max": 93,
+          "mean": 93
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 96,
+          "mean": 4.8
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 65.1,
+          "p50": 68,
+          "p95": 73,
+          "max": 74.2,
+          "mean": 68.5
+        },
+        "bytes": {
+          "n": 20,
+          "min": 9264,
+          "p50": 9264,
+          "p95": 9264,
+          "max": 9264,
+          "mean": 9264
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 171.6,
+          "httpMs": 168.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.651499999999942,
+            "tcpMs": 0.40558299999975134,
+            "tlsMs": 92.98904200000106,
+            "connMs": 96.04612500000076,
+            "serverMs": 70.13558299999931,
+            "ttfbMs": 166.18170800000007,
+            "totalMs": 168.40166599999975,
+            "reused": false
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 1,
+          "wallMs": 70.4,
+          "httpMs": 67.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 67.16170799999963,
+            "ttfbMs": 67.16170799999963,
+            "totalMs": 67.24833299999955,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 2,
+          "wallMs": 74.1,
+          "httpMs": 71.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 71.03420799999913,
+            "ttfbMs": 71.03420799999913,
+            "totalMs": 71.13533300000017,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 3,
+          "wallMs": 70.9,
+          "httpMs": 68.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.24787499999911,
+            "ttfbMs": 68.24787499999911,
+            "totalMs": 68.33979099999851,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 4,
+          "wallMs": 70.2,
+          "httpMs": 67.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 67.30379200000061,
+            "ttfbMs": 67.30379200000061,
+            "totalMs": 67.37929199999962,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 5,
+          "wallMs": 70.8,
+          "httpMs": 68.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.11358299999847,
+            "ttfbMs": 68.11358299999847,
+            "totalMs": 68.1864999999998,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "d876a953108662043682a5406f4c7efa18da9ff722b32aa97007b4ac25c98cf4"
+        },
+        {
+          "i": 6,
+          "wallMs": 73,
+          "httpMs": 67.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 65.492166,
+            "ttfbMs": 65.492166,
+            "totalMs": 67.44499999999971,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 7,
+          "wallMs": 77.1,
+          "httpMs": 74.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 72.02608400000099,
+            "ttfbMs": 72.02608400000099,
+            "totalMs": 74.1625839999997,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 8,
+          "wallMs": 72.2,
+          "httpMs": 69,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.89695799999936,
+            "ttfbMs": 68.89695799999936,
+            "totalMs": 69.0046659999989,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 9,
+          "wallMs": 75.2,
+          "httpMs": 68.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.04795800000102,
+            "ttfbMs": 68.04795800000102,
+            "totalMs": 68.140625,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 10,
+          "wallMs": 76.5,
+          "httpMs": 73.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 73.01908399999957,
+            "ttfbMs": 73.01908399999957,
+            "totalMs": 73.13175000000047,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 11,
+          "wallMs": 69.8,
+          "httpMs": 66.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 66.81291699999929,
+            "ttfbMs": 66.81291699999929,
+            "totalMs": 66.89866699999948,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 12,
+          "wallMs": 79.6,
+          "httpMs": 74.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 74.22358300000087,
+            "ttfbMs": 74.22358300000087,
+            "totalMs": 74.34195800000089,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 13,
+          "wallMs": 72,
+          "httpMs": 69.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 67.21245899999849,
+            "ttfbMs": 67.21245899999849,
+            "totalMs": 69.31604199999856,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 14,
+          "wallMs": 74.7,
+          "httpMs": 70.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.05112499999996,
+            "ttfbMs": 68.05112499999996,
+            "totalMs": 70.17962500000067,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 15,
+          "wallMs": 69.7,
+          "httpMs": 67.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 67.20112500000141,
+            "ttfbMs": 67.20112500000141,
+            "totalMs": 67.28775000000132,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 16,
+          "wallMs": 68.7,
+          "httpMs": 65.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 65.68412499999977,
+            "ttfbMs": 65.68412499999977,
+            "totalMs": 65.7586250000004,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "2302169d5b94530fe097d1331306b9cb90394b94e69c04562e5e7fd0514e3df4"
+        },
+        {
+          "i": 17,
+          "wallMs": 71.5,
+          "httpMs": 68.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 68.81158300000061,
+            "ttfbMs": 68.81158300000061,
+            "totalMs": 68.91870800000106,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "bcdca611c28ef76374c877b62773057c83f4bdc18abd6ed01c5bdc1ec5e312d5"
+        },
+        {
+          "i": 18,
+          "wallMs": 67.5,
+          "httpMs": 65.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 65.06379200000083,
+            "ttfbMs": 65.06379200000083,
+            "totalMs": 65.13058400000045,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "fcf8da2d7774cbedb91b1eccbb8b412504b8c06f77505e73e74d6e9d6b59966b"
+        },
+        {
+          "i": 19,
+          "wallMs": 71.7,
+          "httpMs": 67.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 66.98870900000111,
+            "ttfbMs": 66.98870900000111,
+            "totalMs": 67.08474999999999,
+            "reused": true
+          },
+          "bytes": 9264,
+          "sha256": "fcf8da2d7774cbedb91b1eccbb8b412504b8c06f77505e73e74d6e9d6b59966b"
+        }
+      ],
+      "rawFile": "raw/tencent-P4-keep-alive.json",
+      "rawSha256": "fcf8da2d7774cbedb91b1eccbb8b412504b8c06f77505e73e74d6e9d6b59966b",
+      "rawBytes": 9264,
+      "firstSampleMs": 171.6,
+      "steadyState": {
+        "n": 19,
+        "min": 67.5,
+        "p50": 71.7,
+        "p95": 79.6,
+        "max": 79.6,
+        "mean": 72.4
+      }
+    },
+    {
+      "source": "tencent",
+      "pathId": "P1",
+      "label": "单标的报价",
+      "mode": "cold",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 0,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 143.6,
+          "p50": 164.8,
+          "p95": 179.7,
+          "max": 181.5,
+          "mean": 165.1
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 143.3,
+          "p50": 164.5,
+          "p95": 179.3,
+          "max": 181.1,
+          "mean": 164.7
+        },
+        "dnsMs": {
+          "n": 20,
+          "min": 1.1,
+          "p50": 1.6,
+          "p95": 2.1,
+          "max": 2.2,
+          "mean": 1.7
+        },
+        "tcpMs": {
+          "n": 20,
+          "min": 0.3,
+          "p50": 0.5,
+          "p95": 0.7,
+          "max": 0.9,
+          "mean": 0.5
+        },
+        "tlsMs": {
+          "n": 20,
+          "min": 105.2,
+          "p50": 121.6,
+          "p95": 132.1,
+          "max": 132.6,
+          "mean": 121.3
+        },
+        "connMs": {
+          "n": 20,
+          "min": 107.8,
+          "p50": 123.5,
+          "p95": 134.2,
+          "max": 134.7,
+          "mean": 123.5
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 35.5,
+          "p50": 41.1,
+          "p95": 45,
+          "max": 46.3,
+          "mean": 40.9
+        },
+        "bytes": {
+          "n": 20,
+          "min": 500,
+          "p50": 500,
+          "p95": 500,
+          "max": 500,
+          "mean": 500
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 164.8,
+          "httpMs": 164.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6442090000000462,
+            "tcpMs": 0.3442909999994299,
+            "tlsMs": 121.55975000000035,
+            "connMs": 123.54824999999983,
+            "serverMs": 40.66962500000045,
+            "ttfbMs": 164.21787500000028,
+            "totalMs": 164.51599999999962,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 1,
+          "wallMs": 160.3,
+          "httpMs": 160,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.1465000000007421,
+            "tcpMs": 0.3685829999994894,
+            "tlsMs": 117.05391700000109,
+            "connMs": 118.56900000000132,
+            "serverMs": 41.32941699999901,
+            "ttfbMs": 159.89841700000034,
+            "totalMs": 160.0220420000005,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 2,
+          "wallMs": 146.3,
+          "httpMs": 146,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.1816250000010768,
+            "tcpMs": 0.3814169999986916,
+            "tlsMs": 107.62229200000002,
+            "connMs": 109.18533399999978,
+            "serverMs": 36.68266600000061,
+            "ttfbMs": 145.8680000000004,
+            "totalMs": 145.9828750000015,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 3,
+          "wallMs": 179.1,
+          "httpMs": 178.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.2456249999995634,
+            "tcpMs": 0.4008749999993597,
+            "tlsMs": 132.121000000001,
+            "connMs": 133.76749999999993,
+            "serverMs": 44.96008299999994,
+            "ttfbMs": 178.72758299999987,
+            "totalMs": 178.82124999999905,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 4,
+          "wallMs": 159.7,
+          "httpMs": 159.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.2659999999996217,
+            "tcpMs": 0.3737920000003214,
+            "tlsMs": 116.72879099999955,
+            "connMs": 118.36858299999949,
+            "serverMs": 40.71245900000031,
+            "ttfbMs": 159.0810419999998,
+            "totalMs": 159.29491699999926,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 5,
+          "wallMs": 174.9,
+          "httpMs": 174.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5033750000002328,
+            "tcpMs": 0.3326660000002448,
+            "tlsMs": 128.4253750000007,
+            "connMs": 130.2614160000012,
+            "serverMs": 44.22074999999859,
+            "ttfbMs": 174.48216599999978,
+            "totalMs": 174.58770800000093,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 6,
+          "wallMs": 143.6,
+          "httpMs": 143.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.9139580000010028,
+            "tcpMs": 0.6041669999995065,
+            "tlsMs": 105.23304100000132,
+            "connMs": 107.75116600000183,
+            "serverMs": 35.474333999998635,
+            "ttfbMs": 143.22550000000047,
+            "totalMs": 143.33412500000122,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 7,
+          "wallMs": 167.8,
+          "httpMs": 167.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.646167000002606,
+            "tcpMs": 0.5924999999988358,
+            "tlsMs": 123.66162500000064,
+            "connMs": 125.90029200000208,
+            "serverMs": 41.22087499999907,
+            "ttfbMs": 167.12116700000115,
+            "totalMs": 167.34304200000042,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 8,
+          "wallMs": 179,
+          "httpMs": 178.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.823499999998603,
+            "tcpMs": 0.6421250000021246,
+            "tlsMs": 131.12999999999738,
+            "connMs": 133.5956249999981,
+            "serverMs": 44.855500000001484,
+            "ttfbMs": 178.4511249999996,
+            "totalMs": 178.61404200000106,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 9,
+          "wallMs": 179.7,
+          "httpMs": 179.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6810000000004948,
+            "tcpMs": 0.638874999996915,
+            "tlsMs": 130.3742080000011,
+            "connMs": 132.6940829999985,
+            "serverMs": 43.34545900000012,
+            "ttfbMs": 176.03954199999862,
+            "totalMs": 179.32420799999818,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 10,
+          "wallMs": 157.2,
+          "httpMs": 156.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.030041000001802,
+            "tcpMs": 0.6694999999999709,
+            "tlsMs": 115.60999999999694,
+            "connMs": 118.30954099999872,
+            "serverMs": 38.35925000000134,
+            "ttfbMs": 156.66879100000006,
+            "totalMs": 156.79362500000207,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 11,
+          "wallMs": 168.5,
+          "httpMs": 168.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.760374999998021,
+            "tcpMs": 0.5403750000004948,
+            "tlsMs": 124.562291000002,
+            "connMs": 126.86304100000052,
+            "serverMs": 41.15991699999722,
+            "ttfbMs": 168.02295799999774,
+            "totalMs": 168.15120799999931,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 12,
+          "wallMs": 162.8,
+          "httpMs": 162.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6917499999981374,
+            "tcpMs": 0.5070830000004207,
+            "tlsMs": 120.1072920000006,
+            "connMs": 122.30612499999916,
+            "serverMs": 39.95524999999907,
+            "ttfbMs": 162.26137499999822,
+            "totalMs": 162.39091700000063,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 13,
+          "wallMs": 179.4,
+          "httpMs": 178.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.125166999998328,
+            "tcpMs": 0.47829099999944447,
+            "tlsMs": 131.5740420000002,
+            "connMs": 134.17749999999796,
+            "serverMs": 44.44974999999977,
+            "ttfbMs": 178.62724999999773,
+            "totalMs": 178.79750000000058,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 14,
+          "wallMs": 167.6,
+          "httpMs": 167.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.9385000000002037,
+            "tcpMs": 0.49650000000110595,
+            "tlsMs": 123.70329099999799,
+            "connMs": 126.1382909999993,
+            "serverMs": 41.050750000002154,
+            "ttfbMs": 167.18904100000145,
+            "totalMs": 167.3031660000015,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 15,
+          "wallMs": 152.3,
+          "httpMs": 151.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.2081250000010186,
+            "tcpMs": 0.5061249999998836,
+            "tlsMs": 113.23191700000098,
+            "connMs": 114.94616700000188,
+            "serverMs": 36.735749999999825,
+            "ttfbMs": 151.6819170000017,
+            "totalMs": 151.84900000000198,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 16,
+          "wallMs": 181.5,
+          "httpMs": 181.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5429580000018177,
+            "tcpMs": 0.5297499999978754,
+            "tlsMs": 132.6097090000003,
+            "connMs": 134.682417,
+            "serverMs": 46.34791600000244,
+            "ttfbMs": 181.03033300000243,
+            "totalMs": 181.14333299999998,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 17,
+          "wallMs": 154.8,
+          "httpMs": 154.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.8849999999983993,
+            "tcpMs": 0.5875410000007832,
+            "tlsMs": 114.62041699999827,
+            "connMs": 117.09295799999745,
+            "serverMs": 37.26612500000192,
+            "ttfbMs": 154.35908299999937,
+            "totalMs": 154.49158299999908,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 18,
+          "wallMs": 167,
+          "httpMs": 166.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5862919999999576,
+            "tcpMs": 0.495082999997976,
+            "tlsMs": 122.94404200000281,
+            "connMs": 125.02541700000074,
+            "serverMs": 41.484375,
+            "ttfbMs": 166.50979200000074,
+            "totalMs": 166.61716700000034,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        },
+        {
+          "i": 19,
+          "wallMs": 155.5,
+          "httpMs": 155,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.244125000001077,
+            "tcpMs": 0.8903749999990396,
+            "tlsMs": 113.63420899999983,
+            "connMs": 116.76870899999994,
+            "serverMs": 38.13979100000142,
+            "ttfbMs": 154.90850000000137,
+            "totalMs": 155.02029200000106,
+            "reused": false
+          },
+          "bytes": 500,
+          "sha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628"
+        }
+      ],
+      "rawFile": "raw/tencent-P1-cold.gbk",
+      "rawSha256": "407b1578c4a60aa58384ff1804417bd6b7d8e7849ebdd2e1c096c5bce1dfe628",
+      "rawBytes": 500,
+      "firstSampleMs": 164.8,
+      "steadyState": {
+        "n": 19,
+        "min": 143.6,
+        "p50": 167,
+        "p95": 181.5,
+        "max": 181.5,
+        "mean": 165.1
+      }
+    },
+    {
+      "source": "tencent",
+      "pathId": "P3",
+      "label": "日 K 100 根",
+      "mode": "cold",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 0,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 172.9,
+          "p50": 196.9,
+          "p95": 214,
+          "max": 218.1,
+          "mean": 196
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 172.1,
+          "p50": 196.2,
+          "p95": 213.7,
+          "max": 217.4,
+          "mean": 195.3
+        },
+        "dnsMs": {
+          "n": 20,
+          "min": 1.1,
+          "p50": 2.1,
+          "p95": 3.1,
+          "max": 3.3,
+          "mean": 2.1
+        },
+        "tcpMs": {
+          "n": 20,
+          "min": 0.4,
+          "p50": 0.7,
+          "p95": 1.1,
+          "max": 1.2,
+          "mean": 0.7
+        },
+        "tlsMs": {
+          "n": 20,
+          "min": 111.1,
+          "p50": 127.5,
+          "p95": 141,
+          "max": 143.8,
+          "mean": 127.8
+        },
+        "connMs": {
+          "n": 20,
+          "min": 114.8,
+          "p50": 130,
+          "p95": 143.3,
+          "max": 147,
+          "mean": 130.6
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 57.1,
+          "p50": 63.1,
+          "p95": 68.4,
+          "max": 70.1,
+          "mean": 63.9
+        },
+        "bytes": {
+          "n": 20,
+          "min": 8894,
+          "p50": 8894,
+          "p95": 8894,
+          "max": 8894,
+          "mean": 8894
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 214,
+          "httpMs": 213.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.7501249999986612,
+            "tcpMs": 0.5686249999998836,
+            "tlsMs": 141.0247500000005,
+            "connMs": 143.34349999999904,
+            "serverMs": 68.38116699999955,
+            "ttfbMs": 211.7246669999986,
+            "totalMs": 213.65024999999878,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "fb1828da3133436504738ffd55a2a790746e37319f39f561e4f736897c3568e7"
+        },
+        {
+          "i": 1,
+          "wallMs": 190.8,
+          "httpMs": 190.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.1753330000028654,
+            "tcpMs": 0.4008749999993597,
+            "tlsMs": 125.85229199999958,
+            "connMs": 127.4285000000018,
+            "serverMs": 61.83616600000096,
+            "ttfbMs": 189.26466600000276,
+            "totalMs": 190.39979099999982,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 2,
+          "wallMs": 182,
+          "httpMs": 181.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.1179579999989073,
+            "tcpMs": 0.6993750000001455,
+            "tlsMs": 117.7990830000017,
+            "connMs": 120.61641600000075,
+            "serverMs": 60.77891699999964,
+            "ttfbMs": 181.3953330000004,
+            "totalMs": 181.57283299999835,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 3,
+          "wallMs": 204,
+          "httpMs": 203.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5464170000013837,
+            "tcpMs": 0.49095799999849987,
+            "tlsMs": 134.182208000002,
+            "connMs": 136.21958300000188,
+            "serverMs": 64.86329199999818,
+            "ttfbMs": 201.08287500000006,
+            "totalMs": 203.44425000000047,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 4,
+          "wallMs": 203.2,
+          "httpMs": 202.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.307708000000275,
+            "tcpMs": 0.6421249999984866,
+            "tlsMs": 131.36108299999978,
+            "connMs": 134.31091599999854,
+            "serverMs": 68.29279200000019,
+            "ttfbMs": 202.60370799999873,
+            "totalMs": 202.78712499999892,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 5,
+          "wallMs": 202.8,
+          "httpMs": 202.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.1318339999997988,
+            "tcpMs": 0.5073750000010477,
+            "tlsMs": 132.5152909999997,
+            "connMs": 134.15450000000055,
+            "serverMs": 67.33599999999933,
+            "ttfbMs": 201.49049999999988,
+            "totalMs": 202.49270900000192,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "fb1828da3133436504738ffd55a2a790746e37319f39f561e4f736897c3568e7"
+        },
+        {
+          "i": 6,
+          "wallMs": 197.8,
+          "httpMs": 196.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.8347499999981665,
+            "tcpMs": 0.6978750000016589,
+            "tlsMs": 127.51637499999924,
+            "connMs": 130.04899999999907,
+            "serverMs": 64.44874999999956,
+            "ttfbMs": 194.49774999999863,
+            "totalMs": 196.54408300000068,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 7,
+          "wallMs": 196.6,
+          "httpMs": 195.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.330708000001323,
+            "tcpMs": 0.8887499999982538,
+            "tlsMs": 127.58316700000069,
+            "connMs": 131.80262500000026,
+            "serverMs": 62.76825000000099,
+            "ttfbMs": 194.57087500000125,
+            "totalMs": 195.54595800000243,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 8,
+          "wallMs": 186.7,
+          "httpMs": 186.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.553749999999127,
+            "tcpMs": 0.8155000000006112,
+            "tlsMs": 122.40400000000227,
+            "connMs": 125.77325000000201,
+            "serverMs": 60.19208399999843,
+            "ttfbMs": 185.96533400000044,
+            "totalMs": 186.13441700000112,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 9,
+          "wallMs": 205.9,
+          "httpMs": 205.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.317332999999053,
+            "tcpMs": 0.8557090000031167,
+            "tlsMs": 134.31045799999993,
+            "connMs": 137.4835000000021,
+            "serverMs": 67.45245799999975,
+            "ttfbMs": 204.93595800000185,
+            "totalMs": 205.1351250000007,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "148c61c19d85910f5b16818a77163c98734855911a7aec5b705168c1b67146ae"
+        },
+        {
+          "i": 10,
+          "wallMs": 197.5,
+          "httpMs": 197.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.7053750000013679,
+            "tcpMs": 0.5607919999965816,
+            "tlsMs": 128.19358300000022,
+            "connMs": 130.45974999999817,
+            "serverMs": 66.73845900000015,
+            "ttfbMs": 197.19820899999831,
+            "totalMs": 197.30533400000058,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 11,
+          "wallMs": 186.3,
+          "httpMs": 186,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.252874999998312,
+            "tcpMs": 0.5032500000015716,
+            "tlsMs": 123.3527499999982,
+            "connMs": 125.10887499999808,
+            "serverMs": 60.713292000000365,
+            "ttfbMs": 185.82216699999844,
+            "totalMs": 185.95487499999945,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 12,
+          "wallMs": 192.3,
+          "httpMs": 191.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.8247909999990952,
+            "tcpMs": 0.7537499999998545,
+            "tlsMs": 125.38237500000105,
+            "connMs": 127.960916,
+            "serverMs": 61.17604199999914,
+            "ttfbMs": 189.13695799999914,
+            "totalMs": 191.46320800000103,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 13,
+          "wallMs": 218.1,
+          "httpMs": 217.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.3683749999981956,
+            "tcpMs": 0.8722080000006827,
+            "tlsMs": 143.79312500000015,
+            "connMs": 147.03370799999902,
+            "serverMs": 70.11354199999914,
+            "ttfbMs": 217.14724999999817,
+            "totalMs": 217.40587500000038,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 14,
+          "wallMs": 196.9,
+          "httpMs": 196.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.3033329999998386,
+            "tcpMs": 1.2497920000023441,
+            "tlsMs": 129.72879199999807,
+            "connMs": 133.28191700000025,
+            "serverMs": 62.62458300000071,
+            "ttfbMs": 195.90650000000096,
+            "totalMs": 196.22575000000143,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 15,
+          "wallMs": 172.9,
+          "httpMs": 172.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.5369170000012673,
+            "tcpMs": 1.1212909999994736,
+            "tlsMs": 111.13229199999842,
+            "connMs": 114.79049999999916,
+            "serverMs": 57.09870800000135,
+            "ttfbMs": 171.8892080000005,
+            "totalMs": 172.13745800000106,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 16,
+          "wallMs": 199,
+          "httpMs": 198.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.2250419999982114,
+            "tcpMs": 0.7845420000012382,
+            "tlsMs": 126.91800000000148,
+            "connMs": 129.92758400000093,
+            "serverMs": 67.42533299999923,
+            "ttfbMs": 197.35291700000016,
+            "totalMs": 198.30716699999903,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 17,
+          "wallMs": 198.9,
+          "httpMs": 198.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.1405419999973674,
+            "tcpMs": 0.9074580000014976,
+            "tlsMs": 130.24683300000106,
+            "connMs": 134.29483299999993,
+            "serverMs": 64.05312499999854,
+            "ttfbMs": 198.34795799999847,
+            "totalMs": 198.48458299999766,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "d8de67788b1be5c8375847568477e61ce152897a6e539c5e01ac469843d9b8a5"
+        },
+        {
+          "i": 18,
+          "wallMs": 191,
+          "httpMs": 190.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6899169999996957,
+            "tcpMs": 0.4703750000007858,
+            "tlsMs": 124.95366599999761,
+            "connMs": 127.11395799999809,
+            "serverMs": 63.057709000000614,
+            "ttfbMs": 190.1716669999987,
+            "totalMs": 190.40837499999907,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "bd7738355504559ce20cc5a04a98fe062f45e10aa9bc24f58e1d0e72f01bae39"
+        },
+        {
+          "i": 19,
+          "wallMs": 182.5,
+          "httpMs": 181.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.8051250000025902,
+            "tcpMs": 1.0313749999986612,
+            "tlsMs": 117.9419170000001,
+            "connMs": 121.77841700000135,
+            "serverMs": 59.526207999999315,
+            "ttfbMs": 181.30462500000067,
+            "totalMs": 181.62812499999927,
+            "reused": false
+          },
+          "bytes": 8894,
+          "sha256": "bd7738355504559ce20cc5a04a98fe062f45e10aa9bc24f58e1d0e72f01bae39"
+        }
+      ],
+      "rawFile": "raw/tencent-P3-cold.json",
+      "rawSha256": "bd7738355504559ce20cc5a04a98fe062f45e10aa9bc24f58e1d0e72f01bae39",
+      "rawBytes": 8894,
+      "firstSampleMs": 214,
+      "steadyState": {
+        "n": 19,
+        "min": 172.9,
+        "p50": 196.9,
+        "p95": 218.1,
+        "max": 218.1,
+        "mean": 195
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P1",
+      "label": "单标的报价",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 39.7,
+          "p50": 40.5,
+          "p95": 45.4,
+          "max": 133.1,
+          "mean": 45.6
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 39.4,
+          "p50": 40.1,
+          "p95": 45.2,
+          "max": 129.4,
+          "mean": 45
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 2.5,
+          "p50": 2.5,
+          "p95": 2.5,
+          "max": 2.5,
+          "mean": 2.5
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 1.2,
+          "p50": 1.2,
+          "p95": 1.2,
+          "max": 1.2,
+          "mean": 1.2
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 84.9,
+          "p50": 84.9,
+          "p95": 84.9,
+          "max": 84.9,
+          "mean": 84.9
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 88.6,
+          "mean": 4.4
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 39,
+          "p50": 39.9,
+          "p95": 41.6,
+          "max": 45.1,
+          "mean": 40.2
+        },
+        "bytes": {
+          "n": 20,
+          "min": 213,
+          "p50": 213,
+          "p95": 213,
+          "max": 213,
+          "mean": 213
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 133.1,
+          "httpMs": 129.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.503458999999566,
+            "tcpMs": 1.2368749999986903,
+            "tlsMs": 84.85720800000126,
+            "connMs": 88.59754199999952,
+            "serverMs": 40.544332999998005,
+            "ttfbMs": 129.14187499999753,
+            "totalMs": 129.37570899999992,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "de911ce4b46b359bb17e4e75ec2744315793cef6130849359c7ede7ed74935dd"
+        },
+        {
+          "i": 1,
+          "wallMs": 41.7,
+          "httpMs": 41.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.94300000000294,
+            "ttfbMs": 40.94300000000294,
+            "totalMs": 41.12837500000023,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "92ff75491d9fab5ca99bdc698b3ff4d4ce742713d5119fbaef6cc3eb9c2c3bea"
+        },
+        {
+          "i": 2,
+          "wallMs": 40.3,
+          "httpMs": 39.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.40874999999869,
+            "ttfbMs": 39.40874999999869,
+            "totalMs": 39.73166599999968,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "5ac6bbb13b8100903994d46d617b93cb79246a66fbee1c432371367307ba1778"
+        },
+        {
+          "i": 3,
+          "wallMs": 40.5,
+          "httpMs": 40.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.91474999999991,
+            "ttfbMs": 39.91474999999991,
+            "totalMs": 40.071334000000206,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "b8ba66cdb2bb6bad5705a173e2215ee787444abffcd13c236dddce680e2e1494"
+        },
+        {
+          "i": 4,
+          "wallMs": 40,
+          "httpMs": 39.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.335792000001675,
+            "ttfbMs": 39.335792000001675,
+            "totalMs": 39.552833000001556,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "e2111ba75541183221e32b0a4ac779bbc0e962bd8791ed6ea9459d9c1ec0ebed"
+        },
+        {
+          "i": 5,
+          "wallMs": 40.1,
+          "httpMs": 39.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.74733300000298,
+            "ttfbMs": 39.74733300000298,
+            "totalMs": 39.8570830000026,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "a5db601657bb3f0c9fcac256ffdfbbe9c96c4e9e8712a35472666614cb6bb109"
+        },
+        {
+          "i": 6,
+          "wallMs": 45.4,
+          "httpMs": 45.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 45.12345800000185,
+            "ttfbMs": 45.12345800000185,
+            "totalMs": 45.20216699999946,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "650b052ebede33f8b1afc4ce49eb2f6c43538fc7b219a60748d0d3924060ba01"
+        },
+        {
+          "i": 7,
+          "wallMs": 44.3,
+          "httpMs": 44,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.64274999999907,
+            "ttfbMs": 41.64274999999907,
+            "totalMs": 44.03670899999997,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "21a8eb7888874d7f9b5ca52d29b577b307f03f9b0258f286ce0e6e64235d01ab"
+        },
+        {
+          "i": 8,
+          "wallMs": 39.9,
+          "httpMs": 39.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.43475000000035,
+            "ttfbMs": 39.43475000000035,
+            "totalMs": 39.563624999998865,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "0d37233a8929a0622261f30dbc4244d3ca8f468be583312af9d475039a2ac297"
+        },
+        {
+          "i": 9,
+          "wallMs": 40.4,
+          "httpMs": 39.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 38.961959000000206,
+            "ttfbMs": 38.961959000000206,
+            "totalMs": 39.89491700000144,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "5f96174d0135b030896db5dbcab3bf33d7af0291ed07511fc2e130239309b87b"
+        },
+        {
+          "i": 10,
+          "wallMs": 41.2,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.368124999997235,
+            "ttfbMs": 40.368124999997235,
+            "totalMs": 40.71399999999994,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "a3436a3c2c923dcd0bb90edab6c096579ea06f1f05b229d9a885448c71144423"
+        },
+        {
+          "i": 11,
+          "wallMs": 40.8,
+          "httpMs": 40.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.87437499999942,
+            "ttfbMs": 39.87437499999942,
+            "totalMs": 40.204791000000114,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "cbbb33c4c58f603dae8bea0a17fa54b36bf5c1a00a462276562a4a7c2a016cd2"
+        },
+        {
+          "i": 12,
+          "wallMs": 41.7,
+          "httpMs": 40.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.18195800000103,
+            "ttfbMs": 40.18195800000103,
+            "totalMs": 40.940041000001656,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "71fcdc6f2b9724532a968c329670f4d03d8832fc61e1703657172140d1b32b7f"
+        },
+        {
+          "i": 13,
+          "wallMs": 40.6,
+          "httpMs": 40.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.313749999997526,
+            "ttfbMs": 40.313749999997526,
+            "totalMs": 40.395040999999765,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "83dcb5662c1e713aeba29727b81e3ec3fddc5e3e3de2022871089e4cbefb08f5"
+        },
+        {
+          "i": 14,
+          "wallMs": 41.1,
+          "httpMs": 40.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.762792000001355,
+            "ttfbMs": 40.762792000001355,
+            "totalMs": 40.90779200000179,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "2bf9312f346c93aae2e59394c2f47aa485488083381153e94db96375116361ab"
+        },
+        {
+          "i": 15,
+          "wallMs": 39.7,
+          "httpMs": 39.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.207249999999476,
+            "ttfbMs": 39.207249999999476,
+            "totalMs": 39.38133299999754,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "8391527318adb2703db20ca05fb8c7f80f471468b917b3815f14a5e4e8baaa03"
+        },
+        {
+          "i": 16,
+          "wallMs": 40.4,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.78729200000089,
+            "ttfbMs": 39.78729200000089,
+            "totalMs": 39.97062499999811,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "e5b0ccd8556a28104d103fed4c951e7ac519c52ffdeeaf0a5ae54caafea7b6e8"
+        },
+        {
+          "i": 17,
+          "wallMs": 40.9,
+          "httpMs": 40.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.21945799999958,
+            "ttfbMs": 40.21945799999958,
+            "totalMs": 40.5604170000006,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "36cd3f8aa0b73efb5c2fcbafe4904860e1b18d7bee78c5f2e9d4a3a86bf71b66"
+        },
+        {
+          "i": 18,
+          "wallMs": 39.7,
+          "httpMs": 39.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.2677079999994,
+            "ttfbMs": 39.2677079999994,
+            "totalMs": 39.41320799999812,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "d0a13fd058199ec9568bcbafb54ce7e2bb0f45b21ad4d8feb3b85feedfadd714"
+        },
+        {
+          "i": 19,
+          "wallMs": 39.8,
+          "httpMs": 39.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.33208299999751,
+            "ttfbMs": 39.33208299999751,
+            "totalMs": 39.5099999999984,
+            "reused": true
+          },
+          "bytes": 213,
+          "sha256": "69356a1b3286cba1706e1300a3514594e44f86af94adeb4f748e67f0ea7e213d"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P1-keep-alive.json",
+      "rawSha256": "69356a1b3286cba1706e1300a3514594e44f86af94adeb4f748e67f0ea7e213d",
+      "rawBytes": 213,
+      "firstSampleMs": 133.1,
+      "steadyState": {
+        "n": 19,
+        "min": 39.7,
+        "p50": 40.5,
+        "p95": 45.4,
+        "max": 45.4,
+        "mean": 41
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P2",
+      "label": "批量报价 8 只",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 39.3,
+          "p50": 40.8,
+          "p95": 45.2,
+          "max": 130.3,
+          "mean": 45.7
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 39,
+          "p50": 40.4,
+          "p95": 44.6,
+          "max": 129.2,
+          "mean": 45.3
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 4.4,
+          "p50": 4.4,
+          "p95": 4.4,
+          "max": 4.4,
+          "mean": 4.4
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.9,
+          "p50": 0.9,
+          "p95": 0.9,
+          "max": 0.9,
+          "mean": 0.9
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 84.2,
+          "p50": 84.2,
+          "p95": 84.2,
+          "max": 84.2,
+          "mean": 84.2
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 89.5,
+          "mean": 4.5
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 38.4,
+          "p50": 39.8,
+          "p95": 43,
+          "max": 43.2,
+          "mean": 40.3
+        },
+        "bytes": {
+          "n": 20,
+          "min": 1005,
+          "p50": 1005,
+          "p95": 1005,
+          "max": 1005,
+          "mean": 1005
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 130.3,
+          "httpMs": 129.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 4.386375000001863,
+            "tcpMs": 0.8600409999999101,
+            "tlsMs": 84.21999999999753,
+            "connMs": 89.4664159999993,
+            "serverMs": 39.539709000000585,
+            "ttfbMs": 129.00612499999988,
+            "totalMs": 129.22470800000156,
+            "reused": false
+          },
+          "bytes": 1005,
+          "sha256": "b6d00c79b7fc964c8482798246e4aa3c676d46e03fa8fe34eb27c257571e9cea"
+        },
+        {
+          "i": 1,
+          "wallMs": 40,
+          "httpMs": 39.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.32908399999724,
+            "ttfbMs": 39.32908399999724,
+            "totalMs": 39.52337500000067,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "1e5696283e0789003c1fa62565d2e0cf0252feaac506833c68a99dbba3dcca73"
+        },
+        {
+          "i": 2,
+          "wallMs": 44.3,
+          "httpMs": 43.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 43.03779099999883,
+            "ttfbMs": 43.03779099999883,
+            "totalMs": 43.272415999999794,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "5a7a8896c8d0f845c136fc714d33f4b4855e4af7cde6f7249355f49f9fda6e9f"
+        },
+        {
+          "i": 3,
+          "wallMs": 42.8,
+          "httpMs": 42.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.30045799999789,
+            "ttfbMs": 41.30045799999789,
+            "totalMs": 42.329374999997526,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "3256ea505a420bf65cb96e7310e4f943a3687d8c8463779ca78c672b6c1e2333"
+        },
+        {
+          "i": 4,
+          "wallMs": 40.8,
+          "httpMs": 40.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.18641600000046,
+            "ttfbMs": 40.18641600000046,
+            "totalMs": 40.37604099999953,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "6cf61b1defb3219a7de67c36c3d99c71936f7b716230eced46c90f46700de61e"
+        },
+        {
+          "i": 5,
+          "wallMs": 40.4,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.83808299999873,
+            "ttfbMs": 39.83808299999873,
+            "totalMs": 40.01158299999952,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "21bf6e7a6a67a1245d5a07433fb71b89491d3f90cba4df6e33e38cb5c5bd915d"
+        },
+        {
+          "i": 6,
+          "wallMs": 41.3,
+          "httpMs": 40.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.5177079999994,
+            "ttfbMs": 40.5177079999994,
+            "totalMs": 40.7833329999994,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "4a37b5efb02dc401706b9cd0e6f47b1238256e12f3705d1ae6997f8b073e1668"
+        },
+        {
+          "i": 7,
+          "wallMs": 39.7,
+          "httpMs": 39.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.40966599999956,
+            "ttfbMs": 39.40966599999956,
+            "totalMs": 39.510041000001365,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "bb9b806e42365cc42d1ca837834732e40f6aa08feb17fa599365f03e6ee20c57"
+        },
+        {
+          "i": 8,
+          "wallMs": 39.7,
+          "httpMs": 39.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.368209000000206,
+            "ttfbMs": 39.368209000000206,
+            "totalMs": 39.46587500000169,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "0fc1aac585ab6a97afbe44a0c89ca42fd0211a752651d95ab56b995a897dc0ad"
+        },
+        {
+          "i": 9,
+          "wallMs": 45.2,
+          "httpMs": 44.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 42.08091699999932,
+            "ttfbMs": 42.08091699999932,
+            "totalMs": 44.56383300000016,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "7e37a23e8d2ea0fe7e279839e893f6dc28fd1e53af04d13a500685337a00cbec"
+        },
+        {
+          "i": 10,
+          "wallMs": 40.3,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.77400000000125,
+            "ttfbMs": 39.77400000000125,
+            "totalMs": 39.967749999999796,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "6e5145c74554832baba940b2733d759d810d29507a123276f556c92b7a077f86"
+        },
+        {
+          "i": 11,
+          "wallMs": 40.3,
+          "httpMs": 40,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.09375,
+            "ttfbMs": 39.09375,
+            "totalMs": 40.02808300000106,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "f558c7c0e36f731ff46ba4d9bab6ec9006763913b85ce884c5f749e4b0314bf9"
+        },
+        {
+          "i": 12,
+          "wallMs": 40.9,
+          "httpMs": 40.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 38.359457999998995,
+            "ttfbMs": 38.359457999998995,
+            "totalMs": 40.65683299999728,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "351db9ed2cbee8cf8dd8fcee0a67c3cfa5ddb3e015094c9dc014b0ea619d4b12"
+        },
+        {
+          "i": 13,
+          "wallMs": 40.9,
+          "httpMs": 40.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.33300000000236,
+            "ttfbMs": 40.33300000000236,
+            "totalMs": 40.52462500000183,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "2502de9507c42522f1b35643205671debeb832849cbed18a6e0eb4641a26e898"
+        },
+        {
+          "i": 14,
+          "wallMs": 39.7,
+          "httpMs": 39.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 38.96075000000201,
+            "ttfbMs": 38.96075000000201,
+            "totalMs": 39.185457999999926,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "8b01d8c57177f261b93a297ab71de3c99ac9b44225565d943bbec6ec7845644c"
+        },
+        {
+          "i": 15,
+          "wallMs": 42.3,
+          "httpMs": 41.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 40.832125000000815,
+            "ttfbMs": 40.832125000000815,
+            "totalMs": 41.87000000000262,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "ef802ce415c35775f8831b60430d41690e93b66a4c66c692284f5060277446ca"
+        },
+        {
+          "i": 16,
+          "wallMs": 40.2,
+          "httpMs": 39.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 39.336749999998574,
+            "ttfbMs": 39.336749999998574,
+            "totalMs": 39.61941599999773,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "c9f23e2eccd59e1d3ab74d0d67e6eac5234335297c0248af8df3429ab63d656e"
+        },
+        {
+          "i": 17,
+          "wallMs": 42.5,
+          "httpMs": 41.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 41.64425000000483,
+            "ttfbMs": 41.64425000000483,
+            "totalMs": 41.7847910000055,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "5ab3979d6651c404756edf0bf56f91da96f1757fdbb6e22e4092df56a80d3ad2"
+        },
+        {
+          "i": 18,
+          "wallMs": 39.3,
+          "httpMs": 39,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 38.935708000004524,
+            "ttfbMs": 38.935708000004524,
+            "totalMs": 39.047041000005265,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "492dedfdb589771aca9fcffaea8ea088b7a0d0789d5831b22074b685aa911079"
+        },
+        {
+          "i": 19,
+          "wallMs": 43.7,
+          "httpMs": 43.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 43.1872499999954,
+            "ttfbMs": 43.1872499999954,
+            "totalMs": 43.32024999999703,
+            "reused": true
+          },
+          "bytes": 1005,
+          "sha256": "8d0b1126c77fc1a5407e935e774dd81ad0e3ca267360f5d6a2f0c2b2315fc5e1"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P2-keep-alive.json",
+      "rawSha256": "8d0b1126c77fc1a5407e935e774dd81ad0e3ca267360f5d6a2f0c2b2315fc5e1",
+      "rawBytes": 1005,
+      "firstSampleMs": 130.3,
+      "steadyState": {
+        "n": 19,
+        "min": 39.3,
+        "p50": 40.8,
+        "p95": 45.2,
+        "max": 45.2,
+        "mean": 41.3
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P3",
+      "label": "日 K 100 根",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 47.8,
+          "p50": 50,
+          "p95": 51.1,
+          "max": 156.4,
+          "mean": 55.2
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 47.4,
+          "p50": 49.5,
+          "p95": 50.7,
+          "max": 155.5,
+          "mean": 54.7
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 2.2,
+          "p50": 2.2,
+          "p95": 2.2,
+          "max": 2.2,
+          "mean": 2.2
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.9,
+          "p50": 0.9,
+          "p95": 0.9,
+          "max": 0.9,
+          "mean": 0.9
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 98.5,
+          "p50": 98.5,
+          "p95": 98.5,
+          "max": 98.5,
+          "mean": 98.5
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 101.7,
+          "mean": 5.1
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 47,
+          "p50": 48.6,
+          "p95": 50.6,
+          "max": 51.7,
+          "mean": 49
+        },
+        "bytes": {
+          "n": 20,
+          "min": 7192,
+          "p50": 7192,
+          "p95": 7192,
+          "max": 7192,
+          "mean": 7192
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 156.4,
+          "httpMs": 155.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.244458000001032,
+            "tcpMs": 0.9492079999981797,
+            "tlsMs": 98.5137920000052,
+            "connMs": 101.70745800000441,
+            "serverMs": 51.73862499999814,
+            "ttfbMs": 153.44608300000255,
+            "totalMs": 155.50745800000004,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "9cb01b139ff88b9968f4e7ce9180e3bb7dc33a32b2a35c4fe03d23d11844f929"
+        },
+        {
+          "i": 1,
+          "wallMs": 48.3,
+          "httpMs": 47.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.38579100000061,
+            "ttfbMs": 47.38579100000061,
+            "totalMs": 47.66291600000113,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "2acdae7f8c8bb07510548d3afcfc8aa8fcb299c1b76cb62c2c0b2a1f186adb11"
+        },
+        {
+          "i": 2,
+          "wallMs": 51.1,
+          "httpMs": 50.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.592665999996825,
+            "ttfbMs": 50.592665999996825,
+            "totalMs": 50.69479099999444,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        },
+        {
+          "i": 3,
+          "wallMs": 49.8,
+          "httpMs": 49.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 49.4673749999929,
+            "ttfbMs": 49.4673749999929,
+            "totalMs": 49.54337499999383,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        },
+        {
+          "i": 4,
+          "wallMs": 50.8,
+          "httpMs": 50.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.363250000002154,
+            "ttfbMs": 50.363250000002154,
+            "totalMs": 50.50170800000342,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "132baca9321853dfdef399a16ac5e39fc873049e5fb14919b32682cb5e0b5777"
+        },
+        {
+          "i": 5,
+          "wallMs": 48.8,
+          "httpMs": 48.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 46.95091700000194,
+            "ttfbMs": 46.95091700000194,
+            "totalMs": 48.10983400000259,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "8a660fbad6646fe0387b635fa6f35bcc5a0d8d9c90076abc7425a33cd9ae0668"
+        },
+        {
+          "i": 6,
+          "wallMs": 50.1,
+          "httpMs": 49.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 49.236125000003085,
+            "ttfbMs": 49.236125000003085,
+            "totalMs": 49.524709000004805,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        },
+        {
+          "i": 7,
+          "wallMs": 47.8,
+          "httpMs": 47.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.174958999996306,
+            "ttfbMs": 47.174958999996306,
+            "totalMs": 47.35758399999759,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "8cfcfd5c71b524d5863311b2aa2663c8e1bf0854480b62b5e9495f8cbe8e8605"
+        },
+        {
+          "i": 8,
+          "wallMs": 50.9,
+          "httpMs": 50.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.170208000003186,
+            "ttfbMs": 48.170208000003186,
+            "totalMs": 50.341082999999344,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "9cb01b139ff88b9968f4e7ce9180e3bb7dc33a32b2a35c4fe03d23d11844f929"
+        },
+        {
+          "i": 9,
+          "wallMs": 50.5,
+          "httpMs": 49.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 49.233375000003434,
+            "ttfbMs": 49.233375000003434,
+            "totalMs": 49.564542000000074,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "132baca9321853dfdef399a16ac5e39fc873049e5fb14919b32682cb5e0b5777"
+        },
+        {
+          "i": 10,
+          "wallMs": 49.6,
+          "httpMs": 48.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.372375000006286,
+            "ttfbMs": 48.372375000006286,
+            "totalMs": 48.71191700000054,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "38c4bf6c6850b1bbcbf405175edd10be2a66343e98a1474c0b43aed9df903fd4"
+        },
+        {
+          "i": 11,
+          "wallMs": 48.9,
+          "httpMs": 48.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.152249999999185,
+            "ttfbMs": 48.152249999999185,
+            "totalMs": 48.35975000000326,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "2acdae7f8c8bb07510548d3afcfc8aa8fcb299c1b76cb62c2c0b2a1f186adb11"
+        },
+        {
+          "i": 12,
+          "wallMs": 48.6,
+          "httpMs": 48.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.20816699999705,
+            "ttfbMs": 47.20816699999705,
+            "totalMs": 48.20270899999741,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "2acdae7f8c8bb07510548d3afcfc8aa8fcb299c1b76cb62c2c0b2a1f186adb11"
+        },
+        {
+          "i": 13,
+          "wallMs": 50.6,
+          "httpMs": 50.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.475709000005736,
+            "ttfbMs": 48.475709000005736,
+            "totalMs": 50.29104200000438,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "8500492c7b5bcc750d4528cf080a505e3399325e4287da08f596f183bce97ec1"
+        },
+        {
+          "i": 14,
+          "wallMs": 50,
+          "httpMs": 49.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.62316599999758,
+            "ttfbMs": 48.62316599999758,
+            "totalMs": 49.44104099999822,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "9cb01b139ff88b9968f4e7ce9180e3bb7dc33a32b2a35c4fe03d23d11844f929"
+        },
+        {
+          "i": 15,
+          "wallMs": 49.5,
+          "httpMs": 48.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.59633300000132,
+            "ttfbMs": 48.59633300000132,
+            "totalMs": 48.824290999997174,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "c4333a24e60cad1c868457dc8b14feaea3fd4a5df6addc88d7afc591270def2c"
+        },
+        {
+          "i": 16,
+          "wallMs": 50.9,
+          "httpMs": 50.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.11566599999787,
+            "ttfbMs": 50.11566599999787,
+            "totalMs": 50.41262500000448,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "38c4bf6c6850b1bbcbf405175edd10be2a66343e98a1474c0b43aed9df903fd4"
+        },
+        {
+          "i": 17,
+          "wallMs": 50.9,
+          "httpMs": 50.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.23287500000151,
+            "ttfbMs": 50.23287500000151,
+            "totalMs": 50.43787500000326,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "f3f6b6578ad525d41930ca2f45611cccb3fc3649ee30a83c87db4db9a34bf707"
+        },
+        {
+          "i": 18,
+          "wallMs": 51.1,
+          "httpMs": 50.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.31858300000022,
+            "ttfbMs": 50.31858300000022,
+            "totalMs": 50.516583000004175,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "8500492c7b5bcc750d4528cf080a505e3399325e4287da08f596f183bce97ec1"
+        },
+        {
+          "i": 19,
+          "wallMs": 50,
+          "httpMs": 49.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.994166999997105,
+            "ttfbMs": 48.994166999997105,
+            "totalMs": 49.25170899999648,
+            "reused": true
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P3-keep-alive.json",
+      "rawSha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e",
+      "rawBytes": 7192,
+      "firstSampleMs": 156.4,
+      "steadyState": {
+        "n": 19,
+        "min": 47.8,
+        "p50": 50,
+        "p95": 51.1,
+        "max": 51.1,
+        "mean": 49.9
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P4",
+      "label": "分钟 K（腾讯 5m / 东财 1m）",
+      "mode": "keep-alive",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 19,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 45.2,
+          "p50": 52.4,
+          "p95": 89.6,
+          "max": 204.3,
+          "mean": 61.4
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 44.2,
+          "p50": 50.1,
+          "p95": 82.5,
+          "max": 196.7,
+          "mean": 58.7
+        },
+        "dnsMs": {
+          "n": 1,
+          "min": 3.4,
+          "p50": 3.4,
+          "p95": 3.4,
+          "max": 3.4,
+          "mean": 3.4
+        },
+        "tcpMs": {
+          "n": 1,
+          "min": 0.9,
+          "p50": 0.9,
+          "p95": 0.9,
+          "max": 0.9,
+          "mean": 0.9
+        },
+        "tlsMs": {
+          "n": 1,
+          "min": 96,
+          "p50": 96,
+          "p95": 96,
+          "max": 96,
+          "mean": 96
+        },
+        "connMs": {
+          "n": 20,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 100.2,
+          "mean": 5
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 44.1,
+          "p50": 48.3,
+          "p95": 54,
+          "max": 72.4,
+          "mean": 49.8
+        },
+        "bytes": {
+          "n": 20,
+          "min": 87604,
+          "p50": 87604,
+          "p95": 87604,
+          "max": 87604,
+          "mean": 87604
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 204.3,
+          "httpMs": 196.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.3780840000035823,
+            "tcpMs": 0.8753329999963171,
+            "tlsMs": 95.9910830000008,
+            "connMs": 100.2445000000007,
+            "serverMs": 53.789583999998285,
+            "ttfbMs": 154.03408399999898,
+            "totalMs": 196.7200840000005,
+            "reused": false
+          },
+          "bytes": 87604,
+          "sha256": "89519d65c5eef4cb69f58c4dda6f27f54e7747db782373799bbc32493ae957a0"
+        },
+        {
+          "i": 1,
+          "wallMs": 56.5,
+          "httpMs": 52.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.17474999999831,
+            "ttfbMs": 50.17474999999831,
+            "totalMs": 52.64241600000241,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "2fbe04625d999911cea49c68b83392d0a834a09d4cf5eb93950e272ea41d46c2"
+        },
+        {
+          "i": 2,
+          "wallMs": 52.1,
+          "httpMs": 49.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 49.40612500000134,
+            "ttfbMs": 49.40612500000134,
+            "totalMs": 49.82295800000429,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "44cf73c893b0397605d104393423609a549136a4154089d945897b673f947d94"
+        },
+        {
+          "i": 3,
+          "wallMs": 53.9,
+          "httpMs": 51.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.858375000003434,
+            "ttfbMs": 50.858375000003434,
+            "totalMs": 51.105916000000434,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "e64b12a877b1805af58f39f79a5ae463fe9f068cf3da4e3fefa3d18e999face1"
+        },
+        {
+          "i": 4,
+          "wallMs": 53.5,
+          "httpMs": 50.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.29174999999668,
+            "ttfbMs": 48.29174999999668,
+            "totalMs": 50.915916999998444,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "f9697b4d0de840af532659e363ff4f03db7e1f17f963add5cd1cf9e83ec9c20d"
+        },
+        {
+          "i": 5,
+          "wallMs": 57.7,
+          "httpMs": 54.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 53.99070799999754,
+            "ttfbMs": 53.99070799999754,
+            "totalMs": 54.3973330000008,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "ff403fc5bb1de483e77e23ee228e501a73197f51068b75f275e7bfbd8e97a25a"
+        },
+        {
+          "i": 6,
+          "wallMs": 48.6,
+          "httpMs": 47.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.149124999996275,
+            "ttfbMs": 47.149124999996275,
+            "totalMs": 47.37204199999542,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "89519d65c5eef4cb69f58c4dda6f27f54e7747db782373799bbc32493ae957a0"
+        },
+        {
+          "i": 7,
+          "wallMs": 52.8,
+          "httpMs": 51.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 51.27812499999709,
+            "ttfbMs": 51.27812499999709,
+            "totalMs": 51.42712500000198,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "c0df885bdbe0a462d35549d0e6924b84b4cee50ba88e257075dc4546dfd4ce08"
+        },
+        {
+          "i": 8,
+          "wallMs": 56.3,
+          "httpMs": 53.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 50.949500000002445,
+            "ttfbMs": 50.949500000002445,
+            "totalMs": 53.37449999999808,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "f81791cee2a3fa26c6c3de634793a1fc7dece21bf4adb1d4500a5d52a3fa8f7a"
+        },
+        {
+          "i": 9,
+          "wallMs": 52.3,
+          "httpMs": 48.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 46.48704100000032,
+            "ttfbMs": 46.48704100000032,
+            "totalMs": 48.512000000002445,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "f81791cee2a3fa26c6c3de634793a1fc7dece21bf4adb1d4500a5d52a3fa8f7a"
+        },
+        {
+          "i": 10,
+          "wallMs": 52.5,
+          "httpMs": 51.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.80279200000223,
+            "ttfbMs": 48.80279200000223,
+            "totalMs": 51.07329200000095,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "a66f6bd048001618be45c6be30f00f3843cebe3566061de2e7cbb5c4817c3575"
+        },
+        {
+          "i": 11,
+          "wallMs": 49.3,
+          "httpMs": 48.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 48.02220800000214,
+            "ttfbMs": 48.02220800000214,
+            "totalMs": 48.16979100000026,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "fbd4c8b450197b4728609bd09f99e712cb3aa7599b74f7ae1e68ea7ec59dca6e"
+        },
+        {
+          "i": 12,
+          "wallMs": 52.4,
+          "httpMs": 50.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.59662499999831,
+            "ttfbMs": 47.59662499999831,
+            "totalMs": 50.071916999993846,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "2fbe04625d999911cea49c68b83392d0a834a09d4cf5eb93950e272ea41d46c2"
+        },
+        {
+          "i": 13,
+          "wallMs": 89.6,
+          "httpMs": 82.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 72.41591699999844,
+            "ttfbMs": 72.41591699999844,
+            "totalMs": 82.46462500000052,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "c0df885bdbe0a462d35549d0e6924b84b4cee50ba88e257075dc4546dfd4ce08"
+        },
+        {
+          "i": 14,
+          "wallMs": 47.7,
+          "httpMs": 46.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 44.846292000001995,
+            "ttfbMs": 44.846292000001995,
+            "totalMs": 46.66962500000227,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "ff403fc5bb1de483e77e23ee228e501a73197f51068b75f275e7bfbd8e97a25a"
+        },
+        {
+          "i": 15,
+          "wallMs": 48.9,
+          "httpMs": 47.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 44.238875000002736,
+            "ttfbMs": 44.238875000002736,
+            "totalMs": 47.35454200000095,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "44cf73c893b0397605d104393423609a549136a4154089d945897b673f947d94"
+        },
+        {
+          "i": 16,
+          "wallMs": 54.4,
+          "httpMs": 52.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 51.98241599999892,
+            "ttfbMs": 51.98241599999892,
+            "totalMs": 52.16479100000288,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "ce4722eab0d0a67129aab29f791992ac2a3b1933ac5575447e24d114303b8a1b"
+        },
+        {
+          "i": 17,
+          "wallMs": 49.7,
+          "httpMs": 47,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 45.11449999999604,
+            "ttfbMs": 45.11449999999604,
+            "totalMs": 47.01970900000015,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "44cf73c893b0397605d104393423609a549136a4154089d945897b673f947d94"
+        },
+        {
+          "i": 18,
+          "wallMs": 50.4,
+          "httpMs": 49.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 47.20416600000317,
+            "ttfbMs": 47.20416600000317,
+            "totalMs": 49.25,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "c0df885bdbe0a462d35549d0e6924b84b4cee50ba88e257075dc4546dfd4ce08"
+        },
+        {
+          "i": 19,
+          "wallMs": 45.2,
+          "httpMs": 44.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": null,
+            "tcpMs": null,
+            "tlsMs": null,
+            "connMs": 0,
+            "serverMs": 44.07525000000169,
+            "ttfbMs": 44.07525000000169,
+            "totalMs": 44.167709000001196,
+            "reused": true
+          },
+          "bytes": 87604,
+          "sha256": "44cf73c893b0397605d104393423609a549136a4154089d945897b673f947d94"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P4-keep-alive.json",
+      "rawSha256": "44cf73c893b0397605d104393423609a549136a4154089d945897b673f947d94",
+      "rawBytes": 87604,
+      "firstSampleMs": 204.3,
+      "steadyState": {
+        "n": 19,
+        "min": 45.2,
+        "p50": 52.4,
+        "p95": 89.6,
+        "max": 89.6,
+        "mean": 53.9
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P1",
+      "label": "单标的报价",
+      "mode": "cold",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 0,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 121.5,
+          "p50": 153.4,
+          "p95": 168,
+          "max": 175.9,
+          "mean": 151.5
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 121.4,
+          "p50": 153.3,
+          "p95": 167.7,
+          "max": 175.6,
+          "mean": 151.2
+        },
+        "dnsMs": {
+          "n": 20,
+          "min": 0.9,
+          "p50": 2,
+          "p95": 4.1,
+          "max": 5.1,
+          "mean": 2.3
+        },
+        "tcpMs": {
+          "n": 20,
+          "min": 0.4,
+          "p50": 0.6,
+          "p95": 1.2,
+          "max": 1.2,
+          "mean": 0.7
+        },
+        "tlsMs": {
+          "n": 20,
+          "min": 77.2,
+          "p50": 86.8,
+          "p95": 91.4,
+          "max": 93.6,
+          "mean": 85.3
+        },
+        "connMs": {
+          "n": 20,
+          "min": 78.6,
+          "p50": 89,
+          "p95": 94.2,
+          "max": 97.7,
+          "mean": 88.3
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 37.8,
+          "p50": 70.8,
+          "p95": 77.6,
+          "max": 78.2,
+          "mean": 62.6
+        },
+        "bytes": {
+          "n": 20,
+          "min": 213,
+          "p50": 213,
+          "p95": 213,
+          "max": 213,
+          "mean": 213
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 165,
+          "httpMs": 164.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.4976250000036089,
+            "tcpMs": 0.36125000000174623,
+            "tlsMs": 91.43170799999643,
+            "connMs": 93.29058300000179,
+            "serverMs": 71.42958299999736,
+            "ttfbMs": 164.72016599999915,
+            "totalMs": 164.80545800000255,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "8b84189118da02aa26e0bb23d232fd381a292d037c25daecfd24444944541927"
+        },
+        {
+          "i": 1,
+          "wallMs": 153.8,
+          "httpMs": 153.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5410830000037095,
+            "tcpMs": 0.5614169999971637,
+            "tlsMs": 78.84550000000309,
+            "connMs": 80.94800000000396,
+            "serverMs": 72.59270799999649,
+            "ttfbMs": 153.54070800000045,
+            "totalMs": 153.63091700000223,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "867cd2214851efc2b152535fa51a3477238bd0d32092236b952d5abc89bdeff7"
+        },
+        {
+          "i": 2,
+          "wallMs": 161.4,
+          "httpMs": 161.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.0789589999985765,
+            "tcpMs": 0.4472079999977723,
+            "tlsMs": 88.40341700000135,
+            "connMs": 89.9295839999977,
+            "serverMs": 71.26687500000116,
+            "ttfbMs": 161.19645899999887,
+            "totalMs": 161.28054200000042,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "e8ad23d94dd3470b1a53cc97cc8cd5a9b4aa87c0d9a0b66891de7a993e96402d"
+        },
+        {
+          "i": 3,
+          "wallMs": 167.7,
+          "httpMs": 167.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 0.9366250000020955,
+            "tcpMs": 0.36049999999522697,
+            "tlsMs": 88.02658300000621,
+            "connMs": 89.32370800000353,
+            "serverMs": 78.20229199999449,
+            "ttfbMs": 167.52599999999802,
+            "totalMs": 167.6035830000037,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "b1991190d802d25c65bdb00534e10d963513875e23b26b7367bbc8de36595221"
+        },
+        {
+          "i": 4,
+          "wallMs": 121.5,
+          "httpMs": 121.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.378499999998894,
+            "tcpMs": 0.4852080000055139,
+            "tlsMs": 78.2152500000011,
+            "connMs": 80.07895800000551,
+            "serverMs": 41.26962499999354,
+            "ttfbMs": 121.34858299999905,
+            "totalMs": 121.43183300000237,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "c138d8a16d4b0c5b31fdf35940699525eab371aae316f0eb4a351c96f5c3fe0f"
+        },
+        {
+          "i": 5,
+          "wallMs": 153.4,
+          "httpMs": 153.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.0427920000001905,
+            "tcpMs": 0.353291999999783,
+            "tlsMs": 77.1551660000041,
+            "connMs": 78.55125000000407,
+            "serverMs": 74.6771249999947,
+            "ttfbMs": 153.22837499999878,
+            "totalMs": 153.30533400000422,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "8d98d7a7902a49ae6d70a9b5c4a458629652784ee98c46b0852d339d37ebf1c9"
+        },
+        {
+          "i": 6,
+          "wallMs": 164.8,
+          "httpMs": 164.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.606500000001688,
+            "tcpMs": 0.39991700000246055,
+            "tlsMs": 85.21845799999574,
+            "connMs": 87.22487499999988,
+            "serverMs": 77.29991700000392,
+            "ttfbMs": 164.5247920000038,
+            "totalMs": 164.61945900000137,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "a1de0738af984fd123dc28c2439c3965ad989b428d59138febb74dfc4e48df29"
+        },
+        {
+          "i": 7,
+          "wallMs": 168,
+          "httpMs": 167.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.34824999999546,
+            "tcpMs": 0.6401670000050217,
+            "tlsMs": 87.10649999999441,
+            "connMs": 90.0949169999949,
+            "serverMs": 77.02570800000103,
+            "ttfbMs": 167.12062499999593,
+            "totalMs": 167.73158300000068,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "867cd2214851efc2b152535fa51a3477238bd0d32092236b952d5abc89bdeff7"
+        },
+        {
+          "i": 8,
+          "wallMs": 138.9,
+          "httpMs": 138.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.3982079999987036,
+            "tcpMs": 1.2136250000039581,
+            "tlsMs": 88.77391699999862,
+            "connMs": 92.38575000000128,
+            "serverMs": 45.74399999999878,
+            "ttfbMs": 138.12975000000006,
+            "totalMs": 138.4482080000016,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "8586cc28089f8bb129518b08c9438711155ce57f7a48a59cfb3d81a9b467234a"
+        },
+        {
+          "i": 9,
+          "wallMs": 151.8,
+          "httpMs": 151.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 4.0949170000021695,
+            "tcpMs": 0.8755830000009155,
+            "tlsMs": 78.19162499999948,
+            "connMs": 83.16212500000256,
+            "serverMs": 68.30087500000081,
+            "ttfbMs": 151.46300000000338,
+            "totalMs": 151.60825000000477,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "9996f49ffeb6c2b168f983047ec10ed57231840c8d68988e0b4da78493f5916a"
+        },
+        {
+          "i": 10,
+          "wallMs": 134.5,
+          "httpMs": 134.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6294580000030692,
+            "tcpMs": 0.621500000001106,
+            "tlsMs": 86.7791670000006,
+            "connMs": 89.03012500000477,
+            "serverMs": 44.94841699999961,
+            "ttfbMs": 133.97854200000438,
+            "totalMs": 134.2283329999991,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "3eaad524a7b77cc08593148bfc433ae3a1318e9941b7fc1331772d3845017c95"
+        },
+        {
+          "i": 11,
+          "wallMs": 124,
+          "httpMs": 123.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.142250000004424,
+            "tcpMs": 0.8616669999973965,
+            "tlsMs": 81.2587080000012,
+            "connMs": 85.26262500000303,
+            "serverMs": 37.77279200000339,
+            "ttfbMs": 123.03541700000642,
+            "totalMs": 123.35691700000461,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "22af1e4a918b2a5962777729fecec5e444a9f4b723725f8928d9a2c434ad18fd"
+        },
+        {
+          "i": 12,
+          "wallMs": 167.4,
+          "httpMs": 167.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.5289579999953276,
+            "tcpMs": 0.8034590000024764,
+            "tlsMs": 88.43483299999934,
+            "connMs": 92.76724999999715,
+            "serverMs": 73.45141700000386,
+            "ttfbMs": 166.218667000001,
+            "totalMs": 167.22374999999738,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "87f5eb11b0428c68a006289c3f69e2aad6cc478f8df49f666841555e48224c59"
+        },
+        {
+          "i": 13,
+          "wallMs": 159.5,
+          "httpMs": 159.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.017167000005429,
+            "tcpMs": 0.609041999996407,
+            "tlsMs": 85.53029100000276,
+            "connMs": 88.1565000000046,
+            "serverMs": 70.75866700000188,
+            "ttfbMs": 158.91516700000648,
+            "totalMs": 159.16054200000508,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "2ff9624e2dad158fe91aaad5d97272ce5d86f3da0eac3021b99cf3be1cfef697"
+        },
+        {
+          "i": 14,
+          "wallMs": 137.1,
+          "httpMs": 136.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.4259579999998095,
+            "tcpMs": 0.4662499999976717,
+            "tlsMs": 89.3772919999974,
+            "connMs": 91.26949999999488,
+            "serverMs": 45.3137080000015,
+            "ttfbMs": 136.58320799999638,
+            "totalMs": 136.76949999999488,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "199adc3f16b0d32480237675139a49e5934422e977ac77ff35f4411cf3c64034"
+        },
+        {
+          "i": 15,
+          "wallMs": 165.9,
+          "httpMs": 165.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.9789999999993597,
+            "tcpMs": 0.8162500000034925,
+            "tlsMs": 89.14920799999527,
+            "connMs": 92.94445799999812,
+            "serverMs": 72.4345420000027,
+            "ttfbMs": 165.37900000000081,
+            "totalMs": 165.5851660000044,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "766481c30e9107451093c4d9a3638d0093f1287ea8ebe7a7c720deacef9b0bae"
+        },
+        {
+          "i": 16,
+          "wallMs": 175.9,
+          "httpMs": 175.6,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.9238750000004075,
+            "tcpMs": 1.1712079999997513,
+            "tlsMs": 93.58004200000141,
+            "connMs": 97.67512500000157,
+            "serverMs": 77.5521249999947,
+            "ttfbMs": 175.22724999999627,
+            "totalMs": 175.6371250000011,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "18e977f0ed511567eec3628b541ecde108f7bfc2c97e62491d027fe6cfd73e9b"
+        },
+        {
+          "i": 17,
+          "wallMs": 125.8,
+          "httpMs": 125.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.4020000000018626,
+            "tcpMs": 1.1349170000030426,
+            "tlsMs": 81.48233299999993,
+            "connMs": 86.01925000000483,
+            "serverMs": 38.96137499999895,
+            "ttfbMs": 124.98062500000378,
+            "totalMs": 125.27150000000256,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "546eca6b77a36a4964fce6a68cfac0a10be03cd67e0053323d18e0d22e3d3abe"
+        },
+        {
+          "i": 18,
+          "wallMs": 152.2,
+          "httpMs": 151.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 5.114000000001397,
+            "tcpMs": 1.052666000003228,
+            "tlsMs": 78.47987499999726,
+            "connMs": 84.64654100000189,
+            "serverMs": 66.86470900000131,
+            "ttfbMs": 151.5112500000032,
+            "totalMs": 151.76525000000402,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "ada85da566c38f7e4bed52cc033d54805383b00346c0bce8bb4385ce56f7fa64"
+        },
+        {
+          "i": 19,
+          "wallMs": 141.7,
+          "httpMs": 141.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.2307500000024447,
+            "tcpMs": 0.8830000000016298,
+            "tlsMs": 91.10124999999971,
+            "connMs": 94.21500000000378,
+            "serverMs": 46.72991599999659,
+            "ttfbMs": 140.94491600000038,
+            "totalMs": 141.142958000004,
+            "reused": false
+          },
+          "bytes": 213,
+          "sha256": "66c3aebe7ab2232a2fb976df55333aab4d32a3e0616645082b22bc2bd30d271c"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P1-cold.json",
+      "rawSha256": "66c3aebe7ab2232a2fb976df55333aab4d32a3e0616645082b22bc2bd30d271c",
+      "rawBytes": 213,
+      "firstSampleMs": 165,
+      "steadyState": {
+        "n": 19,
+        "min": 121.5,
+        "p50": 153.4,
+        "p95": 175.9,
+        "max": 175.9,
+        "mean": 150.8
+      }
+    },
+    {
+      "source": "eastmoney",
+      "pathId": "P3",
+      "label": "日 K 100 根",
+      "mode": "cold",
+      "summary": {
+        "samples": 20,
+        "ok": 20,
+        "failed": 0,
+        "reusedConnections": 0,
+        "errors": [],
+        "statusDist": {
+          "200": 20
+        },
+        "wallMs": {
+          "n": 20,
+          "min": 130.1,
+          "p50": 147,
+          "p95": 161.5,
+          "max": 163.4,
+          "mean": 148.6
+        },
+        "httpMs": {
+          "n": 20,
+          "min": 129.9,
+          "p50": 146.7,
+          "p95": 161,
+          "max": 162.8,
+          "mean": 148.2
+        },
+        "dnsMs": {
+          "n": 20,
+          "min": 1.2,
+          "p50": 2.4,
+          "p95": 3.9,
+          "max": 4.2,
+          "mean": 2.5
+        },
+        "tcpMs": {
+          "n": 20,
+          "min": 0.4,
+          "p50": 0.8,
+          "p95": 1.4,
+          "max": 1.4,
+          "mean": 0.8
+        },
+        "tlsMs": {
+          "n": 20,
+          "min": 85.5,
+          "p50": 94.1,
+          "p95": 104,
+          "max": 105.3,
+          "mean": 95.5
+        },
+        "connMs": {
+          "n": 20,
+          "min": 87.5,
+          "p50": 98.2,
+          "p95": 107.7,
+          "max": 109,
+          "mean": 98.8
+        },
+        "serverMs": {
+          "n": 20,
+          "min": 42.3,
+          "p50": 48.3,
+          "p95": 54.6,
+          "max": 55.9,
+          "mean": 48.9
+        },
+        "bytes": {
+          "n": 20,
+          "min": 7192,
+          "p50": 7192,
+          "p95": 7192,
+          "max": 7192,
+          "mean": 7192
+        }
+      },
+      "sampleDetail": [
+        {
+          "i": 0,
+          "wallMs": 141.5,
+          "httpMs": 141.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.7165830000012647,
+            "tcpMs": 0.9126669999968726,
+            "tlsMs": 91.66679099999601,
+            "connMs": 95.29604099999415,
+            "serverMs": 45.683334000001196,
+            "ttfbMs": 140.97937499999534,
+            "totalMs": 141.15145800000028,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "fdcea0f572f015536e404971fd3a681bbf65f884bda6fe31c05c50dcd3c4e547"
+        },
+        {
+          "i": 1,
+          "wallMs": 147,
+          "httpMs": 146.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.856667000000016,
+            "tcpMs": 1.0929580000010901,
+            "tlsMs": 93.26466699999582,
+            "connMs": 98.21429199999693,
+            "serverMs": 48.334374999998545,
+            "ttfbMs": 146.54866699999548,
+            "totalMs": 146.69533299999603,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8a660fbad6646fe0387b635fa6f35bcc5a0d8d9c90076abc7425a33cd9ae0668"
+        },
+        {
+          "i": 2,
+          "wallMs": 152.4,
+          "httpMs": 151.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.54033299999719,
+            "tcpMs": 0.7704589999993914,
+            "tlsMs": 95.5584580000068,
+            "connMs": 99.86925000000338,
+            "serverMs": 50.70183299999917,
+            "ttfbMs": 150.57108300000255,
+            "totalMs": 151.17362500000309,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8cfcfd5c71b524d5863311b2aa2663c8e1bf0854480b62b5e9495f8cbe8e8605"
+        },
+        {
+          "i": 3,
+          "wallMs": 163.4,
+          "httpMs": 162.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.9573340000060853,
+            "tcpMs": 0.7299999999959255,
+            "tlsMs": 104.03512500000215,
+            "connMs": 107.72245900000416,
+            "serverMs": 54.59150000000227,
+            "ttfbMs": 162.31395900000643,
+            "totalMs": 162.7822920000035,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "f3f6b6578ad525d41930ca2f45611cccb3fc3649ee30a83c87db4db9a34bf707"
+        },
+        {
+          "i": 4,
+          "wallMs": 150,
+          "httpMs": 149.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.2190000000045984,
+            "tcpMs": 1.4035829999993439,
+            "tlsMs": 93.87733299999672,
+            "connMs": 98.49991600000067,
+            "serverMs": 50.37220900000102,
+            "ttfbMs": 148.8721250000017,
+            "totalMs": 149.20416600000317,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "38c4bf6c6850b1bbcbf405175edd10be2a66343e98a1474c0b43aed9df903fd4"
+        },
+        {
+          "i": 5,
+          "wallMs": 153.9,
+          "httpMs": 153.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.6782919999968726,
+            "tcpMs": 1.1408750000045984,
+            "tlsMs": 98.24725000000035,
+            "connMs": 102.06641700000182,
+            "serverMs": 51.30108299999847,
+            "ttfbMs": 153.3675000000003,
+            "totalMs": 153.502542000002,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "9cb01b139ff88b9968f4e7ce9180e3bb7dc33a32b2a35c4fe03d23d11844f929"
+        },
+        {
+          "i": 6,
+          "wallMs": 142.3,
+          "httpMs": 141.3,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.440875000000233,
+            "tcpMs": 1.3722920000000158,
+            "tlsMs": 89.67637500000274,
+            "connMs": 93.48954200000298,
+            "serverMs": 45.627707999999984,
+            "ttfbMs": 139.11725000000297,
+            "totalMs": 141.315042000002,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        },
+        {
+          "i": 7,
+          "wallMs": 142.3,
+          "httpMs": 141.8,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 4.229790999997931,
+            "tcpMs": 0.8770000000004075,
+            "tlsMs": 90.79075000000012,
+            "connMs": 95.89754099999845,
+            "serverMs": 45.678916999997455,
+            "ttfbMs": 141.5764579999959,
+            "totalMs": 141.75074999999924,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8500492c7b5bcc750d4528cf080a505e3399325e4287da08f596f183bce97ec1"
+        },
+        {
+          "i": 8,
+          "wallMs": 152.8,
+          "httpMs": 152.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 3.0698750000010477,
+            "tcpMs": 0.9734169999937876,
+            "tlsMs": 98.68529200000194,
+            "connMs": 102.72858399999677,
+            "serverMs": 49.59366600000067,
+            "ttfbMs": 152.32224999999744,
+            "totalMs": 152.47133399999439,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "f3f6b6578ad525d41930ca2f45611cccb3fc3649ee30a83c87db4db9a34bf707"
+        },
+        {
+          "i": 9,
+          "wallMs": 141.8,
+          "httpMs": 141.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.751125000002503,
+            "tcpMs": 0.4961249999978463,
+            "tlsMs": 93.63733299999876,
+            "connMs": 95.88458299999911,
+            "serverMs": 45.506249999998545,
+            "ttfbMs": 141.39083299999766,
+            "totalMs": 141.5374159999992,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "4ed84794801a45eb0ade84f08217a78d7690876a3e4bbfd63b33f1659655f581"
+        },
+        {
+          "i": 10,
+          "wallMs": 155,
+          "httpMs": 154.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.6712079999997513,
+            "tcpMs": 0.46658400000160327,
+            "tlsMs": 100.47595800000272,
+            "connMs": 102.61375000000407,
+            "serverMs": 49.83495799999946,
+            "ttfbMs": 152.44870800000353,
+            "totalMs": 154.73799999999756,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8cfcfd5c71b524d5863311b2aa2663c8e1bf0854480b62b5e9495f8cbe8e8605"
+        },
+        {
+          "i": 11,
+          "wallMs": 147.8,
+          "httpMs": 147.5,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.152708999994502,
+            "tcpMs": 0.3774580000026617,
+            "tlsMs": 97.90062500000204,
+            "connMs": 99.4307919999992,
+            "serverMs": 47.98529199999757,
+            "ttfbMs": 147.41608399999677,
+            "totalMs": 147.51524999999674,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "38c4bf6c6850b1bbcbf405175edd10be2a66343e98a1474c0b43aed9df903fd4"
+        },
+        {
+          "i": 12,
+          "wallMs": 147,
+          "httpMs": 146.7,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.24345799999719,
+            "tcpMs": 0.7252079999962007,
+            "tlsMs": 94.17966700000397,
+            "connMs": 97.14833299999736,
+            "serverMs": 49.465125000002445,
+            "ttfbMs": 146.6134579999998,
+            "totalMs": 146.73958299999504,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "4ed84794801a45eb0ade84f08217a78d7690876a3e4bbfd63b33f1659655f581"
+        },
+        {
+          "i": 13,
+          "wallMs": 144.4,
+          "httpMs": 144.1,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5887080000029528,
+            "tcpMs": 0.5343749999956344,
+            "tlsMs": 94.14466700000048,
+            "connMs": 96.26774999999907,
+            "serverMs": 47.70383299999958,
+            "ttfbMs": 143.97158299999865,
+            "totalMs": 144.1151250000039,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8500492c7b5bcc750d4528cf080a505e3399325e4287da08f596f183bce97ec1"
+        },
+        {
+          "i": 14,
+          "wallMs": 143.8,
+          "httpMs": 143.4,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.2912080000023707,
+            "tcpMs": 0.43670799999381416,
+            "tlsMs": 92.38158400000248,
+            "connMs": 94.10949999999866,
+            "serverMs": 48.091291000004276,
+            "ttfbMs": 142.20079100000294,
+            "totalMs": 143.43170799999643,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "f3f6b6578ad525d41930ca2f45611cccb3fc3649ee30a83c87db4db9a34bf707"
+        },
+        {
+          "i": 15,
+          "wallMs": 147.5,
+          "httpMs": 147,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.7186670000010054,
+            "tcpMs": 0.8654160000005504,
+            "tlsMs": 93.17045900000085,
+            "connMs": 96.7545420000024,
+            "serverMs": 50.076374999996915,
+            "ttfbMs": 146.83091699999932,
+            "totalMs": 147.0029579999973,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "132baca9321853dfdef399a16ac5e39fc873049e5fb14919b32682cb5e0b5777"
+        },
+        {
+          "i": 16,
+          "wallMs": 161.3,
+          "httpMs": 160.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.3395000000018626,
+            "tcpMs": 0.8531669999938458,
+            "tlsMs": 101.65462500000285,
+            "connMs": 104.84729199999856,
+            "serverMs": 55.9230000000025,
+            "ttfbMs": 160.77029200000106,
+            "totalMs": 160.9105419999978,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "59de8ae04a870d62444b844f207f08bd637284e23de59fc9e4106cb4469e978e"
+        },
+        {
+          "i": 17,
+          "wallMs": 130.1,
+          "httpMs": 129.9,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 1.5207910000026459,
+            "tcpMs": 0.4616669999959413,
+            "tlsMs": 85.51637499999924,
+            "connMs": 87.49883299999783,
+            "serverMs": 42.27845800000068,
+            "ttfbMs": 129.7772909999985,
+            "totalMs": 129.8733329999959,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "8a660fbad6646fe0387b635fa6f35bcc5a0d8d9c90076abc7425a33cd9ae0668"
+        },
+        {
+          "i": 18,
+          "wallMs": 146.6,
+          "httpMs": 146.2,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.0604999999995925,
+            "tcpMs": 0.6205829999962589,
+            "tlsMs": 95.99437500000204,
+            "connMs": 98.67545799999789,
+            "serverMs": 47.29924999999639,
+            "ttfbMs": 145.97470799999428,
+            "totalMs": 146.17583300000115,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "fdcea0f572f015536e404971fd3a681bbf65f884bda6fe31c05c50dcd3c4e547"
+        },
+        {
+          "i": 19,
+          "wallMs": 161.5,
+          "httpMs": 161,
+          "status": 200,
+          "ok": true,
+          "error": null,
+          "timing": {
+            "dnsMs": 2.741542000003392,
+            "tcpMs": 1.006082999992941,
+            "tlsMs": 105.28400000000693,
+            "connMs": 109.03162500000326,
+            "serverMs": 51.782916999996814,
+            "ttfbMs": 160.81454200000007,
+            "totalMs": 160.9941669999971,
+            "reused": false
+          },
+          "bytes": 7192,
+          "sha256": "c4333a24e60cad1c868457dc8b14feaea3fd4a5df6addc88d7afc591270def2c"
+        }
+      ],
+      "rawFile": "raw/eastmoney-P3-cold.json",
+      "rawSha256": "c4333a24e60cad1c868457dc8b14feaea3fd4a5df6addc88d7afc591270def2c",
+      "rawBytes": 7192,
+      "firstSampleMs": 141.5,
+      "steadyState": {
+        "n": 19,
+        "min": 130.1,
+        "p50": 147.5,
+        "p95": 163.4,
+        "max": 163.4,
+        "mean": 149
+      }
+    }
+  ]
+}
