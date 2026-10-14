@@ -12,7 +12,7 @@ Status: implemented
 
 - **secid 映射**：`00700.HK` / `HK00700` / 裸 5 位数字 → `116.xxxxx`（A 股恒 6 位无歧义），toEastmoneySecid 返回值增 `market` 字段。
 - **价格缩放分市场**：东财 hk 价格字段 ×1000（响应 decimal=3；f43=437600 → 437.6），cn ×100；涨跌幅 f170 两市场均 ×100。eastmoneyPriceScale() 承载。
-- **hk 1m 走 trends2 分时端点**（push2his /api/qt/stock/trends2/get?secid=116.xxxxx&ndays=1）：当日完整分钟序列（trendsTotal=331，行格式同 kline/get：时间,开,收,高,低,量,额,均价）；非交易日 ndays=1 自然回落最近交易日，与客户端「最后一根 bar 的本地日」筛选语义自洽。kline/get 的 klt=1 对 hk 未实证，不走。
+- **cn/hk 的 1m 都走 trends2 分时端点**（push2his /api/qt/stock/trends2/get?secid=...&ndays=5，2026-10-14 起为五日窗口）：行格式同 kline/get（时间,开,收,高,低,量,额,均价），5 个交易日 ≈ cn 1205 / hk 1655 根；非交易日自然回落最近交易日，与客户端「最后一根 bar 的本地日」筛选语义自洽。kline/get 的 klt=1 只有当日（`lmt`/`end` 被上游忽略），故 cn 也走 trends2。
 - **hk 5m/日 K 走 kline/get**（klt=5 已实证返回真实 bar；日 K klt=101 因触发限频未验证成功响应，但同端点同格式，解析器与 cn 共用）。
 - **时间锚定**：trends2/kline 分钟时间是 UTC+8 墙钟——新增 utc8WallTimeToEpochMs 固定偏移换算（CN/HK 永久 UTC+8 无夏令时），与机器时区无关；cn 旧路径的机器本地解析保持不动（最小改动）。
 - **注册分流**：Config 增 `market: cn|hk`（缺省 cn，存量 cn 行零变化）；index.ts 按 market 选服务键（tradingCnMarketData/tradingHkMarketData）与工具前缀（cn_get_*/hk_get_*）；dataplane.ts 按 config.market 注册 (market, 'eastmoney') 进注册表——GUI 热切换即时生效。
@@ -52,4 +52,21 @@ Status: implemented
   `registry.list('hk')` 里选中它）——这与本文原记的「hk.provider=eastmoney
   时才激活」的 `routeAllows` 门不冲突：`routeAllows` 管的是**行情服务**的注册，
   持股端点由桥按能力解析。
+
+## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
+
+- 1m 从「当日分时」扩为**最近 5 个交易日**（`ndays=5` 是上游上限，`ndays=10` → `rc:1`），
+  cn 与 hk 共用同一条 trends2 路由；`limit` 仍按尾部截尾。5 个交易日满窗约
+  cn 1205 / hk 1655 根（实测每交易日 cn 241 根、hk 331 根）。
+- **上游开价列有缺陷**：`ndays>1` 时只有当日那一段带真实开价，历史交易日每根第 2 列恒为
+  `0.00`（2026-10-14 实测 cn 964/1002、hk 1324/1362；probe 2026-10-13 为 241/241、331/331）。
+  实现按「同日前一根 close」重建，每个交易日首根取该根自身 close（午后首根用的是午休前
+  最后一根的 close，午休不移动价格）。重建的 open 是**派生值**：实测少量根落在该根
+  `[low, high]` 之外（cn 242/1002、hk 28/1362，多数是最小变动价位量级，单根最大 cn 2.99 元）。
+  close/volume 与腾讯 m1 逐根一致，high/low 有 ≤0.5 舍入差。
+- 证据：`spikes/impl-five-day-1m-fetch/`（穿过 `EastmoneyRestClient` 源码的真实请求 + 逐字原始响应）
+  与 `spikes/impl-five-day-1m-probe/`（上游能力普查 + 腾讯 m1 交叉验证）。
+- 同批契约变更：雅虎 `getKlines` 增加 `limit` 形参并在 REST 层 `slice(-limit)`
+  （1m `range=7d` 整窗 2730 根、覆盖 7 个会话）；桥 `MAX_KLINE_LIMIT` 1000 → 2500。
+  客户端「五日」级别由 `packages/client-ui-trading` 的 `five-day-series.ts` 消费。
 
