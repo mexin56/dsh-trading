@@ -197,10 +197,30 @@ function fiveDayTickLabel(ms: number, dayStartSet: ReadonlySet<number>, intraday
   return fmtAxis(ms, intraday)
 }
 
-export function getChartThemeOptions(dark: boolean) {
+/**
+ * 时轴几何（与主题无关）：只在 createChart 给一次，**主题热切换不得重放**。轻量图表
+ * 收到 barSpacing 会按新间距重排可见范围——亮暗两套的这些值完全相同，重放纯属损失，
+ * 却会清掉用户当前的缩放/平移（2026-10-14 五日级别实测：fit 铺满 5 个交易日、4 条
+ * 日界的视窗在切主题后塌回约一小时）。
+ */
+export const TIME_SCALE_GEOMETRY = {
+  rightOffset: 6,
+  barSpacing: 9,
+  minBarSpacing: 0.5,
+  fixLeftEdge: true,
+  fixRightEdge: true,
+  shiftVisibleRangeOnNewBar: true,
+} as const
+
+/**
+ * 主题视觉选项 = 完整主题选项去掉创建期结构键（时轴几何 + autoSize）。主题热切换只重放
+ * 这一份：亮/暗两套的差异全在这里（布局、网格、双价格轴、十字线、时轴边框色）。结构键
+ * 一次都不重放——时轴几何会按新间距重排可见范围，autoSize 会重新量测容器，两者都能动到
+ * 用户当前的缩放/平移。
+ */
+export function getChartThemeVisualOptions(dark: boolean) {
   if (dark) {
     return {
-      autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: '#131722' },
         textColor: '#787b86',
@@ -227,15 +247,7 @@ export function getChartThemeOptions(dark: boolean) {
         scaleMargins: { top: AXIS_SCALE_MARGIN, bottom: AXIS_SCALE_MARGIN },
         entireTextOnly: true,
       },
-      timeScale: {
-        borderColor: '#2a2e39',
-        rightOffset: 6,
-        barSpacing: 9,
-        minBarSpacing: 0.5,
-        fixLeftEdge: true,
-        fixRightEdge: true,
-        shiftVisibleRangeOnNewBar: true,
-      },
+      timeScale: { borderColor: '#2a2e39' },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
@@ -254,7 +266,6 @@ export function getChartThemeOptions(dark: boolean) {
     } as const
   }
   return {
-    autoSize: true,
     layout: {
       background: { type: ColorType.Solid, color: '#ffffff' },
       textColor: '#5f6672',
@@ -284,15 +295,7 @@ export function getChartThemeOptions(dark: boolean) {
       scaleMargins: { top: AXIS_SCALE_MARGIN, bottom: AXIS_SCALE_MARGIN },
       entireTextOnly: true,
     },
-    timeScale: {
-      borderColor: '#e5e7eb',
-      rightOffset: 6,
-      barSpacing: 9,
-      minBarSpacing: 0.5,
-      fixLeftEdge: true,
-      fixRightEdge: true,
-      shiftVisibleRangeOnNewBar: true,
-    },
+    timeScale: { borderColor: '#e5e7eb' },
     crosshair: {
       mode: CrosshairMode.Normal,
       vertLine: {
@@ -309,6 +312,15 @@ export function getChartThemeOptions(dark: boolean) {
       },
     },
   } as const
+}
+
+/**
+ * createChart 的完整主题选项：创建期结构键（autoSize + 时轴几何）+ 随主题变化的视觉选项。
+ * 两套主题的结构键逐键相同，差异只在视觉选项里。
+ */
+export function getChartThemeOptions(dark: boolean) {
+  const visual = getChartThemeVisualOptions(dark)
+  return { autoSize: true, ...visual, timeScale: { ...TIME_SCALE_GEOMETRY, ...visual.timeScale } }
 }
 
 function TvChartImpl(props: TvChartProps): React.JSX.Element {
@@ -464,12 +476,12 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     }
   }, [])
 
-  // 主题热切换（浅色 ↔ 深色动态 applyOptions）
+  // 主题热切换（浅色 ↔ 深色动态 applyOptions）：只重放随主题变化的视觉选项。时轴几何与
+  // autoSize 是创建期结构键，重放会让库重排可见范围 / 重新量测容器 = 清掉缩放与平移。
   useEffect(() => {
     const chart = chartRef.current
     if (chart === null) return
-    const themeOpts = getChartThemeOptions(dark)
-    chart.applyOptions(themeOpts)
+    chart.applyOptions(getChartThemeVisualOptions(dark))
   }, [dark])
 
   // 涨跌配色热切换：蜡烛换色（成交量由 `vol` 指标按自己的语义色渲染，不随

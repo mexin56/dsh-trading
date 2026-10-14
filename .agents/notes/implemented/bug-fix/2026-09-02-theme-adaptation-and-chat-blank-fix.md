@@ -21,9 +21,16 @@ Status: implemented
 1. **Token 矩阵补齐深色规范 (`tokens.css`)**：
    - 增加 `body[data-ds-dark-theme], [data-theme='dark'], :root[data-theme='dark']` 深色设计变量（富途/TradingView 专业暗色黑蓝基调：`#131722` / `#1e222d` / `#2a2e39` / `#d1d4dc` / `#787b86`）。
 2. **TvChart 主题响应与平滑切换 (`TvChart.tsx`)**：
-   - 引入 `isDarkTheme()` 与 `getChartThemeOptions()`。
+   - 引入 `isDarkTheme()` / `useDarkTheme()`（宿主主题判据的单一实现在 `theme-mode.ts`）。
    - 增加 MutationObserver 监听 `document.body` 上的 `data-ds-dark-theme` 属性变化及系统主题 MediaQuery。
    - 触发时动态调用 `chart.applyOptions()` 平滑切换图表背景与网格，无需重置或重新拉取 K 线。
+   - **热切换只重放随主题变化的视觉选项**（`getChartThemeVisualOptions()`：布局、网格、双价格轴边框、
+     十字线、时轴边框色）；创建期结构键——时轴几何 `TIME_SCALE_GEOMETRY`（`rightOffset` / `barSpacing` /
+     `minBarSpacing` / `fixLeftEdge` / `fixRightEdge` / `shiftVisibleRangeOnNewBar`）与 `autoSize`——只在
+     `createChart` 给一次（`getChartThemeOptions()` = 结构键 + 视觉选项）。两套主题的结构键逐键相同，
+     重放零收益却有损失：`barSpacing` 让库按新间距重排可见范围、`autoSize` 让库重新量测容器，两者都会
+     清掉用户当前的缩放/平移（2026-10-14 五日级别实测：fit 铺满 5 个交易日、4 条日界的视窗在切主题后
+     塌成 91 根 ≈ 1.5 小时、日界 0 条；不变式由 `test/tv-chart-theme-swap.test.ts` 钉住）。
 3. **彻底切断 HomeHistory 的反馈环并加入 Diff Guard (`HomeHistory.tsx`)**：
    - 移除对 `scrollBody` 的 `ResizeObserver`，`MutationObserver` 仅收敛观察 `[data-composer-seat]`；
    - `fuse()` 仅在计算值发生实际变动时才写入 `style.width` / `style.marginLeft` / `style.marginTop`；若尺寸为 0 则直接退出，杜绝崩溃。

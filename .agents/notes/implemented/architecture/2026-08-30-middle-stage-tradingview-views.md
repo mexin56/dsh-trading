@@ -75,9 +75,11 @@ Status: implemented
      一个轴宽）。图表喂进去的序列是显示窗口那一段（`seriesKlines`），数据重置分支
      （`dataKey` 变化 / 首帧落地 / 换档）默认 `fitContent` 铺满当前显示窗口——该级别
      的「缩放」就是交易日档位，沿用常规级别的默认 barSpacing 只露出最近一两小时；
-     主题设了 fixLeftEdge/fixRightEdge，此时库的 minBarSpacing 下限正好是「全部点
-     铺满」，fitContent 不会被钳短。常规级别保持既有
-     `resetTimeScale + scrollToRealTime`。**滚轮换档**：图表交互开关收敛在 TvChart
+     创建期选项设了 fixLeftEdge/fixRightEdge，此时库的 minBarSpacing 下限正好是「全部点
+     铺满」，fitContent 不会被钳短；**主题热切换只重放视觉选项**，不重放这些时轴几何与 autoSize——
+     重放 barSpacing 会让库按新间距重排 fit 视窗（2026-10-14 实测 5 段 4 条日界塌成 91 根 ≈ 1.5 小时；
+     口径与理由见 [theme-adaptation-and-chat-blank-fix](../bug-fix/2026-09-02-theme-adaptation-and-chat-blank-fix.md)）。
+     常规级别保持既有 `resetTimeScale + scrollToRealTime`。**滚轮换档**：图表交互开关收敛在 TvChart
      唯一一处（框选模式全关；五日级别只关 `handleScale/handleScroll.mouseWheel`，
      拖拽平移保留——传完整对象而非布尔，库的布尔展开会把滚轮一起带走），容器上的非
      passive wheel 监听把事件交给 `fiveDayWheelStep`（像素 100px / 行 3 行 / 页 1 页
@@ -150,8 +152,14 @@ Status: implemented
   用真实 Response 桩验证一次请求/在途去重/发布覆盖），`pnpm build` 全绿（lib/client.js
   1.27 MB 未压缩 + gzip）。`scripts/test-audit.mjs --check` 与 `scripts/i18n-audit.mjs
   --check` 通过（无新增测试债；zh/en 词典各 +10 键，contract 键联合同步）。
-- 该级别的 trading-web 真机截图验收（真实行情下四档可辨认、日界可见）由验收环节另行
-  记录，本笔记不预先声称。
+- 主题切换不重置时间轴视窗（2026-10-14 修复 + 验收；trading-web 真机 + 无头 Chrome CDP
+  探针读图表接口 `timeScale().getVisibleLogicalRange()` / `options().timeScale`）：02714.HK 五日级别
+  fit 视窗（1500 根、4 条日界）修复前切深色即塌成 [1408..1499]（91 根、0 条日界），修复后切换前后
+  区间逐位一致、日界恒 4 条且两轮稳定；1d 日K 滚轮放大到非默认视窗后 3 轮切换逐位一致；主题完整
+  生效（画布像素底色 255,255,255 ↔ 19,23,34，图表选项底色/字色同步翻转），真机截图亮/暗两张下
+  四档色块与日界均可辨认。已知残差：进入该级别后**第一次**切主题会让 fit 视窗一次性收窄约 1%
+  （1501 → 1486.5，日界仍 4 条；同一时刻轴宽、`minimumWidth` 与数据指纹均未变，手动重放同一份
+  选项不重现），未归因，留给后续排查。
 
 ## Alternatives considered
 
