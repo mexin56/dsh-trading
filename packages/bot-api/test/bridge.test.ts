@@ -92,6 +92,35 @@ describe('TradingBridge.klines', () => {
     await expect(bridge.klines('hk', '00700', '1w', '0')).rejects.toThrowError(/limit/)
     await expect(bridge.klines('us', 'AAPL', '1d')).rejects.toThrowError(/not installed/)
   })
+
+  it('用户按五日 1m 窗口取数时桥放行 2500 并把 limit 原样透传给服务', async () => {
+    // Given 一个记录入参的行情服务
+    const seen: Array<{ symbol: string; interval: string; limit: number | undefined }> = []
+    const service = fakeService({
+      getKlines: async (symbol, interval, limit) => {
+        seen.push({ symbol, interval, limit })
+        return [{ openTime: 1, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10, closeTime: 2 }]
+      },
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingCnMarketData: service }))
+
+    // When 客户端请求五日 1m 窗口（2500 = MAX_KLINE_LIMIT）
+    const wire = await bridge.klines('cn', '600519', '1m', '2500')
+
+    // Then 请求通过并且 limit 未被改写
+    expect(wire.klines).toHaveLength(1)
+    expect(seen).toEqual([{ symbol: '600519', interval: '1m', limit: 2500 }])
+  })
+
+  it('用户请求超过封顶的 limit 时桥以 400 拒绝（不静默截断）', async () => {
+    // Given 桥安装行情服务
+    const bridge = new TradingBridge(fakeHost({ tradingCnMarketData: fakeService() }))
+
+    // When 客户端请求 2501 与 1000.5
+    // Then 两者都被拒绝，且错误信息给出新上限
+    await expect(bridge.klines('cn', '600519', '1m', '2501')).rejects.toThrowError(/limit must be an integer in 1\.\.2500/)
+    await expect(bridge.klines('cn', '600519', '1m', '1000.5')).rejects.toThrowError(/limit must be an integer in 1\.\.2500/)
+  })
 })
 
 describe('TradingBridge.symbols', () => {

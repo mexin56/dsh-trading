@@ -211,8 +211,14 @@ export function createBridgeHost(services: {
 /** 单次批量报价的 symbols 封顶（保护公共端点，超出部分直接拒绝）。 */
 export const MAX_SYMBOLS = 32
 
-/** 单次 K 线 limit 封顶（与 Binance/Bybit 单请求上限对齐；OKX 超出 300 的部分由连接器 after 游标翻页补足）。 */
-export const MAX_KLINE_LIMIT = 1000
+/**
+ * 单次 K 线 limit 封顶 = 2500（2026-10-14）：量级取「5 个交易日的 1m 窗口」——
+ * 美股常规时段 390 根/日（5 日 1950）、cn 241 根/日（约 1205）、hk 331 根/日（约 1655），
+ * 2500 覆盖三者并留余量，让窗口型连接器（雅虎 range=7d、东财 trends2 ndays=5）
+ * 有一个能显式表达「五日 1m」的契约上限。这是**参数闸门**而非返回截断：
+ * 连接器各自按 limit 截尾或按上游上限回落。
+ */
+export const MAX_KLINE_LIMIT = 2500
 
 /** 宿主面：桥对 cordis ctx 的最小依赖（便于单测注入假件）。 */
 export interface BridgeHost {
