@@ -38,11 +38,23 @@ export interface IndicatorParamSpec {
   max: number
 }
 
+/** 主题双色（亮/暗各一色）：同一语义在两种主题底上各自可辨的取色。 */
+export interface IndicatorThemeColor {
+  light: string
+  dark: string
+}
+
 export interface IndicatorOutput {
   /** 实例内唯一（图例/序列 key）。 */
   key: string
   kind: 'line' | 'histogram' | 'area'
   color: string
+  /**
+   * 主题双色（可选）：消费方按当前宿主主题取 light / dark；缺席回落 {@link color}
+   * （存量指标与自定义指标零迁移）。{@link color} 仍是必需字段——旧消费方读到的是
+   * 同一语义的亮色值，不会出现「无色可用」。
+   */
+  themeColor?: IndicatorThemeColor
   /** 与 K 线逐条对齐；undefined = warm-up，不画。 */
   values: Series
   /** histogram 专用：按符号红涨绿跌着色（MACD 柱）。 */
@@ -95,6 +107,15 @@ export interface IndicatorDefinition {
    * 改回默认（用户显式改成「全部级别」之后必须保持）。
    */
   defaultApplyScope?: IndicatorApplyScope
+  /**
+   * 默认勾选（可选，缺省 false；只有预置定义声明）：true = 该指标要在用户的图上
+   * 默认激活一次，由宿主启动时的补种完成（seedDefaultActivations，见 chart-seed.ts）。
+   *
+   * 补种只发生一次——用户在图上删掉后不复活，因此「补种过」单独记在
+   * $DSH_HOME/indicators/chart-seed.json 账本里；这是宿主侧的初始化行为，
+   * 不改变 definition 的纯数据性质，也不影响存量 definition（零迁移）。
+   */
+  defaultActive?: boolean
 }
 
 /**

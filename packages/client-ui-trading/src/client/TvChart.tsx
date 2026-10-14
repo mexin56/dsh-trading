@@ -25,6 +25,7 @@ import type { BarPrice, PriceFormatCustom } from 'lightweight-charts'
 import { fmtAxis, fmtCompact, priceDigits } from './format.ts'
 import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, percentLabel, percentLabelCandidates } from './axis-width.ts'
 import { getColorPalette, type ColorMode } from './color-mode.ts'
+import { resolveHistogramBarColor, resolveOutputColor } from './indicator-color.ts'
 import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
 import { chartXToContainerX, containerXToChartX, visibleDayMarkXs } from './chart-coordinate.ts'
 import { fiveDayVolumeColor, fiveDayWheelStep, viewportResetStrategy, type FiveDayTier } from './five-day-series.ts'
@@ -723,10 +724,10 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     const chart = chartRef.current
     if (chart === null) return
     const timeAxis = bars.map(bar => bar.time)
-    syncIndicators(chart, mainRefs.current, mainOverlays, timeAxis, false, 0, props.colorMode)
-    syncIndicators(chart, subRefs.current, subIndicators, timeAxis, true, 2, props.colorMode)
+    syncIndicators(chart, mainRefs.current, mainOverlays, timeAxis, false, 0, dark)
+    syncIndicators(chart, subRefs.current, subIndicators, timeAxis, true, 2, dark)
     applyStretch(chart)
-  }, [mainOverlays, subIndicators, bars, props.colorMode])
+  }, [mainOverlays, subIndicators, bars, props.colorMode, dark])
 
   // ---- pane 几何测量：legend overlay 定位用 ----
   // pane 高度随指标增删 / 容器 resize / 分隔线拖拽变化。v5 无 pane DOM 入口，
@@ -980,7 +981,7 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
               const value = output.values[readoutIndex]
               if (value === undefined || !Number.isFinite(value)) return null
               return (
-                <span key={output.key} style={{ color: output.color, fontWeight: 500 }}>
+                <span key={output.key} style={{ color: resolveOutputColor(output, dark), fontWeight: 500 }}>
                   {output.key}: {value.toFixed(output.precision ?? 2)}
                 </span>
               )
@@ -1045,7 +1046,7 @@ function syncIndicators(
   timeAxis: readonly UTCTimestamp[],
   recreateAll: boolean,
   basePane: number,
-  colorMode?: ColorMode,
+  dark: boolean,
 ): void {
   const nextKeys = new Set(groups.map(group => group.key))
 
@@ -1065,14 +1066,17 @@ function syncIndicators(
       // 重建模式：pane 随激活顺序对齐（basePane+i），series 需按 pane 归属重建。
       const paneIndex = recreateAll ? basePane + groupIndex : basePane
       for (const output of group.outputs) {
-        seriesMap.set(output.key, createSeries(chart, output, paneIndex))
+        seriesMap.set(output.key, createSeries(chart, output, paneIndex, dark))
       }
     }
     for (const output of group.outputs) {
       const series = seriesMap.get(output.key)
       if (series === undefined) continue
+      // 主题热切换：主图叠加（recreateAll=false）不重建序列，颜色必须显式重放，
+      // 否则 themeColor 会停在旧主题色，直到指标增删触发一次重建。
+      applySeriesColor(series, output, dark)
       if (output.kind === 'histogram') {
-        ;(series as ISeriesApi<'Histogram'>).setData(toHistogramData(output, timeAxis, colorMode))
+        ;(series as ISeriesApi<'Histogram'>).setData(toHistogramData(output, timeAxis, dark))
       } else {
         ;(series as ISeriesApi<'Line' | 'Area'>).setData(toLineData(output, timeAxis))
       }
@@ -1086,16 +1090,41 @@ function outputDigits(output: IndicatorOutput): number {
   return Math.min(8, Math.max(0, Math.round(output.precision)))
 }
 
-function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: number): ISeriesApi<SeriesType> {
+/**
+ * 已存在序列的颜色重放：颜色只在 createSeries 建序列时读过一次，复用路径（主图
+ * 叠加 recreateAll=false）不重建序列，主题热切换后必须显式 applyOptions 才能重着色。
+ * 只在解析色与序列当前色不同时才写——无 themeColor 的输出解析结果恒等于 output.color，
+ * 即与改动前的渲染逐帧一致（每次同步都不产生任何 applyOptions）。
+ */
+function applySeriesColor(series: ISeriesApi<SeriesType>, output: IndicatorOutput, dark: boolean): void {
+  const color = resolveOutputColor(output, dark)
+  if (output.kind === 'histogram') {
+    const histogram = series as ISeriesApi<'Histogram'>
+    if (histogram.options().color !== color) histogram.applyOptions({ color })
+    return
+  }
+  if (output.kind === 'area') {
+    const area = series as ISeriesApi<'Area'>
+    if (area.options().lineColor !== color) area.applyOptions({ lineColor: color })
+    return
+  }
+  const line = series as ISeriesApi<'Line'>
+  if (line.options().color !== color) line.applyOptions({ color })
+}
+
+function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: number, dark: boolean): ISeriesApi<SeriesType> {
   // 主图叠加（pane 0）与蜡烛同住左轴价格刻度；副图 pane 保持各自默认右轴。
   const priceScaleId = paneIndex === 0 ? { priceScaleId: 'left' as const } : {}
   // 序列 priceFormat 与缺省（precision 2 / minMove 0.01）一致，显式传入以支持
   // 自定义指标按 output.precision 提高十字线/轴标签分辨率。
   const priceFormat = { type: 'price' as const, precision: outputDigits(output), minMove: 1 / 10 ** outputDigits(output) }
+  // 线/柱主色按当前主题解析（themeColor 缺省回落 output.color）；area 的填充
+  // 渐变（topColor/bottomColor）沿用 output.color 的既有语义，不参与主题取色。
+  const color = resolveOutputColor(output, dark)
   if (output.kind === 'histogram') {
     return chart.addSeries(HistogramSeries, {
       ...priceScaleId,
-      color: output.color,
+      color,
       priceLineVisible: false,
       lastValueVisible: false,
       priceFormat,
@@ -1104,7 +1133,7 @@ function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: numb
   if (output.kind === 'area') {
     return chart.addSeries(AreaSeries, {
       ...priceScaleId,
-      lineColor: output.color,
+      lineColor: color,
       topColor: output.topColor ?? output.color,
       bottomColor: output.bottomColor ?? 'transparent',
       invertFilledArea: output.invertFilledArea ?? false,
@@ -1117,7 +1146,7 @@ function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: numb
   }
   return chart.addSeries(LineSeries, {
     ...priceScaleId,
-    color: output.color,
+    color,
     lineWidth: (output.lineWidth ?? 1.2) as 1 | 2 | 3 | 4,
     priceLineVisible: false,
     lastValueVisible: false,
@@ -1137,17 +1166,17 @@ function toLineData(output: IndicatorOutput, timeAxis: readonly UTCTimestamp[]):
   return data
 }
 
-function toHistogramData(output: IndicatorOutput, timeAxis: readonly UTCTimestamp[], colorMode: ColorMode = 'red-up'): Array<{ time: UTCTimestamp; value: number; color: string }> {
-  const palette = getColorPalette(colorMode)
+/**
+ * 逐根柱色（导出为图表侧的直测缝）：符号色（histogramBySign）优先，否则按主题
+ * 解析输出色；与 K 线对齐的缺值/暖机根不产出。
+ */
+export function toHistogramData(output: IndicatorOutput, timeAxis: readonly UTCTimestamp[], dark: boolean): Array<{ time: UTCTimestamp; value: number; color: string }> {
   const data: Array<{ time: UTCTimestamp; value: number; color: string }> = []
   for (let index = 0; index < output.values.length; index++) {
     const value = output.values[index]
     const time = timeAxis[index]
     if (value === undefined || !Number.isFinite(value) || time === undefined) continue
-    const color = output.histogramBySign === true
-      ? (value >= 0 ? 'rgba(230, 69, 69, 0.75)' : 'rgba(43, 164, 113, 0.75)')
-      : output.color
-    data.push({ time, value, color })
+    data.push({ time, value, color: resolveHistogramBarColor(output, value, dark) })
   }
   return data
 }

@@ -8,7 +8,8 @@
  * - host 平面注册 `indicator_author`（从 kit/client-ui-trading 双注册收口）、
  *   `indicator_delete`（桥 DELETE 能力的工具面）与 `indicator_list` /
  *   `indicator_activate` / `indicator_deactivate`（issue #63 图表激活名册工具面）；
- * - 写成功 emit tradingEvents('indicators' | 'chart')（issue #30 通道，issue #63 扩展）。
+ * - 写成功 emit tradingEvents('indicators' | 'chart')（issue #30 通道，issue #63 扩展）；
+ * - 启动时补种默认勾选的预置指标（definition.defaultActive，见 chart-seed.ts）。
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
@@ -19,12 +20,15 @@ import { createFileCustomIndicatorStore } from './custom-fs.ts'
 import type { CustomIndicatorRecord, CustomIndicatorStore } from './custom.ts'
 import type { ChartActivationStore } from './chart-activations.ts'
 import { createFileChartActivationStore } from './chart-activations-fs.ts'
+import { seedDefaultChartActivations } from './chart-seed.ts'
 import { createChartActivationTools } from './chart-tools.ts'
 import { createAuthorIndicatorTool } from './tool.ts'
 
 // 桥经本子路径取 file store（knowledge/tool 同款再导出先例）。
 export { createFileCustomIndicatorStore }
 export { createFileChartActivationStore }
+// 默认勾选补种（bot-api 的服务缺席兜底创建点同用这一条路径）。
+export { createFileChartSeedLedger, defaultChartSeedPath, seedDefaultActivations, seedDefaultChartActivations } from './chart-seed.ts'
 
 /** Cordis 插件名 = patch 行 id（TEMPLATES §8）。 */
 export const name = 'dsh-trading-indicators'
@@ -146,6 +150,15 @@ export function apply(ctx: Context): void {
   new CustomIndicatorsService(ctx, store)
   new ChartActivationsService(ctx, chartStore)
   registerIndicatorsTools(ctx, { store, chartStore })
+  // 默认勾选的预置指标（definition.defaultActive）在宿主启动时补种一次。刻意不
+  // await：补种失败不该让宿主起不来（工具与 GUI 手动勾选都还可用），失败只记日志。
+  void seedDefaultChartActivations(chartStore)
+    .then((seeded) => {
+      if (seeded.length > 0) console.log(`[dsh-trading/indicators] seeded default chart indicators: ${seeded.join(', ')}`)
+    })
+    .catch((err: unknown) => {
+      console.error('[dsh-trading/indicators] failed to seed default chart indicators:', err)
+    })
 }
 
 /** 自定义指标 store 服务（桥与工具的单实例共享点）。 */

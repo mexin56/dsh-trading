@@ -19,7 +19,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
 import type { TradingEventsService, TradingEventStore } from '@dshtrading/eventbus'
-import { createFileChartActivationStore, createFileCustomIndicatorStore } from '@dshtrading/indicators/plugin'
+import { createFileChartActivationStore, createFileCustomIndicatorStore, seedDefaultChartActivations } from '@dshtrading/indicators/plugin'
 import { createFileKnowledgeCardStore } from '@dshtrading/knowledge/plugin'
 import { createFileCustomStrategyStore, createFileBuiltinTombstonesStore, createFileCustomScreenerStore } from '@dshtrading/strategies/plugin'
 import { createFileSelectionStore, createFileWatchlistGroupsStore, createFileWatchlistStore } from '@dshtrading/watchlist/plugin'
@@ -100,6 +100,15 @@ export function apply(ctx: Context): void {
     | undefined
   const chartActivationsStore = chartActivationsService?.store
     ?? createFileChartActivationStore(path.join(dshHomeDir(), 'indicators', 'chart.json'))
+  // 服务缺席（老部署）= 上面这一支兜底自建：默认勾选的预置指标（definition.defaultActive）
+  // 在这里补种一次——正常部署由 @dshtrading/indicators/plugin 的 apply() 补种，账本
+  // （$DSH_HOME/indicators/chart-seed.json）保证同一个 id 只种一次。异步、失败只记日志：
+  // 补种失败不该让桥起不来。
+  if (chartActivationsService?.store === undefined) {
+    void seedDefaultChartActivations(chartActivationsStore).catch((err: unknown) => {
+      console.error('[dsh-trading/bot-api] failed to seed default chart indicators:', err)
+    })
+  }
   const knowledgeService = serviceGet('tradingKnowledgeCards') as
     | { store?: import('@dshtrading/knowledge').KnowledgeCardStore }
     | undefined

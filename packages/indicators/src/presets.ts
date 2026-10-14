@@ -1,10 +1,10 @@
 /**
- * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有
- * 仅港股的「港股通持股比例」与仅 A 股的「主动买盘」两条外部序列指标）。
- * 全部是 definition 数据 + math.ts 纯函数的组合，无渲染逻辑；由指标插件
+ * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有全级别通用的
+ * 「量比分档量能」、仅港股的「港股通持股比例」与仅 A 股的「主动买盘」两条外部序列
+ * 指标）。全部是 definition 数据 + math.ts 纯函数的组合，无渲染逻辑；由指标插件
  * （client-ui-indicators）注册进 tradingIndicators 服务。
  */
-import type { IndicatorDefinition, Kline } from './types.ts'
+import type { IndicatorDefinition, IndicatorThemeColor, Kline } from './types.ts'
 import { alignAuxToBars, type AuxPoint } from './aux.ts'
 import { bollinger, ema, kdj, macd, rsi, sma } from './math.ts'
 
@@ -124,7 +124,66 @@ function valueWithinRange(points: readonly AuxPoint[], start: number, end: numbe
   return point !== undefined && point.date >= start ? point.value : undefined
 }
 
-/** 八个预置 definition（纯数据，注册时机归消费方）。 */
+/** 量比分档的档位（输出序列 key = 图例名，也是着色分组）。 */
+type VolumeTier = '无前值' | '量比<1' | '量比1-2' | '量比2-3' | '量比≥3'
+
+/**
+ * 档位色（亮/暗）：镜像 `packages/client-ui-trading/src/client/five-day-series.ts`
+ * 的 TIER_COLORS_LIGHT / TIER_COLORS_DARK——「行情·5日」成交量档位色是这组色值的
+ * 唯一事实来源，本表是逐档同值的副本（本包不能反向依赖 UI 包），改色必须两处同步。
+ */
+const VOLUME_TIER_THEME_COLORS: Record<VolumeTier, IndicatorThemeColor> = {
+  无前值: { light: '#a8adb8', dark: '#6b7280' },
+  '量比<1': { light: '#d9a01f', dark: '#e8c552' },
+  '量比1-2': { light: '#ee7f72', dark: '#f0958b' },
+  '量比2-3': { light: '#c62828', dark: '#e5484d' },
+  '量比≥3': { light: '#1c1c1e', dark: '#f2f4f8' },
+}
+
+/** 档位顺序 = 输出顺序 = 图例顺序（灰档在前，其后按量比递增）。 */
+const VOLUME_TIERS: readonly VolumeTier[] = ['无前值', '量比<1', '量比1-2', '量比2-3', '量比≥3']
+
+/** 量比分档量能的前值窗口默认周期（params schema 与 compute 的缺参兜底共用一处）。 */
+const VOLUME_TIER_DEFAULT_PERIOD = 4
+
+/**
+ * 量比 → 档位：阈值 1/2/3 分四档（比值恰好等于阈值时落**较高**一档，与五日图例
+ * 「1 ≤ 量比 < 2」的区间语义一致）；undefined（无前值 / 不可判）落中性灰档。
+ * `Number.POSITIVE_INFINITY`（前值无量但本周期有量）落最高档。
+ */
+function volumeTierOf(ratio: number | undefined): VolumeTier {
+  if (ratio === undefined) return '无前值'
+  if (ratio < 1) return '量比<1'
+  if (ratio < 2) return '量比1-2'
+  if (ratio < 3) return '量比2-3'
+  return '量比≥3'
+}
+
+/**
+ * 量比序列：本周期量 ÷ 前 N 个周期量均值（不含本周期，等价 REF(MA(volume, N), 1)）。
+ * 长度严格等于 bars.length。判定顺序（前值无量那两条与「行情·5日」现行分支同口径，
+ * 见 `packages/client-ui-trading/src/client/five-day-series.ts:220-225`）：
+ * 1. 本周期量非有限（脏数据）→ undefined（灰）；
+ * 2. 前值窗口不可用（前 N 根之内）或均值非有限（窗口含脏值）→ undefined（灰）；
+ * 3. 前值均值 ≤ 0 且本周期有量 → `Number.POSITIVE_INFINITY`（比值发散，按最高档处理）；
+ * 4. 前值均值 ≤ 0 且本周期量为 0 → undefined（比值无定义，灰）；
+ * 5. 其余 → 本周期量 ÷ 前值均值（溢出的极端值照样发散，落最高档）。
+ */
+function volumeRatios(bars: readonly Kline[], period: number): Array<number | undefined> {
+  const volumes = bars.map(bar => bar.volume)
+  // sma[i-1] 正是「前 N 个周期（不含本周期）的均值」——REF(..., 1) 的直译。
+  const priorMeans = sma(volumes, period)
+  return bars.map((_bar, index) => {
+    const volume = volumes[index]
+    if (volume === undefined || !Number.isFinite(volume)) return undefined
+    const mean = index >= 1 ? priorMeans[index - 1] : undefined
+    if (mean === undefined || !Number.isFinite(mean)) return undefined
+    if (mean <= 0) return volume > 0 ? Number.POSITIVE_INFINITY : undefined
+    return volume / mean
+  })
+}
+
+/** 九个预置 definition（纯数据，注册时机归消费方）。 */
 export function presetDefinitions(): IndicatorDefinition[] {
   return [
     {
@@ -239,6 +298,38 @@ export function presetDefinitions(): IndicatorDefinition[] {
           { key: 'D', kind: 'line', color: '#4a90e2', values: d },
           { key: 'J', kind: 'line', color: '#c05fd8', values: j },
         ]
+      },
+    },
+    {
+      // 量比分档量能（副图）：把「行情·5日」的成交量档位着色泛化成全级别通用的预置
+      // 指标。柱高 = 本周期的成交量（与五日级别同款：档位只决定颜色，不改柱高），
+      // 颜色按量比分档——因此每根柱只落在五条输出中的一条，其余四条在该下标留空。
+      // 前值无量时的「有无本周期量」分支与 five-day-series.ts:220-225 同口径。
+      // 默认勾选（defaultActive）：宿主启动时补种一次，见 chart-seed.ts。
+      id: 'vol-tier',
+      pane: 'sub',
+      title: '量比分档量能',
+      params: [{ key: 'n', label: '周期', default: VOLUME_TIER_DEFAULT_PERIOD, min: 2, max: 250 }],
+      description: '成交量按量比分档着色：量比 = 本周期成交量 ÷ 前 N 个周期成交量均值（不含本周期，等价 REF(MA(volume, N), 1)），'
+        + '阈值 1 / 2 / 3 分四档（量比 < 1、1 ≤ 量比 < 2、2 ≤ 量比 < 3、量比 ≥ 3）。'
+        + '前值窗口不可用（前 N 个周期之内，或前值含脏数据）走中性灰档；'
+        + '前值无量（前值均值为 0）时，本周期也无量走中性灰档，本周期有量则比值发散、按最高档处理（与「行情·5日」同口径）。'
+        + '柱高是本周期成交量，档位只决定颜色；全市场、全 K 线级别通用。'
+        + '着色读的是量比而不是涨跌，因此不受红涨绿跌配色设置影响。',
+      defaultActive: true,
+      compute(bars, params) {
+        const ratios = volumeRatios(bars, Math.round(params.n ?? VOLUME_TIER_DEFAULT_PERIOD))
+        return VOLUME_TIERS.map(tier => ({
+          key: tier,
+          kind: 'histogram' as const,
+          // color 是必需字段：填同语义的亮色值，消费方优先读 themeColor。
+          color: VOLUME_TIER_THEME_COLORS[tier].light,
+          themeColor: VOLUME_TIER_THEME_COLORS[tier],
+          // 柱高 = 本周期成交量；非有限（脏数据）不出柱，绝不把 NaN/Infinity 交给渲染层。
+          values: bars.map((bar, index) => (
+            volumeTierOf(ratios[index]) === tier && Number.isFinite(bar.volume) ? bar.volume : undefined
+          )),
+        }))
       },
     },
     {

@@ -12,7 +12,7 @@
  */
 export type {
   IndicatorApplyScope, IndicatorDefinition, IndicatorInstance, IndicatorMarketScope,
-  IndicatorOutput, IndicatorPane, IndicatorParamSpec, Kline,
+  IndicatorOutput, IndicatorPane, IndicatorParamSpec, IndicatorThemeColor, Kline,
 } from './types.ts'
 export { alignAuxToBars, type AuxPoint, type AuxSeriesKey, type AuxSeriesMap } from './aux.ts'
 export { createIndicatorRegistry, type IndicatorRegistry } from './registry.ts'
