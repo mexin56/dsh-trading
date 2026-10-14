@@ -1,68 +1,56 @@
-# Agent Note: dsh-trading UI 界面验证一律「宿主 HTTP + 无头 Chrome 截图」
+# Agent Note: dsh-trading UI 验证一律「桌面壳 + Computer Use 点击/截图」
 
 Status: implemented
 
-## Problem
+文件名里的 `hosted-http-headless-chrome` 是 2026-09-04 原决策的代号，为保持链接稳定不改名；**现行手法是下面 2026-10-14 的 Decision**，2026-09-04 的版本已就地记为历史。
 
-v0.1.1 发版本地抽查（desktop 安装包冒烟）时用 macOS 全屏 `screencapture`
-验证桌面壳窗口，暴露一连串问题：
+## Decision（2026-10-14 owner 拍板，推翻 2026-09-04 版）
 
-- 前台是用户正在用的其他应用窗口，trading 窗口被遮挡，验证无效，还把用户
-  桌面隐私卷进截图；
-- `screencapture -l <windowid>` 需要 CGWindowID：swift 取值依赖本机
-  toolchain（无 swift 工具链的机器直接失败），pyobjc 不默认安装；
-- osascript System Events 取窗口几何需要「辅助访问」授权，未授权机器即死
-  （-1719 实证）；
-- 桌面壳 host 端口裸访返回 401（token 门禁），无鉴权 URL 拿不到真实 UI。
+以后 dsh-trading 的界面验证一律走**桌面壳窗口 + 原生 Computer Use**，不再走 browser-use / CDP 的浏览器验证：
 
-## Decision
+1. 目标面就是桌面壳窗口（安装态 `/Applications/DSH Trading.app`；源码态本地跑 `pnpm --dir desktop start`）。trading-web profile + `~/.dsh-trading` home 的判据不变（见 [home 契约](2026-09-08-separate-dsh-home.md)）。
+2. 前置权限：`cua_driver_native__check_permissions` 必须 **Accessibility 与 Screen Recording 均 granted**（2026-10-14 本机实测两项 granted）。缺授权时如实报停——不退回浏览器验证，也不改用全屏截图绕过。
+3. 定位与截图：`list_windows`（可 `pid` 过滤）取窗口 `window_id` → `get_window_state(pid, window_id)` 一次拿 AX 元素树 + **窗口级**截图；元素用 `element_token`（自带 snapshot_id/window_id），局部细节用 `zoom`。
+4. 交互：`click` / `type_text` / `press_key` / `scroll` / `hotkey`，默认 `delivery_mode:"background"`（AX 路径、不抢焦点）；只在 AX 路径没落地时才逐级升到像素路径、再到 `foreground`（会短暂抢占用户当前应用）。
+5. 断言：`verify_state` 的谓词判定只认 `satisfied`，`unsatisfied` / `unknown` 都不算通过；截图必须读图核对预期元素真实渲染，不是「跑完没报错」。
+6. 只用窗口级截图（`get_window_state` / `zoom`），**不做全屏桌面截图**（`get_desktop_state` / `screencapture`）：前台遮挡不可控、卷入用户桌面隐私。
+7. tokenized URL + `curl` 401 降级为「宿主活着待鉴权」的旁证，不再是 UI 证据来源。`pnpm ui:check`（`scripts/ui-functional-check.mjs`）继续走 headless Chrome + CDP 脚本化断言，它是不依赖人眼的回归门禁，不属本手法。
 
-（owner 拍板，2026-09-04）以后 dsh-trading 的界面验证一律走
-**「宿主 HTTP + 无头 Chrome 截图」**，不做全屏桌面截图：
+## 为什么现在可以推翻 2026-09-04 的结论
 
-1. 取 tokenized URL：桌面壳从 `~/Library/Logs/dsh-trading-desktop/dsh-host.log`
-   （`dsh web: http://127.0.0.1:<port>/?token=...`，取与运行中 host 进程端口
-   一致的那条）；`dsh --profile trading-web` 场景直接用启动时打印的 URL。
-2. curl 该 URL 做可达性验证——`401 dsh web authentication required` 即
-   host 已启动待鉴权的直接证据；200 起才是 UI 面。
-3. headless Chrome 截图（必须 `--timeout`，**勿用 `virtual-time-budget`**：
-   行情 UI 的 WebSocket 长连接让页面永不达静默，chrome 挂起到外层超时）：
+原决策整体判死「桌面截图」，落选理由三条：全屏 screencapture 遮挡/隐私；`screencapture -l` 需要 swift/pyobjc 取 CGWindowID；osascript 取窗口几何要「辅助访问」授权（未授权即 -1719）。现行 CUA 驱动的性质变了：
+
+- 截图是**窗口级**捕获（`get_window_state` 自带 AX 树 + 该窗口 PNG），不经全屏、看不到别的应用窗口；
+- 驱动自带窗口枚举（`list_windows`）与 AX 动作，不再需要 swift / pyobjc / osascript 三条自制链路；
+- 「辅助访问授权」从死路变成**可先验证的前置条件**：`check_permissions` 先判、缺授权报停，不再静默降级成不可复现的手法。
+
+## 被取代的 2026-09-04 决策（历史）
+
+（owner 拍板，2026-09-04）当时 dsh-trading 的界面验证一律走「宿主 HTTP + 无头 Chrome 截图」，不做全屏桌面截图：
+
+1. 取 tokenized URL：桌面壳从 `~/Library/Logs/dsh-trading-desktop/dsh-host.log`（`dsh web: http://127.0.0.1:<port>/?token=...`，取与运行中 host 进程端口一致的那条）；`dsh --profile trading-web` 场景直接用启动时打印的 URL。
+2. curl 该 URL 做可达性验证——`401 dsh web authentication required` 即 host 已启动待鉴权的直接证据；200 起才是 UI 面。
+3. headless Chrome 截图（必须 `--timeout`，**勿用 `virtual-time-budget`**：行情 UI 的 WebSocket 长连接让页面永不达静默，chrome 挂起到外层超时）：
 
    ```sh
    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=1600,1000 --timeout=20000 --screenshot=trading-ui.png "<tokenized URL>"
    ```
 
-4. 辅助证据：桌面壳场景 `pgrep -fl "runtime/node"` 出现
-   `bin.js --profile trading-web --no-open --port <port>` 即内嵌
-   runtime/host + profile-trading 加载成功。
+4. 辅助证据：桌面壳场景 `pgrep -fl "runtime/node"` 出现 `bin.js --profile trading-web --no-open --port <port>` 即内嵌 runtime/host + profile-trading 加载成功。
 
-## Alternatives considered
+这条决策要解决的问题（v0.1.1 发版本地抽查用 macOS 全屏 `screencapture` 验证桌面壳窗口时暴露的）：前台是用户正在用的其他应用窗口、trading 窗口被遮挡且把桌面隐私卷进截图；`screencapture -l <windowid>` 需要 CGWindowID，swift 取值依赖本机 toolchain、pyobjc 不默认安装；osascript System Events 取窗口几何需「辅助访问」授权，未授权机器即 -1719 死；桌面壳 host 端口裸访 401，无鉴权 URL 拿不到真实 UI。
 
-- **全屏 screencapture 后人眼找窗口**：前台遮挡不可控、卷入用户桌面隐私、
-  结果不可复现——落选（本次实证）。
-- **swift CGWindowList / pyobjc 取窗口 id 做 `screencapture -l`**：依赖本机
-  toolchain 或第三方包，非默认具备，跨机器不可复现——落选。
-- **osascript System Events 取窗口几何做区域截图**：需「辅助访问」授权，
-  未授权机器直接 -1719 报错——落选。
-- **headless chrome 用 `virtual-time-budget` 等页面静默**：行情 WebSocket
-  长连接导致永不静默，挂到外层超时且无产物——落选，换 `--timeout`。
+当时的替代方案裁决：全屏 screencapture 后人眼找窗口、swift CGWindowList / pyobjc 取窗口 id、osascript System Events 取窗口几何——全部落选；`virtual-time-budget` 等页面静默也落选，换 `--timeout`。
 
-## Consequences
+## Consequences（2026-10-14 更新）
 
-- 界面验证证据统一为 tokenized URL 的 headless Chrome 截图：可复现、
-  不依赖桌面状态、不卷入用户隐私；[AGENTS.md](../../../../AGENTS.md) 工作流
-  新增「UI 界面验证手法」bullet，
-  [release skill](../../../../.agents/skills/dsh-trading-release/SKILL.md) §5
-  本地抽查改为引用本手法。
-- tokenized URL 只在本机日志与本地命令中出现，不写入仓库文件与对外材料；
-  截图内容为交易台 UI 本身。
-- v0.1.1 发版抽查已按此法实测通过：日志取 URL → curl 401（host 活着）→
-  `--timeout=20000` 截图得到完整交易台（行情/策略/知识库、多市场自选、
-  K 线指标、Agent 面板，行情实时滚动）。
+- 界面验证证据统一为桌面壳**窗口级截图 + Computer Use 交互**：窗口可后台（AX 路径不抢焦点）、不依赖桌面状态、不卷入用户隐私；代价是机器必须已授予 Accessibility + Screen Recording。
+- 载体同步：根 [AGENTS.md](../../../../AGENTS.md)「Home 与运行验证」bullet、[release skill](../../../../.agents/skills/dsh-trading-release/SKILL.md) §5 本地抽查、全局 skill `ui-screenshot-verify` 与 `~/.agents/harness/task-routing.md` 的 UI 验证路由。历史证据里按旧手法拍下的截图（cockpit 12 类型、2026-09-09 桌面壳复验等）原地不动——它们是当时的事实，不是现行手法声明。
+- tokenized URL 只在本机日志与本地命令中出现，不写入仓库文件与对外材料。
 
 ## home 守卫（2026-10-01 修正）：ui:check 不再误用宿主 ~/.dsh
 
-**问题**：`scripts/ui-functional-check.mjs` 此前的 home 逻辑是「`DSH_HOME` 优先，否则 `~/.dsh-trading`」。在 agent 会话里（继承 ``DSH_HOME=~/.dsh``）它直接**拿宿主 home 起了 trading-web 实例**，并写入了宿主的 storages / task-board / trading-tasks / pet.json / dsh-usage —— 正是 AGENTS.md 那条契约要禁止的事（"不能因继承了 Web 会话环境而误用 ~/.dsh"）。
+**问题**：`scripts/ui-functional-check.mjs` 此前的 home 逻辑是「`DSH_HOME` 优先，否则 `~/.dsh-trading`」。在 agent 会话里（继承 ``DSH_HOME=~/.dsh``）它直接**拿宿主 home 起了 trading-web 实例**，并写入了宿主的 storages / task-board / trading-tasks / pet.json / dsh-usage —— 正是 AGENTS.md 那条契约要禁止的事（"不能因继承了 Web 会话环境就误用 ~/.dsh"）。
 
 **证据（改动前后对照）**：
 
