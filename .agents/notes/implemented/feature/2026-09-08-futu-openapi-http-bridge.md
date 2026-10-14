@@ -108,8 +108,26 @@ PR #103 合并后，其独立审查的三条非阻断发现逐条修掉；每条
 GET 落 trd 路径 + 日志不落请求体；已接线进 `pnpm test:scripts`，CI 的 static-gates 会跑）。
 用例的跳过判据是**解释器能 import futu**，不是"python 命令存在"：桥在模块加载期
 `from futu import (...)`，而 CI 三个镜像都装了 Python 却没有 futu——只判 Python 会让本文件
-在 CI 上以 `ModuleNotFoundError` 整文件红（2026-10-09 实测）。被验判据都在碰 OpenD 之前
-拒绝，因此只要求 SDK 可导入；
+在 CI 上以 `ModuleNotFoundError` 整文件红（2026-10-09 实测）。
+
+桥的行情上下文与交易上下文均惰性创建：HTTP 启动和本地输入拒绝不连接 OpenD，首次有效行情请求
+在请求锁内创建并复用 `quote_ctx()`。此前模块顶层 `OpenQuoteContext(...)` 在 HTTP 监听之前就
+连接 OpenD，与「输入判据不要求 OpenD」的承诺矛盾；现在输入判据只要求 SDK 可导入。
+测试以 Python 原生审计钩子禁止所有 `socket.connect`（触发即 exit 73），不替换 SDK、不伪造数据；
+即使本机 OpenD 在线也无法掩盖启动或校验阶段的意外连接。未知 klType 同样在连接前拒绝；
+独立用例钉住有效 ticker 请求仍触发 SDK 的真实连接边界（被禁令拦住），不变成伪行情。
+
+测试子进程生命周期归 `scripts/test-support/bridge-process.mjs`：spawn 即返回 child/ready/stop，
+自有启动计时器先回收后拒绝；spawn error 和提前 close 保留诊断，成功路径由 afterAll 等待 stop。
+POSIX detached 独立进程组用负 PID + SIGKILL 回收，Windows 用 `taskkill /T /F`，并等 close
+（回收上界 5s）。这是测试专用回收策略，不改变常驻桥或 LaunchAgent。探测解释器/SDK 的
+同步子进程也有 10s 上界。`scripts/bridge-process.test.mjs` 的真实 Node 子进程用例覆盖
+启动超时（假时钟、夹具忽略 SIGTERM）、提前退出、解释器缺失、就绪后退出与端口释放；
+这四条不因 Python/SDK 缺失而跳过。
+
+备选「探测 OpenD 再跳过整套输入用例」不采用：会把不需要 OpenD 的安全校验退化为环境依赖，
+且不解决 startup hook 超时后失去 child 句柄的泄漏。仅增加 hook 超时同样不解决回收。
+
 `packages/connector-futu/test/trade-face.test.ts` 补 ①（缺账户 / `accId=0` 都结构化拒绝且**零出站**）
 与 ③（缺 `qty` 即抛）。
 

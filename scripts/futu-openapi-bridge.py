@@ -36,7 +36,8 @@ with @dshtrading/connector-futu 的假定契约（GET + query，响应 {retType,
   python3 scripts/futu-openapi-bridge.py            # 前台
   nohup python3 scripts/futu-openapi-bridge.py &    # 后台（日志 scripts/futu-openapi-bridge.log）
 
-依赖：pip install futu-api（本机已装 10.05.6508）；FutuOpenD 已启动并登录。
+依赖：pip install futu-api；有效行情/交易请求要求 FutuOpenD 已启动并登录。
+HTTP 启动与本地输入拒绝不连接 OpenD；行情/交易上下文均在首次需要时创建。
 额度语义（2026-09-08 OpenD 控制台实证）：订阅 0/100，历史K线 6/100——本桥只用
 订阅制 cur-kline + snapshot，不碰历史K线额度。
 """
@@ -106,7 +107,16 @@ KL_TYPE_TO_SUBTYPE = {
     5: SubType.K_60M, 6: SubType.K_DAY, 7: SubType.K_WEEK, 8: SubType.K_MON,
 }
 
-quote = OpenQuoteContext(host=OPEND_HOST, port=OPEND_PORT)
+_quote_context: 'OpenQuoteContext | None' = None
+
+
+def quote_ctx() -> OpenQuoteContext:
+    """首次有效行情请求才连接 OpenD；调用方持 lock，复用同一个 SDK 上下文。"""
+    global _quote_context
+    if _quote_context is None:
+        _quote_context = OpenQuoteContext(host=OPEND_HOST, port=OPEND_PORT)
+    return _quote_context
+
 # 订阅槽 LRU（2026-09-08 审查 M2）：OpenD 每连接订阅上限 100，此前只增不减——
 # 累计 100 个 (security, klType) 后所有新订阅失败、分钟线全错，直到重启桥。
 # 命中上限时按最久未用淘汰并 unsubscribe，槽位可回收。
@@ -138,7 +148,7 @@ def wall_to_iso(value: str, tz) -> str:
 
 def handle_get_ticker(q: dict) -> dict:
     code = (q.get('security') or [''])[0]
-    ret, df = quote.get_market_snapshot([code])
+    ret, df = quote_ctx().get_market_snapshot([code])
     if ret != 0 or df.empty:
         return err(f'snapshot failed: {df}')
     row = df.iloc[0]
@@ -161,6 +171,7 @@ def handle_get_kl(q: dict) -> dict:
     if kltype is None:
         return err(f'unsupported klType {kl_type}')
 
+    quote = quote_ctx()
     key = (code, kl_type)
     if key not in subscribed:
         while len(subscribed) >= MAX_SUBSCRIPTIONS:
