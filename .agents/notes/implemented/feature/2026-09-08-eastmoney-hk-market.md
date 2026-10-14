@@ -80,6 +80,10 @@ Status: implemented
 - 同一条 `ulist.np/get` 在批量场景一次传多 secid，承载 `MarketDataService.getTickers`（自选栏每拍
   1 次请求）：行→符号用响应行的 `f13`+`f12` 拼回 secid，不依赖返回顺序；取价仍按行 `f1`。
   契约与桥侧语义见 [批量报价能力](2026-10-14-batch-tickers-capability.md)。
+- 报价**整体**不可用（2026-10-14 实测 `ulist.np/get` 也被掐：TCP/TLS 通、服务端收到即断）时，
+  `getTicker`/`getTickers` 用同源 `trends2?ndays=1` 派生快照（末根分钟收盘 + 该响应自带的
+  preClose/name），按 secid 做 60s TTL 且只在降级分支读写。触发边界与取舍见
+  [报价路径降级派生](2026-10-14-quote-path-degradation.md)。
 
 ## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
 

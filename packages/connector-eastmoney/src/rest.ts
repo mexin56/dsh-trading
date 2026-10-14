@@ -283,9 +283,42 @@ function clampToBarRange(value: number, low: number, high: number): number {
  */
 const QUOTE_FIELDS = 'f1,f2,f3,f5,f12,f13,f14,f18,f124'
 
+/**
+ * 降级派生快照的缓存 TTL（2026-10-14）：侧栏每 8s 一拍、每拍对每只自选取一次价；报价路径不可用
+ * 时若每拍都派生，就是把每只标的每分钟 7+ 次请求压到**同源**的 push2his 上——那是把仅存的那条
+ * 路也打穿。60s 内同一 secid 只允许一次 trends2。缓存**只在降级分支读写**：报价路径恢复即返回
+ * 直取的新鲜值，绝不用陈旧派生值顶替它。
+ */
+const DERIVED_QUOTE_TTL_MS = 60_000
+
+/**
+ * trends2 响应骨架（派生快照用）：`data` 顶层自带该标的的 name/decimal/preClose，与当日分钟序列
+ * 同在一条响应里（2026-10-14 实测：cn 241 根 / hk 331 根 / 15.9 KB），故派生快照的名称与昨收
+ * 不必再取第二个端点。
+ */
+interface EastmoneyTrendsResponse {
+  data?: { name?: unknown; preClose?: unknown; trends?: unknown } | null
+}
+
 /** ulist.np/get 响应骨架：命中的行在 data.diff；未收录的 secid 使 data 为 null。 */
 interface EastmoneyQuoteListResponse {
   data?: { total?: number; diff?: Array<Record<string, unknown>> } | null
+}
+
+/** 批量报价的请求表：secid → 该 secid 的规范形 + 入参里指向它的全部原字符串。 */
+interface RequestedQuote {
+  canonical: string
+  originals: string[]
+}
+
+/**
+ * 「首选取价路径不可用」判定：只有网络故障与上游错误才降级派生。`TRADING_SYMBOL_NOT_FOUND` /
+ * `TRADING_UNSUPPORTED_SYMBOL` 是关于**标的**的事实、不是取价路径的故障，一律照实上报
+ * （@dshtrading/api 的 Ticker 契约明令降级不得掩盖它们）。
+ */
+function isQuotePathUnavailable(err: unknown): err is TradingServiceError {
+  return err instanceof TradingServiceError
+    && (err.code === 'TRADING_NETWORK' || err.code === 'TRADING_UPSTREAM_ERROR')
 }
 
 /** 数据中心 /api/data/v1/get 响应骨架（列名随报表而变，data 行按需解析）。 */
@@ -305,6 +338,8 @@ export class EastmoneyRestClient {
   /** 本实例的市场（cn/hk 单包双实例；形态解析必须与注册市场一致）。 */
   readonly market: EastmoneyMarket
   private readonly fetchImpl: typeof fetch
+  /** 降级派生快照的 60s TTL 缓存（键=secid；只在降级分支读写，见 DERIVED_QUOTE_TTL_MS）。 */
+  private readonly derivedQuoteCache = new Map<string, { ticker: Ticker; expiresAt: number }>()
 
   constructor(options: EastmoneyRestOptions = {}) {
     this.baseUrl = options.baseUrl ?? 'https://push2.eastmoney.com'
@@ -347,16 +382,22 @@ export class EastmoneyRestClient {
     // server），而同一时刻、同域、同 UA 的 ulist.np/get 与 kline/trends2/search 全部正常
     // ——单标的报价端点没了，不是网络故障。原始证据见 spikes/impl-eastmoney-quote-endpoint/。
     const url = `${this.baseUrl}/api/qt/ulist.np/get?secids=${secid}&fields=${QUOTE_FIELDS}`
-    const res = await this.requestJson<EastmoneyQuoteListResponse>(url)
-    const row = res.data?.diff?.[0]
+    try {
+      const res = await this.requestJson<EastmoneyQuoteListResponse>(url)
+      const row = res.data?.diff?.[0]
 
-    // 未收录的 secid 上游返回 data:null；有效与无效混传时只少返回行、HTTP 仍 200，
-    // 故「拿不到行」即该标的不存在，按 not found 抛错（与该端点原 data 为空的语义一致）。
-    if (row === undefined) {
-      throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `Eastmoney symbol not found: ${symbol}`)
+      // 未收录的 secid 上游返回 data:null；有效与无效混传时只少返回行、HTTP 仍 200，
+      // 故「拿不到行」即该标的不存在，按 not found 抛错（与该端点原 data 为空的语义一致）。
+      if (row === undefined) {
+        throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `Eastmoney symbol not found: ${symbol}`)
+      }
+
+      return parseQuoteRow(row, canonical, market)
+    } catch (err) {
+      // 只有取价路径不可用才降级；not-found / unsupported 照实抛出（见 isQuotePathUnavailable）。
+      if (!isQuotePathUnavailable(err)) throw err
+      return this.derivedQuote(secid, canonical, err)
     }
-
-    return parseQuoteRow(row, canonical, market)
   }
 
   /**
@@ -370,12 +411,14 @@ export class EastmoneyRestClient {
    *   - 行→符号靠响应行的 f13+f12 拼回 secid 再查请求表，**与上游返回顺序无关**；
    *   - 只返回确实拿到的标的：转不成 secid 的符号、以及 diff 里缺行的符号都不出现在结果里
    *     （调用方按缺失回落单取，保住各符号自己的错误码）；整批 HTTP/网络失败才抛出。
+   *   - 整批失败时若有「降级派生」可用（见 derivedQuote），逐只派生而不是整批报废；一只都派生
+   *     不出来仍抛原始错误（2026-10-14 东财封报价路径后的活口）。
    */
   async getTickers(symbols: string[]): Promise<Record<string, Ticker>> {
     if (symbols.length === 0) return {}
 
     // secid → 该 secid 的规范形，以及入参里指向它的全部原字符串（同一标的的多种写法共享一份快照）。
-    const requested = new Map<string, { canonical: string; originals: string[] }>()
+    const requested = new Map<string, RequestedQuote>()
     for (const symbol of symbols) {
       let mapped: { secid: string; canonical: string }
       try {
@@ -392,7 +435,14 @@ export class EastmoneyRestClient {
     if (requested.size === 0) return {}
 
     const url = `${this.baseUrl}/api/qt/ulist.np/get?secids=${[...requested.keys()].join(',')}&fields=${QUOTE_FIELDS}`
-    const res = await this.requestJson<EastmoneyQuoteListResponse>(url)
+    let res: EastmoneyQuoteListResponse
+    try {
+      res = await this.requestJson<EastmoneyQuoteListResponse>(url)
+    } catch (err) {
+      // 批量报价路径不可用 → 逐只派生（同一 secid 60s 内最多一次 trends2，见 DERIVED_QUOTE_TTL_MS）。
+      if (!isQuotePathUnavailable(err)) throw err
+      return this.deriveTickers(requested, err)
+    }
 
     // data 为 null / 无 diff 是「一个都没收录」（只传无效 secid 的响应形态），不是故障——按契约空返回。
     const rows: unknown[] = Array.isArray(res.data?.diff) ? (res.data?.diff as unknown[]) : []
@@ -409,6 +459,100 @@ export class EastmoneyRestClient {
       for (const original of hit.originals) out[original] = ticker
     }
     return out
+  }
+
+  /**
+   * 批量报价路径不可用时的逐只降级：对**请求表里的每个 secid** 各取一次派生快照（TTL 内命中缓存
+   * 的不发请求）；转不成 secid 的符号根本没进请求表，仍按契约跳过、整批不失败。
+   *
+   * 一只都派生不出来时抛回**原始**错误——空表在 getTickers 契约里是「一个都没收录」，与「整批
+   * 取数失败」语义完全不同，降级不得把后者改写成前者。只要拿到了一部分，就按既有语义只返回拿到
+   * 的那些（缺的由调用方回落 `getTicker`，拿它们各自的错误码）。
+   */
+  private async deriveTickers(requested: Map<string, RequestedQuote>, cause: TradingServiceError): Promise<Record<string, Ticker>> {
+    const out: Record<string, Ticker> = {}
+    for (const [secid, hit] of requested) {
+      let ticker: Ticker
+      try {
+        ticker = await this.derivedQuote(secid, hit.canonical, cause)
+      } catch {
+        continue
+      }
+      for (const original of hit.originals) out[original] = ticker
+    }
+    if (Object.keys(out).length === 0) throw cause
+    return out
+  }
+
+  /**
+   * 降级取价：60s TTL 缓存（键=secid，故 `002714` 与 `002714.SZ` 共享同一份）+ 失败兜底。
+   * 派生本身失败（trends2 也失败 / 没有行情行）说明这个源眼下整个不可用——抛回**原始**错误码，
+   * 绝不吞成 not-found、也绝不交出一条空快照。返回浅拷贝，不把缓存对象交给消费方改写。
+   */
+  private async derivedQuote(secid: string, canonical: string, cause: TradingServiceError): Promise<Ticker> {
+    const hit = this.derivedQuoteCache.get(secid)
+    // canonical 是 secid 的纯函数（toEastmoneySecid），同一 secid 的缓存快照对任何入参写法都成立。
+    if (hit !== undefined && hit.expiresAt > Date.now()) return { ...hit.ticker }
+
+    let ticker: Ticker
+    try {
+      ticker = await this.deriveQuoteFromTrends(secid, canonical)
+    } catch {
+      throw cause
+    }
+    this.derivedQuoteCache.set(secid, { ticker, expiresAt: Date.now() + DERIVED_QUOTE_TTL_MS })
+    return ticker
+  }
+
+  /**
+   * 报价路径不可用时的降级快照：走**同源**（push2his，与 kline/trends2 同域；2026-10-14 实测
+   * 报价域被封时它仍 200）的当日分钟序列，末根收盘价即最新价。
+   *
+   * 2026-10-14 实测（spikes/impl-eastmoney-quote-endpoint/p3）：
+   *   - 该响应的价格**已是十进制值**——cn 0.002714 末根 `2026-10-14 15:00,41.07,40.89,41.07,
+   *     40.89,5411,22125210.00,41.081` → 40.89，与同刻腾讯报价逐位一致，`data.preClose`=40.9
+   *     = 腾讯昨收；故**不再**除 10^decimal（×10^f1 是报价端点 ulist.np/get 的整数口径，不是这条的）；
+   *   - `data` 顶层自带 name/preClose，名称、昨收与价格取自同一条响应；
+   *   - changePercent 由同一对 price/prevClose 推出（序列里没有涨跌幅字段，也不另取端点），
+   *     保证「派生值自洽」；
+   *   - **不给 volume**：窗口第 6 列之和在 cn 等于当日累计（196239 = 日 K 196239），但 hk 低于
+   *     当日累计（18,418,300 vs 19,933,548，缺 16:00 后收市竞价）——拿不到的量宁可缺省
+   *     （`Ticker.volume` 本就可选），不用窗口合计之类的近似值冒充当日累计。
+   */
+  private async deriveQuoteFromTrends(secid: string, canonical: string): Promise<Ticker> {
+    const url = `${this.historyBaseUrl}/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=1&iscr=0`
+    const res = await this.requestJson<EastmoneyTrendsResponse>(url)
+    const data = res.data
+    const trends = data?.trends
+    const last = Array.isArray(trends) ? trends[trends.length - 1] : undefined
+    // 没有行情行（停牌 / 未收录 / 上游给了空窗口）→ 派生不成立，由 derivedQuote 抛回原始错误。
+    if (typeof last !== 'string') {
+      throw new TradingServiceError('TRADING_UPSTREAM_ERROR', `Eastmoney trends2 returned no intraday rows for ${secid}`)
+    }
+
+    const parts = last.split(',')
+    const price = parseFloat(parts[2] ?? '')
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new TradingServiceError('TRADING_UPSTREAM_ERROR', `Eastmoney trends2 last row has no usable close for ${secid}`)
+    }
+
+    const prevClose = toFiniteNumber(data?.preClose)
+    const rawName = data?.name
+    const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : undefined
+    // 昨收缺失或非正时不给涨跌幅：宁可缺省，也不用半个基准编一个百分数出来。
+    const changePercent = prevClose !== undefined && prevClose > 0
+      ? ((price - prevClose) / prevClose) * 100
+      : undefined
+
+    return {
+      symbol: canonical,
+      ...(name ? { name } : {}),
+      price,
+      // 末根时间按 UTC+8 墙钟换算，与同市场 1m/K 线同口径，与宿主本地时区无关。
+      timestamp: utc8WallTimeToEpochMs(parts[0] ?? ''),
+      ...(prevClose !== undefined && prevClose > 0 ? { prevClose } : {}),
+      ...(changePercent !== undefined ? { changePercent } : {}),
+    }
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {

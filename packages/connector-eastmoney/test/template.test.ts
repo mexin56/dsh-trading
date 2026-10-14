@@ -13,13 +13,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
-function stubFetch(routes: Array<{ match: string; body: unknown; status?: number }>) {
+function stubFetch(routes: Array<{ match: string; body?: unknown; status?: number; networkError?: boolean }>) {
   const urls: string[] = []
   const impl = (async (input: unknown) => {
     const url = String(input)
     urls.push(url)
     const route = routes.find((r) => url.includes(r.match))
     if (!route) throw new Error(`unexpected request: ${url}`)
+    // networkError：报价路径在本机被封的真实形态——TCP 通、服务端收到即断，node fetch 抛 TypeError
+    // （undici UND_ERR_SOCKET，2026-10-14 实测），requestJson 归为 TRADING_NETWORK。
+    if (route.networkError) throw new TypeError('fetch failed')
     return jsonResponse(route.body, route.status)
   }) as typeof fetch
   return { impl, urls }
@@ -463,6 +466,185 @@ describe('EastmoneyRestClient.getTickers（批量报价，2026-10-14 契约）',
     // When 用户批量取一只标的
     // Then 整批按上游故障抛出（调用方上报整批失败，不做 N 次重试、也不把空表当成功）
     await expect(client.getTickers(['002714.SZ'])).rejects.toMatchObject({ code: 'TRADING_UPSTREAM_ERROR' })
+  })
+})
+
+/**
+ * 报价路径降级派生（2026-10-14 活故障）：东财掐了本机出口的报价快照路径（ulist.np/get 与
+ * stock/get 空回），同刻 push2his 的 trends2 正常。fixture 直接取自实测响应
+ * spikes/impl-eastmoney-quote-endpoint/p3-derive-fallback.mjs 的原始读数，不做人为加工。
+ */
+const TRENDS_MUYUAN_CN = {
+  data: {
+    code: '002714',
+    market: 0,
+    name: '牧原股份',
+    decimal: 2,
+    preClose: 40.9,
+    trends: [
+      '2026-10-14 09:30,40.80,40.80,40.80,40.80,408,1664640.00,40.800',
+      '2026-10-14 11:30,41.13,41.18,41.18,41.13,313,1288045.00,41.134',
+      '2026-10-14 15:00,41.07,40.89,41.07,40.89,5411,22125210.00,41.081',
+    ],
+  },
+}
+
+const TRENDS_DONGRUI_CN = {
+  data: {
+    code: '001201',
+    market: 0,
+    name: '东瑞股份',
+    decimal: 2,
+    preClose: 14.33,
+    trends: [
+      '2026-10-14 09:30,14.33,14.33,14.33,14.33,200,286600.00,14.330',
+      '2026-10-14 15:00,14.13,14.13,14.13,14.13,796,1124748.00,14.261',
+    ],
+  },
+}
+
+const TRENDS_TENCENT_HK = {
+  data: {
+    code: '00700',
+    market: 116,
+    name: '腾讯控股',
+    decimal: 3,
+    preClose: 425.2,
+    trends: [
+      '2026-10-14 09:30,421.400,421.400,421.400,421.400,441200,185921680.000,421.4000',
+      '2026-10-14 16:00,424.200,423.400,424.200,423.400,2293400,971054384.000,423.5433',
+    ],
+  },
+}
+
+describe('EastmoneyRestClient 报价路径不可用时的降级派生（2026-10-14 活故障）', () => {
+  it('用户遇到报价路径空回时从同源分钟序列拿到派生快照', async () => {
+    // Given 报价端点 TCP 通但服务端收到即断（curl: (52) Empty reply from server），同刻 trends2 正常
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: '/api/qt/stock/trends2/get', body: TRENDS_MUYUAN_CN },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户取这只 A 股的报价
+    const ticker = await client.getTicker('002714.SZ')
+
+    // Then 先打首选取价路径，失败后落到同源的当日分钟序列（ndays=1）
+    expect(urls[0]).toContain('/api/qt/ulist.np/get')
+    expect(urls[1]).toContain('/api/qt/stock/trends2/get')
+    expect(urls[1]).toContain('secid=0.002714')
+    expect(urls[1]).toContain('ndays=1')
+    // Then price 取末根第 3 列——该序列的价格已是十进制值，不再除 10^decimal
+    expect(ticker.price).toBe(40.89)
+    // Then 名称与昨收取自同一条响应，时间按 UTC+8 墙钟锚定（15:00 UTC+8 = 07:00 UTC）
+    expect(ticker.name).toBe('牧原股份')
+    expect(ticker.prevClose).toBe(40.9)
+    expect(ticker.symbol).toBe('002714.SZ')
+    expect(ticker.timestamp).toBe(Date.UTC(2026, 9, 14, 7, 0))
+    // Then 涨跌幅由同一对 price/prevClose 推出（序列里没有涨跌幅字段），派生值自洽
+    expect(ticker.changePercent).toBeCloseTo(((40.89 - 40.9) / 40.9) * 100, 10)
+    // Then 不给 volume：窗口合计在 hk 低于当日累计，拿不到的量宁可缺省
+    expect('volume' in ticker).toBe(false)
+    expect(urls).toHaveLength(2)
+  })
+
+  it('用户查询未收录代码时降级不掩盖 not found', async () => {
+    // Given 上游对未收录 secid 返回 data:null（报价路径本身可用）
+    const { impl, urls } = stubFetch([{ match: '/api/qt/ulist.np/get', body: { data: null } }])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户取一个未收录的代码
+    // Then 照实上报 not found，且一次分钟序列请求都不发（降级不得掩盖标的确实不存在）
+    await expect(client.getTicker('999999.SZ')).rejects.toMatchObject({ code: 'TRADING_SYMBOL_NOT_FOUND' })
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain('/api/qt/ulist.np/get')
+  })
+
+  it('运营刷新侧栏时降级态下同一规范符号每分钟最多一次分钟序列请求', async () => {
+    // Given 报价路径空回、trends2 正常，8s 一拍的侧栏在 TTL 内连取两次
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: '/api/qt/stock/trends2/get', body: TRENDS_MUYUAN_CN },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户在同一分钟内分别用 `002714.SZ` 与 `002714` 取价（同一 secid 的两种写法）
+    const first = await client.getTicker('002714.SZ')
+    const second = await client.getTicker('002714')
+
+    // Then 第二次命中缓存，拿到同一份快照（symbol 仍是规范形）
+    expect(second.price).toBe(first.price)
+    expect(second.timestamp).toBe(first.timestamp)
+    expect(second.symbol).toBe('002714.SZ')
+    // Then trends2 只发了 1 次（另两次是首选取价路径的尝试），降级态自身的请求量有界
+    expect(urls.filter((u) => u.includes('/api/qt/stock/trends2/get'))).toHaveLength(1)
+    expect(urls.filter((u) => u.includes('/api/qt/ulist.np/get'))).toHaveLength(2)
+  })
+
+  it('运营遇到取价路径与分钟序列同时不可用时拿到原始错误码', async () => {
+    // Given 报价端点空回，且 trends2 也空回（另一种情形：trends2 回了空窗口）
+    const { impl } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: '/api/qt/stock/trends2/get', networkError: true },
+    ])
+    const { impl: emptyWindowImpl } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: '/api/qt/stock/trends2/get', body: { data: { name: '牧原股份', preClose: 40.9, trends: [] } } },
+    ])
+
+    // When 用户在这两种降级都不成立的情况下取价
+    // Then 都抛回**原始**错误码（TRADING_NETWORK），不吞成 not found、也不给空快照
+    await expect(new EastmoneyRestClient({ fetchImpl: impl }).getTicker('002714.SZ'))
+      .rejects.toMatchObject({ code: 'TRADING_NETWORK' })
+    await expect(new EastmoneyRestClient({ fetchImpl: emptyWindowImpl }).getTicker('002714.SZ'))
+      .rejects.toMatchObject({ code: 'TRADING_NETWORK' })
+  })
+
+  it('用户批量自选取价失败时逐只派生，转不成 secid 的写法仍被跳过', async () => {
+    // Given 批量报价端点空回，同源 trends2 对两只 A 股正常；入参里另混一个港股形态
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: 'trends2/get?secid=0.002714', body: TRENDS_MUYUAN_CN },
+      { match: 'trends2/get?secid=0.001201', body: TRENDS_DONGRUI_CN },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取两只 A 股（其中一只用裸代码写法）与一只港股形态
+    const tickers = await client.getTickers(['002714.SZ', '001201', '00700.HK'])
+
+    // Then 整批失败后对请求表里的两只各派生一次，港股形态没进请求表、也没发跨市场请求
+    expect(urls.filter((u) => u.includes('/api/qt/stock/trends2/get'))).toHaveLength(2)
+    expect(urls.filter((u) => u.includes('116.00700'))).toHaveLength(0)
+    // Then 每只按**入参原字符串**回填，symbol 仍是规范形，整批不因畸形符号失败
+    expect(Object.keys(tickers).sort()).toEqual(['001201', '002714.SZ'])
+    expect(tickers['002714.SZ']).toMatchObject({ symbol: '002714.SZ', name: '牧原股份', price: 40.89, prevClose: 40.9 })
+    expect(tickers['001201']).toMatchObject({ symbol: '001201.SZ', name: '东瑞股份', price: 14.13, prevClose: 14.33 })
+    expect('volume' in tickers['002714.SZ']!).toBe(false)
+  })
+
+  it('用户取港股报价时降级派生同样生效', async () => {
+    // Given hk 实例的报价端点同样空回，而同源 trends2 的 hk 响应自带 preClose 与 name
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', networkError: true },
+      { match: '/api/qt/stock/trends2/get', body: TRENDS_TENCENT_HK },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl, market: 'hk' })
+
+    // When 用户取这只港股的报价
+    const ticker = await client.getTicker('00700.HK')
+
+    // Then 派生请求用港股 secid，价格取末根第 3 列（hk 序列同样已是十进制值，423.4 港元），
+    // 时间按 UTC+8 墙钟锚定（16:00 UTC+8 = 08:00 UTC）
+    expect(urls[1]).toContain('secid=116.00700')
+    expect(ticker).toMatchObject({
+      symbol: '00700.HK',
+      name: '腾讯控股',
+      price: 423.4,
+      prevClose: 425.2,
+      timestamp: Date.UTC(2026, 9, 14, 8, 0),
+    })
+    expect(ticker.changePercent).toBeCloseTo(((423.4 - 425.2) / 425.2) * 100, 10)
+    expect('volume' in ticker).toBe(false)
   })
 })
 

@@ -39,7 +39,17 @@ export type Interval =
   | '1w'
   | '1M'
 
-/** 最新行情快照（公共数据，无需凭证）。 */
+/**
+ * 最新行情快照（公共数据，无需凭证）。
+ *
+ * **降级派生（2026-10-14）**：数据源的首选取价路径不可用时，连接器可用**同源序列**派生快照
+ * （connector-eastmoney 即用当日分钟序列的末根收盘价 + 该序列自带的昨收与名称；2026-10-14
+ * 实测其派生价与同刻腾讯报价逐位一致）。此时 `price` 是「最近一根分钟 bar 的收盘」而非逐笔
+ * 最新价，滞后以该源的降级策略为界。派生值必须自洽——涨跌幅由同一对 `price`/`prevClose` 推出，
+ * 名称与昨收取自同一响应；**拿不到的量宁可缺省**（`volume` 本就可选），不得用窗口合计之类的
+ * 近似值冒充当日累计。降级不得掩盖「该标的确实不存在」：`TRADING_SYMBOL_NOT_FOUND` /
+ * `TRADING_UNSUPPORTED_SYMBOL` 照实上报，消费方无需区分快照来自直取还是派生。
+ */
 export interface Ticker {
   /** 交易对符号，**市场规范词汇**（docs/symbol-vocabulary.md：crypto=BTCUSDT，us=AAPL，cn=600519.SH，hk=00700.HK）。 */
   readonly symbol: string
