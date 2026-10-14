@@ -131,6 +131,10 @@ it('composes all 16 installed-market subsets deterministically as registry defin
       // without these the persona's skill names are dead references — 2026-09-07).
       expect(preset.plugins).toContainEqual({ id: 'dsh-trading-skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem' })
       expect(preset.plugins).toContainEqual({ id: 'dsh-trading-tool-skill', name: '@deepseek-ai/dsh-tool-skill' })
+      // Media tool surface: the Web bundle disables the host-plane `tool-fs` row, so every
+      // role must carry it on the preset plane or `read_image` does not exist in any trading
+      // session (2026-10-13).
+      expect(preset.plugins).toContainEqual({ id: 'dsh-trading-tool-fs', name: '@deepseek-ai/dsh-tool-fs' })
       // Role skill distribution (#70): the mounted base-skill row follows the persona discipline.
       const roleSkills = preset.plugins.find(row => row.id === 'dsh-trading-role-skills')
       if (preset.id === 'master') {

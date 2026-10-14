@@ -154,10 +154,21 @@ export function composePresets(contributions: readonly MarketContribution[]): Pr
       { id: 'dsh-trading-skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem' },
       { id: 'dsh-trading-tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
     ]
+    // Media tool surface (owner 2026-10-13「图片需要你亲自过一遍」→「都要用 read_image」):
+    // the Web bundle disables the host-plane `tool-fs` row, so the session tool surface is
+    // assembled here — without this row NO trading session has `read_image` (nor read / write
+    // / edit), and content-insight's body-image reading and UI screenshot checks degrade to
+    // text OCR only. Every role carries it: all four presets read images.
+    // Double-mounting stays rejected (see 2026-08-29-preset-plane-tool-rows): the host-plane
+    // row keeps `disabled: true` in the Web bundle and no profile re-enables it.
+    const toolRows: PresetRow[] = [
+      { id: 'dsh-trading-tool-fs', name: '@deepseek-ai/dsh-tool-fs' },
+    ]
     // Shell for the master only: content-insight and similar session skills drive
     // python/uv pipelines from scripts; ordering tools already pass the base
     // approval gate, so a shell adds no new trading surface (trader keeps its
-    // minimal execution face; specialists stay read-only).
+    // minimal execution face; specialists stay read-only on MARKET tools — the
+    // media row above is read-oriented and carries no ordering surface).
     const shellRow: PresetRow[] = id === 'master'
       ? [{ id: 'dsh-trading-master-bash', name: '@deepseek-ai/dsh-tool-bash' }] : []
     // Workspace instruction injection (AGENTS.md). The Web surface disables the
@@ -186,6 +197,7 @@ export function composePresets(contributions: readonly MarketContribution[]): Pr
         ...readOnly,
         ...delegation,
         ...skillRows,
+        ...toolRows,
         ...shellRow,
       ],
     }
