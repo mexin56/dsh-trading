@@ -45,7 +45,11 @@ export function useAuxSeries(
         const series: Record<string, readonly AuxPoint[]> = previous.request === request ? { ...previous.series } : {}
         const liveKeys: AuxSeriesKey[] = []
         for (const [key, snapshot] of entries) {
-          if (snapshot.points !== undefined && snapshot.points.length > 0) series[key] = snapshot.points
+          if (snapshot.points === undefined || snapshot.points.length === 0) {
+            if (previous.request === request && previous.liveKeys.includes(key)) liveKeys.push(key)
+            continue
+          }
+          series[key] = snapshot.points
           if (snapshot.live) liveKeys.push(key)
         }
         return { request, keys, series, liveKeys }

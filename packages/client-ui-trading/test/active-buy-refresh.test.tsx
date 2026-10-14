@@ -47,6 +47,58 @@ describe('主动买盘刷新与标题', () => {
     expect(result.current.liveKeys).toEqual([])
   })
 
+  it.each(['empty', 'failure'] as const)('user 遇到 %s 响应时仍看到旧 live 读数与盘中徽标直到有效 close 替换', async (response) => {
+    // Given 真实 hook 已取得 live 点且真实标题显示盘中徽标
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-10-13T10:00:00+08:00'))
+    let mode: 'live' | 'empty' | 'failure' | 'close' = 'live'
+    const fetchActiveBuy = async (_market: string, symbol: string): Promise<ActiveBuyHistory> => {
+      if (mode === 'failure') throw new Error('offline')
+      return mode === 'empty' ? { symbol, points: [] } : history(symbol, mode === 'close' ? 9.99 : 6.73, mode === 'live')
+    }
+    const { result } = renderHook(() => useAuxSeries('cn', '002714.SZ', keys, fetchHoldings, fetchActiveBuy))
+    await flush()
+    const title = () => <IndicatorPaneTitle title="主动买盘" live={result.current.liveKeys.includes(CN_ACTIVE_BUY_KEY)} liveText={zh['indicator.live']} />
+    const { queryByRole, rerender } = render(title())
+    expect(queryByRole('status')?.textContent).toBe('盘中')
+    // When 复取为空或失败，之后取得有效 close 点
+    mode = response
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000) })
+    rerender(title())
+    // Then 数值与 live 元信息一致保留，只有有效替换响应更新两者
+    expect(result.current.series[CN_ACTIVE_BUY_KEY]).toEqual([{ date: Date.UTC(2026, 9, 13), value: 6.73 }])
+    expect(result.current.liveKeys).toEqual(keys)
+    expect(queryByRole('status')?.textContent).toBe('盘中')
+    mode = 'close'
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000) })
+    rerender(title())
+    expect(result.current.series[CN_ACTIVE_BUY_KEY]).toEqual([{ date: Date.UTC(2026, 9, 13), value: 9.99 }])
+    expect(result.current.liveKeys).toEqual([])
+    expect(queryByRole('status')).toBeNull()
+  })
+
+  it.each(['manual', 'history'] as const)('user 取得有效 %s 序列替换旧 live 后不再看到盘中徽标', async (replacement) => {
+    // Given 真实 hook 已取得当日 live 序列
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-10-13T10:00:00+08:00'))
+    let current = history('002714.SZ', 6.73)
+    const fetchActiveBuy = async (): Promise<ActiveBuyHistory> => current
+    const { result } = renderHook(() => useAuxSeries('cn', '002714.SZ', keys, fetchHoldings, fetchActiveBuy))
+    await flush()
+    const title = () => <IndicatorPaneTitle title="主动买盘" live={result.current.liveKeys.includes(CN_ACTIVE_BUY_KEY)} liveText={zh['indicator.live']} />
+    const { queryByRole, rerender } = render(title())
+    expect(queryByRole('status')?.textContent).toBe('盘中')
+    // When 非空 manual 或仅历史 close 数据替换旧序列
+    const date = replacement === 'manual' ? '2026-10-13' : '2026-10-12'
+    current = { symbol: '002714.SZ', points: [{ ...history('002714.SZ', 3.5, false).points[0]!, date, phase: replacement === 'manual' ? 'manual' : 'close' }] }
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000) })
+    rerender(title())
+    // Then 有效序列和非 live 标记同时更新，不把替换数据误标为盘中
+    expect(result.current.series[CN_ACTIVE_BUY_KEY]).toEqual([{ date: Date.parse(`${date}T00:00:00Z`), value: 3.5 }])
+    expect(result.current.liveKeys).toEqual([])
+    expect(queryByRole('status')).toBeNull()
+  })
+
   it('user 在收尾窗口五分钟复取历史与 close 点后更新终值并落下盘中徽标', async () => {
     // Given 14:59 的历史与当日 live 点，标题消费真实 hook 的 liveKeys
     vi.useFakeTimers()

@@ -188,6 +188,35 @@ describe('主动买盘预置定义', () => {
     expect(outputs[1]?.values).toEqual([51.75])
   })
 
+  it('user 看月 K 时首末日均命中且无数据月份不沿用相邻月份读数', () => {
+    // Given 三根完整月 K，十月无点，区间外也有真实日期的读数
+    const bars = [
+      spanBar(day(2026, 9, 1), day(2026, 9, 30)),
+      spanBar(day(2026, 10, 1), day(2026, 10, 31)),
+      spanBar(day(2026, 11, 1), day(2026, 11, 30)),
+    ]
+    const firstDays: AuxPoint[] = [
+      { date: day(2026, 9, 1), value: -1 },
+      { date: day(2026, 11, 1), value: -2 },
+    ]
+    const boundaries: AuxPoint[] = [
+      { date: day(2026, 8, 31), value: 8 },
+      firstDays[0]!,
+      { date: day(2026, 9, 30), value: 4 },
+      firstDays[1]!,
+      { date: day(2026, 11, 30), value: 6 },
+      { date: day(2026, 12, 1), value: 9 },
+    ]
+    // When 分别只有首日点与同时存在末日点时计算预设本体
+    const first = auxOutputs(bars, { [AUX_KEY]: firstDays })
+    const latest = auxOutputs(bars, { [AUX_KEY]: boundaries })
+    // Then 首日包含、末日最新点优先，缺失月及区间外点不被填入
+    expect(first[0]?.values).toEqual([-1, undefined, -2])
+    expect(first[1]?.values).toEqual([49.5, undefined, 49])
+    expect(latest[0]?.values).toEqual([4, undefined, 6])
+    expect(latest[1]?.values).toEqual([52, undefined, 53])
+  })
+
   it('用户尚未取到外部数据时，该指标输出空数组而不是零线', () => {
     // Given: 有 K 线但宿主没有注入外部序列（键缺失），以及注入了空序列两种情形
     const bars = [dailyBar(day(2026, 10, 5)), dailyBar(day(2026, 10, 6))]
