@@ -7,8 +7,16 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { TencentMarketDataService, marketDataKey, type Config } from './index.ts'
+import { TencentMarketDataService, marketDataKey, Config } from './index.ts'
 export const inject: string[] = []
+
+// 本行 patch 行只写 `enabled: true` 等少量键：loader 只认**本模块**导出的 Config 补默认值
+// （cordis resolveConfig——模块无 Config 时行 config 原样传入，schema 默认值全部丢失）。
+// 与主行共用同一份 schema，默认值不出现第二个家（docs/guides/connector-playbook.md §4.2）。
+export { Config }
+
+/** schema 的运行时可调用形态（校验即补默认值）；手工构造 ctx 不传 config 时按 schema 默认值处理。 */
+const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)
 
 /** 注册表服务的最小消费面（鸭式，不定死接口——连接器对 router 包保持零依赖，与 router consult 同纪律）。 */
 interface MarketDataRegistryLike {
@@ -23,7 +31,7 @@ function resolveMarketDataRegistry(ctx: Context): MarketDataRegistryLike | undef
 /** 本连接器的路由 provider slug（路由层词汇，docs/exchange-routing.md §2.2）。 */
 const ROUTER_PROVIDER = 'tencent'
 
-export function apply(ctx: Context, config: Config): void {
+export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   const market = config.market
   const key = marketDataKey(market)
   const registry = resolveMarketDataRegistry(ctx)

@@ -6,8 +6,14 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { TRADING_US_MARKET_DATA_KEY, YahooMarketDataService } from './index.ts'
+import { Config, TRADING_US_MARKET_DATA_KEY, YahooMarketDataService } from './index.ts'
 export const inject: string[] = []
+
+// 本行 patch 行只写 `enabled: true`：loader 只认**本模块**导出的 Config 补默认值
+// （cordis resolveConfig——模块无 Config 时行 config 原样传入，schema 默认值全部丢失）。
+// 与主行共用同一份 schema，默认值不出现第二个家（docs/guides/connector-playbook.md §4.2）。
+// Yahoo 是纯数据源：无交易面、schema 里也没有行级开关，故 apply 不吃 config（本行恒注册）。
+export { Config }
 
 /** 注册表服务的最小消费面（鸭式，不定死接口——连接器对 router 包保持零依赖，与 router consult 同纪律）。 */
 interface MarketDataRegistryLike {

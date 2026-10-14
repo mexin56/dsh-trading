@@ -84,6 +84,7 @@ const MUST_BE_WIRED = [
   'typecheck-gate',
   'i18n:check',
   'patch-id:check',
+  'connector-dataplane:check',
   'tool-contract:check',
   'live-order:check',
   'live-trading:check',

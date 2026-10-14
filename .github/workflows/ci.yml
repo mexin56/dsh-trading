@@ -42,6 +42,10 @@ jobs:
       # insert 时宿主 loader 会静默塌缩为最后一条（不抛错），只能靠启动前的静态门禁拦。
       # 判据文件 scripts/patch-id-freeze.json（新增/改名必须显式 --update）。
       - run: pnpm patch-id:check
+      # 数据面入口结构门禁：每个 dataplane 入口必须重导出主行 Config schema——宿主 loader
+      # 只认被加载模块自己导出的 Config 补行 config 默认值，缺它时 schema 默认值全丢
+      # （2026-10-14 的 17 个入口就是如此，qmt/alpaca 因此整行未激活）。
+      - run: pnpm connector-dataplane:check
       # 工具契约门禁（tools-and-mcp / issue #43cedfae）：工具名、必填参数、参数类型
       # 与输出形状是模型可见的公共契约；此前只有打印报告、无基线断言。
       # 判据文件 scripts/tool-contract-freeze.json（新增/改名必须显式 --update）。

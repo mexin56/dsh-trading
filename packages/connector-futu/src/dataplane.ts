@@ -21,10 +21,18 @@ import {
   FutuTradeService,
   TRADING_HK_MARKET_DATA_KEY,
   TRADING_HK_TRADE_KEY,
-  type Config,
+  Config,
 } from './index.js'
 
 export const inject: string[] = []
+
+// 本行 patch 行只写 `enabled: true` 等少量键：loader 只认**本模块**导出的 Config 补默认值
+// （cordis resolveConfig——模块无 Config 时行 config 原样传入，schema 默认值全部丢失）。
+// 与主行共用同一份 schema，默认值不出现第二个家（docs/guides/connector-playbook.md §4.2）。
+export { Config }
+
+/** schema 的运行时可调用形态（校验即补默认值）；手工构造 ctx 不传 config 时按 schema 默认值处理。 */
+const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)
 
 /** 注册表服务的最小消费面（鸭式，不定死接口——连接器对 router 包保持零依赖）。 */
 interface MarketDataRegistryLike {
@@ -51,7 +59,7 @@ const EXTRA_QUOTE_MARKETS = ['us'] as const
 /** 美股面服务实例的 isolate 键（与 hk 实例分开：listInstruments 按实例市场给标的清单）。 */
 const TRADING_US_MARKET_DATA_KEY = 'tradingUsMarketData'
 
-export function apply(ctx: Context, config: Config): void {
+export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
   const registry = resolveMarketDataRegistry(ctx)
   // 行情面必须与交易面同样透传 gatewayUrl（2026-09-08 实证 bug：此前只有交易面传，

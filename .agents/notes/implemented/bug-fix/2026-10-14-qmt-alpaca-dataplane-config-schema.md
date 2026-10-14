@@ -47,8 +47,28 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
 - **在 dataplane 里另写一份本地默认值对象**：默认值出现第二个家，schema 改动即静默失配（否）。
 - **`apply(ctx, config: Partial<Config>)` 逐字段 `??` 兜底**：同样是把默认值复制成第二份家，
   且 jin10 先例已证明「共用同一份 schema」更省心（否）。
-- **本轮就加「每个 dataplane 入口必须导出 Config」的全仓门禁**：现存 17 个数据面入口都不导出，
-  门禁会立刻红、须先引入棘轮基线，属于独立变更；已作为看板卡登记，不在本次修复内扩大范围。
+- **当时推后、同日补齐的第三条路（即最终采用的形态）**：全仓「每个 dataplane 入口必须导出
+  Config」的结构门禁先被推后（现存 17 个入口都不导出，门禁会立刻红、须先引入棘轮基线），
+  同日把 17 个入口一并收敛后由 `scripts/connector-dataplane-config-gate.mjs` 落地（见下）。
+
+## 收敛（同日续做，看板卡 456cf455）
+
+存量同类债已清零，且不再依赖人记得补：
+
+- 全部 23 个数据面入口（`packages/connector-*/src/*dataplane.ts`，含 `connector-hithink` 的
+  `dataplane.ts` + `futures-dataplane.ts` 与脚手架 `connector-template`）统一三行：
+  `import { Config, … }`（值导入，同一名字兼作配置类型）、`export { Config }`、
+  `const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)`，
+  `apply` 签名取 `config: Config = withDefaults(undefined)`。默认值仍只有一个家——主行 schema。
+- schema 里的 `required` 字段保持必填：tencent 的 `market`（单包双市场 cn/hk）在两条行里各自写明，
+  手工 ctx 不传 config 时按 schema 报错，不猜一个缺省。
+- `pnpm connector-dataplane:check`（`scripts/connector-dataplane-config-gate.mjs`，进 CI 静态门禁与
+  `gates:all`，登记在 `scripts/ci-wiring-check.mjs` 的必须接线清单）静态判两条：R1 每个入口重导出
+  Config；R2 patch 层引用的每个数据面子路径模块源码入口存在且满足 R1。`connector-template` 骨架合规，
+  故 `scripts/new-connector.mjs` 生成的新入口天然带这三行。
+- 每包 `test/dataplane-loader.test.ts` 走**加载路径**断言（`resolveConfig(子入口模块, 真实行 config)`
+  补出 schema 默认值 + `apply` 后 `(market, provider)` 进对应注册表），行 config 取自 bundle 的
+  `cordis.patch.yml` 实值（含 okx 的 `env: demo`、futu/hk 的 `gatewayUrl`、tencent 的 `market`）。
 
 ## Consequences
 
@@ -65,9 +85,9 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
   同款命令行（app 内 host bin + host-symbol-normalizer，`DSH_HOME=~/.dsh-trading`）重启宿主：
   启动输出只有 `dsh web: …token…` 一行，**无** `entries did not activate`。桌面壳 GUI 本轮未能从
   命令行拉起（`open -a "DSH Trading"` 返回 0 但无进程），需人工打开；验证用的宿主进程已停，未留残留。
-- 仍存量的同类债：其他 17 个数据面入口依旧不导出 `Config`，只是当前不崩（服务兜底或行内
-  restate：okx 的 patch 行额外写了 `env: demo` 才没踩到）。已开看板卡
-  `456cf455`（收敛 + 结构门禁）。
+- 同类债已清零：其余 17 个数据面入口（20 条 patch 行）补齐同款导出后，宿主 `--dump-config-schema`
+  里 24 条数据面行全部 `status: schema`（此前 20 条 `absent` / `unknownConfig`）。行内 restate
+  （okx 的 `env: demo`、futu 的 `gatewayUrl`）此后是可选的冗余，不再是行可用的前提。
 - 运行中的桌面实例原先加载修复前的副本（`…/node_modules/@dshtrading/connector-{qmt,alpaca}/lib/dataplane.js`
   只有 `export { apply, inject }`）；2026-10-14 经用户授权已刷新副本并重启宿主一次取证，
   桌面壳 GUI 需人工打开。
@@ -92,7 +112,24 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
   `{enabled:true, env:'demo', dryRun:true, liveTrading:false, gatewayUrl:'http://127.0.0.1:5800'}`，
   注册表双双得到 `cn/qmt`、`us/alpaca`；只读调用余下的
   `TRADING_AUTH_FAILED: accountId is required`、「Alpaca credentials missing」属用户配置缺口。
-- 回归证明：把两个 `dataplane.ts` 还原到修复前（`git show HEAD~1:` 临时还原后再复原），
+- **全仓 24 条数据面行的 `--dump-config-schema` 前后对照（2026-10-14 收敛验证）**：为不动运行中的
+  实例，用 `mktemp -d` 造临时 home，`cp -c -R ~/.dsh-trading/profiles/trading-web <tmp>/profiles/trading-web`
+  取到未改动的旧副本，跑 `DSH_HOME=<tmp> dsh --profile trading-web --dump-config-schema` →
+  `x-cordis.entries` 里 24 条数据面行 **20 条 `absent` / 4 条 `schema`**（schema 的四条正是此前已修的
+  alpaca/qmt/xysz/jin10）；把仓库新构建的 `packages/connector-*` 覆盖进副本的
+  `node_modules/@dshtrading/connector-*` 后重跑 → **24 条全 `schema`、`absent` 归零**（tencent 的
+  cn/hk 两行共享 `config120`、eastmoney 两行共享 `config121`、hithink 的 cn/futures 两行共享 `config125`，
+  与「同一份 schema」一致）。两次 dump 都带 3~4 条与本变更无关的既有告警
+  （`/179`~`/182` 的 `unrecognized Loader tree carrier` 与 `/112`、`/149` 的 config 校验提示，
+  profile 层本来如此），故两次退出码都是 1、`x-cordis.complete` 都是 false——数据面行的 status 不受其影响。
+- **结构门禁红/绿两次证据**：`node scripts/connector-dataplane-config-gate.mjs` 全绿
+  （23 个入口 / 24 条引用行）；临时删掉 `packages/connector-binance/src/dataplane.ts` 的
+  `export { Config }` 再跑 → exit 1，报
+  `✗ packages/connector-binance/src/dataplane.ts: 未重导出主行的 Config schema（缺 \`export { Config }\`）`；
+  还原后 sha256 与删除前一致（`17c58979…`）、门禁复绿。门禁自测
+  `scripts/connector-dataplane-config-gate.test.mjs` 8 例覆盖「漏导出判红」「引用死行判红」
+  「非数据面子路径不认领」「本仓现状全绿」等夹具。
+- 回归证明（qmt/alpaca 那次）：把两个 `dataplane.ts` 还原到修复前（`git show HEAD~1:` 临时还原后再复原），
   两包新测试各 4 例全红；修复后 `pnpm --filter @dshtrading/connector-qmt --filter @dshtrading/connector-alpaca test`
   22 + 27 例全绿（含「未给 env → demo」与「显式 env:live 不被打回 demo」）。
 - `pnpm gates:all`（2026-10-14，HEAD b6a623e4）：16 条门禁 15 通过 / 1 失败，失败项 `test:scripts`

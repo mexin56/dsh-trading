@@ -13,6 +13,7 @@
     "build": "pnpm sync:skills && pnpm -r build",
     "changeset": "changeset",
     "ci-wiring:check": "node scripts/ci-wiring-check.mjs",
+    "connector-dataplane:check": "node scripts/connector-dataplane-config-gate.mjs",
     "coverage:check": "node scripts/coverage-gate.mjs --check",
     "coverage:update": "node scripts/coverage-gate.mjs --update",
     "docs-link:check": "node scripts/docs-link-check.mjs",

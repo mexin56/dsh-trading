@@ -158,13 +158,21 @@ loader 只从 patch 行 `name` 解析到的**那个模块**读 `name` / `inject`
   不上**——服务构造若依赖某个 schema 默认字段（如 `env` 喂 OrderIntentLedger），抛错会让整行
   加载失败、行情与交易两个服务一起不注册（qmt/alpaca 2026-10-14 实测，见
   [note](../../.agents/notes/implemented/bug-fix/2026-10-14-qmt-alpaca-dataplane-config-schema.md)）。
-  与主行共用同一份 schema（`export { Config } from './plugin.js'`）
-  避免默认值漂移，`apply(ctx, config?: Partial<Config>)` 再对 `undefined` 给缺省（单测/第三方宿主手搓 ctx）。
+  与主行共用同一份 schema，入口统一三行——`import { Config, … } from './index.js'`、
+  `export { Config }`、`const withDefaults = (value: unknown): Config => (Config as unknown as (v: unknown) => Config)(value)`，
+  `apply` 的签名取 `config: Config = withDefaults(undefined)`：省略 config 时由**同一份** schema
+  补缺省，入口不再自带第二份缺省值对象（默认值只有一个家）。schema 里的 `required` 字段
+  （如 tencent 的 `market`，单包双市场）保持必填语义：行内必须写明，漏写按 schema 报错而不是猜一个缺省。
 - 护栏：包内单测直接 `apply(fakeCtx, config)` **不会**暴露这类缺失（假 ctx 不读 loader 元信息）。
   至少留一条「根入口重导出 name/inject/Config/apply」断言（connector-jin10/test/plugin.test.ts 先例）
   与一条**加载路径**断言——`resolveConfig(子入口模块, 行 config)` 必须补出 schema 默认值、且
-  `apply` 后行情与交易两张注册表都拿到 `(market, provider)`（connector-qmt/test/dataplane.test.ts 先例），
+  `apply` 后行情与交易两张注册表都拿到 `(market, provider)`（connector-qmt/test/dataplane.test.ts、
+  其余连接器 test/dataplane-loader.test.ts 先例），
   并在真实宿主（桌面壳/CLI）启动一次核对日志无 `failed to apply loader entry`。
+- **结构门禁**：`pnpm connector-dataplane:check`（`scripts/connector-dataplane-config-gate.mjs`，进 CI 静态门禁
+  与 `gates:all`）静态要求每个 `src/*dataplane.ts` 重导出 Config，并要求 patch 行引用的数据面入口
+  可达——新连接器漏导出会被拦在提交前，而不是等宿主启动日志里的一句「N entries did not activate」。
+  `connector-template` 的 dataplane 骨架本身合规，故 `scripts/new-connector.mjs` 生成出来的入口天然带这三行。
 
 ---
 
