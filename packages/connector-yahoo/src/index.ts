@@ -82,9 +82,8 @@ export class YahooMarketDataService extends Service implements MarketDataService
   }
 
   getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]> {
-    return this.client.getKlines(symbol, interval).then((all) =>
-      typeof limit === 'number' && Number.isInteger(limit) && limit > 0 ? all.slice(-limit) : all,
-    )
+    // limit 截尾归 REST 客户端（单一实现处，2026-10-14）：本层只做透传。
+    return this.client.getKlines(symbol, interval, limit)
   }
 
   subscribeTicker(symbol: string, cb: (ticker: Ticker) => void, options?: SubscribeTickerOptions): Disposable {

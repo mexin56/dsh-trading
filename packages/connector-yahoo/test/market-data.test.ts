@@ -124,6 +124,51 @@ describe('YahooRestClient.getKlines', () => {
     expect(all.slice(-1).map((k) => k.close)).toEqual([319.7])
   })
 
+  it('用户按 limit 取 1m 时只拿到最近的 limit 根，缺省时保留整窗', async () => {
+    // Given 上游 1m range=7d 的窗口形态（两个会话共 8 根，节选；真实窗口 ≈7 会话 2730 根）
+    const session1 = [Date.UTC(2026, 9, 12, 13, 30), Date.UTC(2026, 9, 12, 13, 31), Date.UTC(2026, 9, 12, 19, 59)]
+    const session2 = [Date.UTC(2026, 9, 13, 13, 30), Date.UTC(2026, 9, 13, 13, 31), Date.UTC(2026, 9, 13, 19, 59)]
+    const timestamps = [...session1, ...session2]
+    const chart1m = {
+      chart: {
+        result: [
+          {
+            meta: { currency: 'USD', regularMarketPrice: 319.7, regularMarketTime: 1788019201 },
+            timestamp: timestamps.map((ms) => ms / 1000),
+            indicators: {
+              quote: [{
+                open: timestamps.map((_, i) => 300 + i),
+                high: timestamps.map((_, i) => 301 + i),
+                low: timestamps.map((_, i) => 299 + i),
+                close: timestamps.map((_, i) => 300.5 + i),
+                volume: timestamps.map(() => 1000),
+              }],
+            },
+          },
+        ],
+      },
+    }
+    const { impl, requests } = stubFetch([{ match: '/v8/finance/chart/AAPL', body: chart1m }])
+    const client = new YahooRestClient({ fetchImpl: impl })
+
+    // When 用户请求 limit=3（五日 1m 场景下客户端会请求 2500，此处压缩表达截尾语义）
+    const tail = await client.getKlines('AAPL', '1m', 3)
+
+    // Then 只拿到最近 3 根，且覆盖窗口尾部两个会话中的最新会话
+    expect(requests[0]!.url).toContain('interval=1m&range=7d')
+    expect(tail).toHaveLength(3)
+    expect(tail.map((k) => k.openTime)).toEqual(session2)
+    expect(tail[tail.length - 1]!.close).toBe(305.5)
+
+    // Then limit 缺省时保持整窗（不截尾）
+    const full = await client.getKlines('AAPL', '1m')
+    expect(full).toHaveLength(6)
+
+    // Then limit 大于窗口长度时也返回整窗（slice 语义是「至多 limit 根」）
+    const capped = await client.getKlines('AAPL', '1m', 2500)
+    expect(capped).toHaveLength(6)
+  })
+
   it('rejects unsupported intervals locally (TRADING_UNSUPPORTED_INTERVAL, no fetch)', async () => {
     const { impl, requests } = stubFetch([])
     const client = new YahooRestClient({ fetchImpl: impl })

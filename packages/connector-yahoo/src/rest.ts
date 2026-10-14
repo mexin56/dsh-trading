@@ -266,15 +266,21 @@ export class YahooRestClient {
     return result
   }
 
-  /** 拉取并解析 K 线（旧→新全窗口，由服务层按 limit 截尾）。 */
-  async getKlines(symbol: string, interval: Interval): Promise<Kline[]> {
+  /**
+   * 拉取并解析 K 线（旧→新全窗口）；limit 给出时取尾部最近 limit 根。
+   *
+   * 窗口由上游 range 决定、上游没有 limit 语义（1m 的 range=7d ≈ 7 个会话 2730 根，
+   * 1m 单请求上限 8 天，见 spikes/impl-five-day-1m-probe/ §5），因此「只要最近 N 根」
+   * 只能在这一层截尾：消费方拿到几根就是几根。
+   */
+  async getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]> {
     const sym = normalizeYahooSymbol(symbol)
     const result = await this.#requestChart(sym, interval)
     const bars = parseChartBars(result, interval)
     if (bars.length === 0) {
       throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Yahoo klines for ${sym}: no non-null bars in range`)
     }
-    return bars
+    return typeof limit === 'number' && Number.isInteger(limit) && limit > 0 ? bars.slice(-limit) : bars
   }
 
   /**
