@@ -19,13 +19,14 @@ import {
   AreaSeries, CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, createChart, createSeriesMarkers,
 } from 'lightweight-charts'
 import type {
-  IChartApi, ISeriesApi, ISeriesMarkersPluginApi, Logical, LogicalRange, MouseEventParams, SeriesType, Time, UTCTimestamp,
+  Coordinate, IChartApi, ISeriesApi, ISeriesMarkersPluginApi, Logical, LogicalRange, MouseEventParams, SeriesType, Time, UTCTimestamp,
 } from 'lightweight-charts'
 import type { BarPrice, PriceFormatCustom } from 'lightweight-charts'
 import { fmtAxis, fmtCompact, priceDigits } from './format.ts'
 import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, percentLabel, percentLabelCandidates } from './axis-width.ts'
 import { getColorPalette, type ColorMode } from './color-mode.ts'
 import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
+import { chartXToContainerX, containerXToChartX } from './chart-coordinate.ts'
 import { fiveDayVolumeColor, type FiveDayTier } from './five-day-series.ts'
 import type { IndicatorOutput } from '@dshtrading/indicators'
 import type { Kline } from './types.ts'
@@ -556,10 +557,12 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       return
     }
     const measure = (): void => {
+      // 轴宽每次量测现取（axisMinimumWidth 会随价位/徽标变化），换算只有一处实现。
+      const paneOffset = chart.priceScale('left').width()
       const xs: number[] = []
       for (const time of starts) {
-        const x = chart.timeScale().timeToCoordinate(time as UTCTimestamp)
-        // null = 该日界当前不可见（视窗外）；坐标四舍五入避免亚像素抖动。
+        // null = 该日界当前不可见（视窗外）→ 不产出标记；四舍五入避免亚像素抖动。
+        const x = chartXToContainerX(chart.timeScale().timeToCoordinate(time as UTCTimestamp), paneOffset)
         if (x !== null && Number.isFinite(x)) xs.push(Math.round(x))
       }
       setDayMarks(current => (current.length === xs.length && current.every((x, index) => x === xs[index]) ? current : xs))
@@ -791,8 +794,8 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     // 容器坐标 → pane 坐标：时间刻度换算以 pane 左缘为原点，容器含左价格轴，
     // 不减去轴宽会整体右移选区（提交端被 lastIndex 钳位掩盖）。
     const paneOffset = chart.priceScale('left').width()
-    const fromLogical = chart.timeScale().coordinateToLogical(startX - paneOffset)
-    const toLogical = chart.timeScale().coordinateToLogical(event.clientX - box.left - paneOffset)
+    const fromLogical = chart.timeScale().coordinateToLogical(containerXToChartX(startX, paneOffset))
+    const toLogical = chart.timeScale().coordinateToLogical(containerXToChartX(event.clientX - box.left, paneOffset))
     if (fromLogical === null || toLogical === null) {
       propsRef.current.onRangeSelect?.(null)
       return
@@ -825,7 +828,7 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     if (chart === null) return
     const box = event.currentTarget.getBoundingClientRect()
     const paneOffset = chart.priceScale('left').width()
-    const logical = chart.timeScale().coordinateToLogical(event.clientX - box.left - paneOffset)
+    const logical = chart.timeScale().coordinateToLogical(containerXToChartX(event.clientX - box.left, paneOffset))
     if (logical === null) return
     const index = Math.round(Number(logical))
     const lastIndex = propsRef.current.bars.length - 1
@@ -850,7 +853,9 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       const x1 = timeScale.logicalToCoordinate(props.selection.start as Logical)
       const x2 = timeScale.logicalToCoordinate(props.selection.end as Logical)
       if (x1 === null || x2 === null) return null
-      return { left: Math.min(Number(x1), Number(x2)) + paneOffset, width: Math.abs(Number(x2) - Number(x1)) }
+      const left = chartXToContainerX(Math.min(Number(x1), Number(x2)) as Coordinate, paneOffset)
+      if (left === null) return null
+      return { left, width: Math.abs(Number(x2) - Number(x1)) }
     }
     return null
   })()
@@ -967,9 +972,8 @@ function hitTestMarker(
   if (entry === undefined) return null
 
   const paneOffset = chart.priceScale('left').width()
-  const xCoord = chart.timeScale().logicalToCoordinate(param.logical)
-  if (xCoord === null) return null
-  const x = Number(xCoord) + paneOffset
+  const x = chartXToContainerX(chart.timeScale().logicalToCoordinate(param.logical), paneOffset)
+  if (x === null) return null
 
   const bar = propsRef.current.bars[index]
   const anchorPrice = entry.signal !== undefined
