@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 import {
   FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
   chartIntervals, fiveDayCapability, fiveDayDayStarts, fiveDayVolumeColor, groupTradingDays,
-  ratioTier, recentTradingDays, rememberableInterval, toFiveDayBars,
+  ratioTier, recentTradingDays, rememberableInterval, toFiveDayBars, viewportResetStrategy,
 } from '../src/client/five-day-series.ts'
 import type { FiveDayTier } from '../src/client/five-day-series.ts'
 import { selectApplicableInstances, supportedIntervals } from '../src/client/indicator-scope.ts'
@@ -328,6 +328,18 @@ describe('五日级别的能力驱动出现规则', () => {
     expect(supportedIntervals('us', 'yahoo')).toContain(FIVE_DAY_INTERVAL)
     expect(selectApplicableInstances([scoped], 'us', FIVE_DAY_INTERVAL)).toEqual([scoped])
     expect(selectApplicableInstances([scoped], 'us', '1w')).toEqual([])
+  })
+
+  it('用户点五日时首屏铺满整个5日窗口，切回常规级别仍是贴最新价的既有节奏', () => {
+    // Given 数据重置（dataKey 变化 / 首帧落地）时的两种级别
+    // When 取默认视窗策略
+    const fiveDay = viewportResetStrategy(true)
+    const regular = viewportResetStrategy(false)
+
+    // Then 五日级别 fit 整段（5 段拼接 + 4 条日界默认可见），常规级别不动
+    expect(fiveDay).toBe('fit-window')
+    expect(regular).toBe('recent-edge')
+    expect(viewportResetStrategy(false)).not.toBe('fit-window')
   })
 
   it('用户切到十日级别或别的市场再回来时，五日级别的记忆读回按市场族接受', () => {

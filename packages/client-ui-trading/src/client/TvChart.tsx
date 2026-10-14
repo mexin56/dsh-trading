@@ -26,8 +26,8 @@ import { fmtAxis, fmtCompact, priceDigits } from './format.ts'
 import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, percentLabel, percentLabelCandidates } from './axis-width.ts'
 import { getColorPalette, type ColorMode } from './color-mode.ts'
 import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
-import { chartXToContainerX, containerXToChartX } from './chart-coordinate.ts'
-import { fiveDayVolumeColor, type FiveDayTier } from './five-day-series.ts'
+import { chartXToContainerX, containerXToChartX, visibleDayMarkXs } from './chart-coordinate.ts'
+import { fiveDayVolumeColor, viewportResetStrategy, type FiveDayTier } from './five-day-series.ts'
 import type { IndicatorOutput } from '@dshtrading/indicators'
 import type { Kline } from './types.ts'
 
@@ -536,8 +536,16 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     if (prev === null || prev.key !== dataKey || bars.length < prev.bars.length || firstTimeDiffers(prev.bars, bars)) {
       candles.setData(bars as TvBar[])
       volume.setData(resolved as TvVolume[])
-      chart.timeScale().resetTimeScale()
-      chart.timeScale().scrollToRealTime()
+      if (viewportResetStrategy(props.fiveDay !== undefined) === 'fit-window') {
+        // 五日级别：默认铺满整个 5 日窗口（5 段拼接 + 4 条日界可见）。主题设了
+        // fixLeftEdge/fixRightEdge，此时库的 minBarSpacing 下限正好等于「全部点铺满」，
+        // fitContent 不会被钳短；视窗不锁定，用户仍可缩放平移。
+        chart.timeScale().fitContent()
+      } else {
+        // 常规级别：既有行为（默认 barSpacing + 最新价贴右缘），零改动。
+        chart.timeScale().resetTimeScale()
+        chart.timeScale().scrollToRealTime()
+      }
       return
     }
     for (let index = Math.max(prev.bars.length - 1, 0); index < bars.length; index++) {
@@ -556,15 +564,12 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       setDayMarks([])
       return
     }
+    const container = containerRef.current
     const measure = (): void => {
       // 轴宽每次量测现取（axisMinimumWidth 会随价位/徽标变化），换算只有一处实现。
       const paneOffset = chart.priceScale('left').width()
-      const xs: number[] = []
-      for (const time of starts) {
-        // null = 该日界当前不可见（视窗外）→ 不产出标记；四舍五入避免亚像素抖动。
-        const x = chartXToContainerX(chart.timeScale().timeToCoordinate(time as UTCTimestamp), paneOffset)
-        if (x !== null && Number.isFinite(x)) xs.push(Math.round(x))
-      }
+      const chartXs = starts.map(time => chart.timeScale().timeToCoordinate(time as UTCTimestamp))
+      const xs = visibleDayMarkXs(chartXs, paneOffset, container?.clientWidth ?? 0)
       setDayMarks(current => (current.length === xs.length && current.every((x, index) => x === xs[index]) ? current : xs))
     }
     const schedule = (): void => {
@@ -573,8 +578,12 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     }
     schedule()
     chart.timeScale().subscribeVisibleLogicalRangeChange(schedule)
+    // 容器宽度变化（面板折叠/窗口 resize）会改变可视根数，日界进出视窗都要重测。
+    const observer = container !== null ? new ResizeObserver(schedule) : null
+    if (container !== null) observer?.observe(container)
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(schedule)
+      observer?.disconnect()
       cancelAnimationFrame(dayMarkRafRef.current)
     }
   }, [props.fiveDay, dataKey, bars])

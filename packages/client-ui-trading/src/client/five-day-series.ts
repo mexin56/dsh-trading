@@ -90,6 +90,20 @@ export function rememberableInterval(market: MarketId, interval: string): boolea
   return interval === FIVE_DAY_INTERVAL && FIVE_DAY_MARKETS.includes(market)
 }
 
+/**
+ * 数据重置（dataKey 变化 / 首帧落地）时的默认视窗策略：
+ * - `fit-window`：五日级别铺满整个 5 日窗口——该级别的语义就是「5 段拼接 + 4 条
+ *   日界」，沿用常规级别的默认 barSpacing 会只露出最近一两个小时（user 点「五日」
+ *   却看到一张一小时的图）。不锁定视窗，`fitContent` 之后仍可自由缩放平移。
+ * - `recent-edge`：常规级别维持既有 `resetTimeScale + scrollToRealTime`（默认
+ *   barSpacing、最新价贴右缘）。
+ */
+export type ViewportResetStrategy = 'fit-window' | 'recent-edge'
+
+export function viewportResetStrategy(fiveDayActive: boolean): ViewportResetStrategy {
+  return fiveDayActive ? 'fit-window' : 'recent-edge'
+}
+
 /** 分档（量比 r）：r<1 黄；1≤r<2 浅红；2≤r<3 深红；r≥3 黑。 */
 export type FiveDayRatioTier = 'lt1' | 'lt2' | 'lt3' | 'gte3'
 

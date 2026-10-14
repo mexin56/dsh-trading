@@ -25,3 +25,18 @@ export function chartXToContainerX(chartX: Coordinate | null, paneOffset: number
 export function containerXToChartX(containerX: number, paneOffset: number): number {
   return containerX - paneOffset
 }
+
+/**
+ * 日界竖线的容器 x 集合：只保留落在可视宽度内的坐标，四舍五入避免亚像素抖动。
+ * 视窗外（v5 返回 null）与容器外（坐标存在但已滚出可视区）都不产出标记——
+ * 挂着只是被裁掉的隐形 DOM 节点（五日级别缩放/平移后最容易出现）。
+ */
+export function visibleDayMarkXs(chartXs: readonly (Coordinate | null)[], paneOffset: number, containerWidth: number): number[] {
+  const xs: number[] = []
+  for (const chartX of chartXs) {
+    const x = chartXToContainerX(chartX, paneOffset)
+    if (x === null || !Number.isFinite(x) || x < 0 || x > containerWidth) continue
+    xs.push(Math.round(x))
+  }
+  return xs
+}
