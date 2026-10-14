@@ -43,8 +43,10 @@ dsh-trading **cn+hk 双市场切片**市场连接器：经腾讯公共行情端�
   `TRADING_UNSUPPORTED_INTERVAL`（公开端点不通）。
 - `getTickers` 一次上游请求取多只标的（键 = 入参原字符串，未收录的整行缺席故跳过，整批失败抛出）；
   实现不分片，标的数由调用方裁剪。
-- cn 实例独有：`getOrderbook`（同一报价行的五档）、`getActiveBuySnapshot`（盘口推断的内外盘）；
-  这两个方法在 hk 实例上**缺席**（`r_hk` 行档位字段恒 0）。
+- cn 实例独有：`getActiveBuySnapshot`（同一报价行的外盘/内盘，「盘口推断」口径）；
+  该方法在 hk 实例上**本身缺席**，消费方按「方法是否存在」判降级。
+- `getOrderbook`（同一报价行五档）两个实例都声明，但 hk 调用抛 `TRADING_NOT_IMPLEMENTED`
+  ——`r_hk` 行的档位字段恒 0，桥层据此显示「未提供」而不是空盘口。
 - cn/hk 均有：`getTicker` / `getKlines` / `getFundamentals` / `listInstruments` /
   `subscribeTicker`（快照轮询，最小 250 ms，默认 5 s）。
 
