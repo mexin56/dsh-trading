@@ -1,0 +1,12 @@
+{
+  "ranAt": "2026-10-14T01:55:48.548Z",
+  "search": {
+    "httpStatus": 200,
+    "code": 5001,
+    "msg": "Internal server error",
+    "items": [],
+    "bodyHead": "{\"code\":5001,\"message\":\"Internal server error\",\"request_id\":\"433cf81a950e40d3a7f70828584fbd56\",\"data\":null}"
+  },
+  "daily": null,
+  "intraday": null
+}

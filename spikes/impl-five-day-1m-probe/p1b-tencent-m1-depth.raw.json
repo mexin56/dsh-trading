@@ -1,0 +1,185 @@
+{
+  "ranAt": "2026-10-14T01:54:16.060Z",
+  "cases": [
+    {
+      "wire": "sh600519",
+      "count": 1000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,1000",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 320,
+      "first": "202610121407",
+      "last": "202610140954",
+      "distinctDays": 3,
+      "note": "",
+      "payloadKeys": [
+        "m1",
+        "prec"
+      ],
+      "days": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ]
+    },
+    {
+      "wire": "sh600519",
+      "count": 1440,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,1440",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 320,
+      "first": "202610121407",
+      "last": "202610140954",
+      "distinctDays": 3,
+      "note": "",
+      "payloadKeys": [
+        "m1",
+        "prec"
+      ],
+      "days": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ]
+    },
+    {
+      "wire": "sh600519",
+      "count": 2400,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,2400",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 320,
+      "first": "202610121408",
+      "last": "202610140955",
+      "distinctDays": 3,
+      "note": "",
+      "payloadKeys": [
+        "m1",
+        "prec"
+      ],
+      "days": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ]
+    },
+    {
+      "wire": "sh600519",
+      "count": 5000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,5000",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 320,
+      "first": "202610121407",
+      "last": "202610140954",
+      "distinctDays": 3,
+      "note": "",
+      "payloadKeys": [
+        "m1",
+        "prec"
+      ],
+      "days": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ]
+    },
+    {
+      "wire": "sh600519",
+      "count": 10000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,10000",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 320,
+      "first": "202610121407",
+      "last": "202610140954",
+      "distinctDays": 3,
+      "note": "",
+      "payloadKeys": [
+        "m1",
+        "prec"
+      ],
+      "days": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ]
+    },
+    {
+      "wire": "hk00700",
+      "count": 1000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,1000",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "distinctDays": 0,
+      "note": "no m1 array; keys=[]",
+      "payloadKeys": []
+    },
+    {
+      "wire": "hk00700",
+      "count": 1440,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,1440",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "distinctDays": 0,
+      "note": "no m1 array; keys=[]",
+      "payloadKeys": []
+    },
+    {
+      "wire": "hk00700",
+      "count": 2400,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,2400",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "distinctDays": 0,
+      "note": "no m1 array; keys=[]",
+      "payloadKeys": []
+    },
+    {
+      "wire": "hk00700",
+      "count": 5000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,5000",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "distinctDays": 0,
+      "note": "no m1 array; keys=[]",
+      "payloadKeys": []
+    },
+    {
+      "wire": "hk00700",
+      "count": 10000,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,10000",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "distinctDays": 0,
+      "note": "no m1 array; keys=[]",
+      "payloadKeys": []
+    }
+  ]
+}

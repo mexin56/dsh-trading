@@ -1,0 +1,228 @@
+{
+  "ranAt": "2026-10-14T01:54:28.951Z",
+  "A": [
+    {
+      "probe": "tencent-count",
+      "count": 800,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,800",
+      "httpStatus": 200,
+      "code": 0,
+      "bars": 800,
+      "days": 5,
+      "first": "202610081410",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "probe": "tencent-count",
+      "count": 801,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,801",
+      "httpStatus": 200,
+      "code": 0,
+      "bars": 320,
+      "days": 3,
+      "first": "202610121408",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "probe": "tencent-count",
+      "count": 900,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,900",
+      "httpStatus": 200,
+      "code": 0,
+      "bars": 320,
+      "days": 3,
+      "first": "202610121408",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "probe": "tencent-count",
+      "count": 1200,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,1200",
+      "httpStatus": 200,
+      "code": 0,
+      "bars": 320,
+      "days": 3,
+      "first": "202610121408",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "probe": "tencent-count",
+      "count": 1600,
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,1600",
+      "httpStatus": 200,
+      "code": 0,
+      "bars": 320,
+      "days": 3,
+      "first": "202610121408",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://ifzq.gtimg.cn",
+      "wire": "hk00700",
+      "tf": "m1",
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,10",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "note": "",
+      "bodyHead": "{\"code\":-1,\"msg\":\"param error\",\"data\":[]}"
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://ifzq.gtimg.cn",
+      "wire": "hk00700",
+      "tf": "m5",
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m5,,10",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "note": "",
+      "bodyHead": "{\"code\":-1,\"msg\":\"param error\",\"data\":[]}"
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://web.ifzq.gtimg.cn",
+      "wire": "hk00700",
+      "tf": "m1",
+      "url": "https://web.ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m1,,10",
+      "httpStatus": null,
+      "code": null,
+      "msg": null,
+      "bars": 0,
+      "note": "err fetch failed"
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://web.ifzq.gtimg.cn",
+      "wire": "hk00700",
+      "tf": "m5",
+      "url": "https://web.ifzq.gtimg.cn/appstock/app/kline/mkline?param=hk00700,m5,,10",
+      "httpStatus": null,
+      "code": null,
+      "msg": null,
+      "bars": 0,
+      "note": "err fetch failed"
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://ifzq.gtimg.cn",
+      "wire": "r_hk00700",
+      "tf": "m1",
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=r_hk00700,m1,,10",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "note": "",
+      "bodyHead": "{\"code\":-1,\"msg\":\"param error\",\"data\":[]}"
+    },
+    {
+      "probe": "tencent-hk",
+      "host": "https://ifzq.gtimg.cn",
+      "wire": "r_hk00700",
+      "tf": "m5",
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=r_hk00700,m5,,10",
+      "httpStatus": 200,
+      "code": -1,
+      "msg": "param error",
+      "bars": 0,
+      "note": "",
+      "bodyHead": "{\"code\":-1,\"msg\":\"param error\",\"data\":[]}"
+    }
+  ],
+  "B": [
+    {
+      "probe": "eastmoney",
+      "label": "cn-1m-lmt1000",
+      "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600519&klt=1&fqt=1&lmt=1000&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58",
+      "httpStatus": 200,
+      "bars": 25,
+      "first": "2026-10-14 09:31,1270.10,1271.99,1271.99,1266.00,703,89210584.00,0.47",
+      "last": "2026-10-14 09:55,1278.02,1277.09,1278.03,1277.02,55,7027432.00,0.08",
+      "days": 1,
+      "upstreamLmt": 25,
+      "note": "",
+      "upstreamCode": 0
+    },
+    {
+      "probe": "eastmoney",
+      "label": "cn-1m-lmt5000",
+      "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600519&klt=1&fqt=1&lmt=5000&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58",
+      "httpStatus": 200,
+      "bars": 25,
+      "first": "2026-10-14 09:31,1270.10,1271.99,1271.99,1266.00,703,89210584.00,0.47",
+      "last": "2026-10-14 09:55,1278.02,1277.09,1278.03,1277.02,55,7027432.00,0.08",
+      "days": 1,
+      "upstreamLmt": 25,
+      "note": "",
+      "upstreamCode": 0
+    },
+    {
+      "probe": "eastmoney",
+      "label": "cn-5m-lmt1000",
+      "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600519&klt=5&fqt=1&lmt=1000&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58",
+      "httpStatus": 200,
+      "bars": 1000,
+      "first": "2026-09-07 10:40,1322.53,1321.00,1323.21,1321.00,441,58291497.00,0.17",
+      "last": "2026-10-14 09:55,1278.96,1277.09,1280.59,1277.02,508,64979840.00,0.28",
+      "days": 22,
+      "upstreamLmt": 1000,
+      "note": "",
+      "upstreamCode": 0
+    },
+    {
+      "probe": "eastmoney",
+      "label": "hk-1m-lmt1000",
+      "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=116.00700&klt=1&fqt=1&lmt=1000&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58",
+      "httpStatus": 200,
+      "bars": 25,
+      "first": "2026-10-14 09:31,421.400,417.600,421.800,417.400,904300,379853440.000,1.03",
+      "last": "2026-10-14 09:55,419.200,418.800,419.400,418.600,79100,33130400.000,0.19",
+      "days": 1,
+      "upstreamLmt": 25,
+      "note": "",
+      "upstreamCode": 0
+    },
+    {
+      "probe": "eastmoney",
+      "label": "hk-1m-lmt5000",
+      "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=116.00700&klt=1&fqt=1&lmt=5000&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58",
+      "httpStatus": 200,
+      "bars": 25,
+      "first": "2026-10-14 09:31,421.400,417.600,421.800,417.400,904300,379853440.000,1.03",
+      "last": "2026-10-14 09:55,419.200,418.800,419.400,418.600,79100,33130400.000,0.19",
+      "days": 1,
+      "upstreamLmt": 25,
+      "note": "",
+      "upstreamCode": 0
+    }
+  ],
+  "C": [
+    {
+      "probe": "xysz",
+      "label": "1m-1000",
+      "url": "https://api.xyszdata.com/api/v1/klines?symbol=600519.SH&interval=1m&limit=1000",
+      "httpStatus": null,
+      "bars": 0,
+      "note": "err fetch failed",
+      "bodyHead": ""
+    },
+    {
+      "probe": "xysz",
+      "label": "1m-5000",
+      "url": "https://api.xyszdata.com/api/v1/klines?symbol=600519.SH&interval=1m&limit=5000",
+      "httpStatus": null,
+      "bars": 0,
+      "note": "err fetch failed",
+      "bodyHead": ""
+    }
+  ]
+}

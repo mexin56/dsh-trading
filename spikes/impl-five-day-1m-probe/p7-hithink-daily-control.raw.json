@@ -1,0 +1,30 @@
+{
+  "ranAt": "2026-10-14T01:56:30.648Z",
+  "cases": [
+    {
+      "path": "/api/futures/prices/daily",
+      "body": {
+        "thscode": "RB2605.SHF"
+      },
+      "httpStatus": 200,
+      "code": 5001,
+      "msg": "Internal server error",
+      "points": 0,
+      "note": "",
+      "bodyHead": "{\"code\":5001,\"message\":\"Internal server error\",\"request_id\":\"e6454ffa097a4c249f1f9242db6767ae\",\"data\":null}"
+    },
+    {
+      "path": "/api/futures/prices/intraday",
+      "body": {
+        "thscode": "RB2605.SHF",
+        "session": "intraday"
+      },
+      "httpStatus": 200,
+      "code": 5001,
+      "msg": "Internal server error",
+      "points": 0,
+      "note": "",
+      "bodyHead": "{\"code\":5001,\"message\":\"Internal server error\",\"request_id\":\"5e70640d93c14958b6c53a392e57ee53\",\"data\":null}"
+    }
+  ]
+}

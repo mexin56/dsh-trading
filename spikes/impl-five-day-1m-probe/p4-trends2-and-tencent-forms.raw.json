@@ -1,0 +1,179 @@
+{
+  "ranAt": "2026-10-14T01:55:00.683Z",
+  "T2": [
+    {
+      "label": "cn-1.600519",
+      "ndays": 1,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=1.600519&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=1&iscr=0",
+      "httpStatus": 200,
+      "bars": 26,
+      "days": 1,
+      "first": "2026-10-14 09:30,1270.10,1270.10,1270.10",
+      "last": "2026-10-14 09:55,1278.02,1278.48,1278.85",
+      "note": ""
+    },
+    {
+      "label": "cn-1.600519",
+      "ndays": 5,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=1.600519&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=5&iscr=0",
+      "httpStatus": 200,
+      "bars": 990,
+      "days": 5,
+      "first": "2026-10-08 09:30,0.00,1252.90,1252.90,12",
+      "last": "2026-10-14 09:55,1278.02,1278.48,1278.85",
+      "note": ""
+    },
+    {
+      "label": "cn-1.600519",
+      "ndays": 10,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=1.600519&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=10&iscr=0",
+      "httpStatus": 200,
+      "bars": 0,
+      "days": 0,
+      "first": null,
+      "last": null,
+      "note": "no trends; {\"rc\":102,\"rt\":1,\"svr\":181669475,\"lt\":1,\"full\":1,\"dlmkts\":\"\",\"dsc\":\"0\",\"data\":null}"
+    },
+    {
+      "label": "cn-1.600519",
+      "ndays": 30,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=1.600519&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=30&iscr=0",
+      "httpStatus": 200,
+      "bars": 0,
+      "days": 0,
+      "first": null,
+      "last": null,
+      "note": "no trends; {\"rc\":102,\"rt\":1,\"svr\":181216787,\"lt\":1,\"full\":1,\"dlmkts\":\"\",\"dsc\":\"0\",\"data\":null}"
+    },
+    {
+      "label": "hk-116.00700",
+      "ndays": 1,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=116.00700&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=1&iscr=0",
+      "httpStatus": 200,
+      "bars": 27,
+      "days": 1,
+      "first": "2026-10-14 09:30,421.400,421.400,421.400",
+      "last": "2026-10-14 09:56,418.800,418.800,418.800",
+      "note": ""
+    },
+    {
+      "label": "hk-116.00700",
+      "ndays": 5,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=116.00700&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=5&iscr=0",
+      "httpStatus": 200,
+      "bars": 1351,
+      "days": 5,
+      "first": "2026-10-08 09:30,0.000,422.000,422.000,4",
+      "last": "2026-10-14 09:56,418.800,418.800,418.800",
+      "note": ""
+    },
+    {
+      "label": "hk-116.00700",
+      "ndays": 10,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=116.00700&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=10&iscr=0",
+      "httpStatus": 200,
+      "bars": 0,
+      "days": 0,
+      "first": null,
+      "last": null,
+      "note": "no trends; {\"rc\":102,\"rt\":1,\"svr\":181669691,\"lt\":1,\"full\":1,\"dlmkts\":\"\",\"dsc\":\"0\",\"data\":null}"
+    },
+    {
+      "label": "hk-116.00700",
+      "ndays": 30,
+      "url": "https://push2his.eastmoney.com/api/qt/stock/trends2/get?secid=116.00700&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=30&iscr=0",
+      "httpStatus": 200,
+      "bars": 0,
+      "days": 0,
+      "first": null,
+      "last": null,
+      "note": "no trends; {\"rc\":102,\"rt\":1,\"svr\":181669906,\"lt\":1,\"full\":1,\"dlmkts\":\"\",\"dsc\":\"0\",\"data\":null}"
+    }
+  ],
+  "TENC": [
+    {
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,800,qfq",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 800,
+      "days": 5,
+      "first": "202610081410",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,800",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 0,
+      "days": 0,
+      "note": ""
+    },
+    {
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,20261008,800",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 0,
+      "days": 0,
+      "note": ""
+    },
+    {
+      "url": "https://web.ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,800",
+      "httpStatus": null,
+      "code": null,
+      "msg": null,
+      "bars": 0,
+      "days": 0,
+      "first": null,
+      "last": null,
+      "note": "err fetch failed"
+    },
+    {
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1,,800,",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 800,
+      "days": 5,
+      "first": "202610081410",
+      "last": "202610140955",
+      "note": ""
+    },
+    {
+      "url": "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m1",
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "",
+      "bars": 482,
+      "days": 3,
+      "first": "202610120956",
+      "last": "202610140955",
+      "note": ""
+    }
+  ],
+  "OKXH": [
+    {
+      "limit": 300,
+      "url": "https://www.okx.com/api/v5/market/history-candles?instId=BTC-USDT&bar=1m&limit=300",
+      "httpStatus": 200,
+      "code": "0",
+      "bars": 300,
+      "oldest": "2026-10-13T20:56:00.000Z",
+      "newest": "2026-10-14T01:55:00.000Z",
+      "note": ""
+    },
+    {
+      "limit": 100,
+      "url": "https://www.okx.com/api/v5/market/history-candles?instId=BTC-USDT&bar=1m&limit=100",
+      "httpStatus": 200,
+      "code": "0",
+      "bars": 100,
+      "oldest": "2026-10-14T00:16:00.000Z",
+      "newest": "2026-10-14T01:55:00.000Z",
+      "note": ""
+    }
+  ]
+}

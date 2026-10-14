@@ -1,0 +1,57 @@
+{
+  "ranAt": "2026-10-14T01:55:55.593Z",
+  "hithink": [
+    {
+      "path": "/api/futures/prices/daily",
+      "httpStatus": 200,
+      "code": 5001,
+      "msg": "Internal server error",
+      "points": 0,
+      "bodyHead": "{\"code\":5001,\"message\":\"Internal server error\",\"request_id\":\"d5249e1d72f4472cbc3508c21eab728d\",\"data\":null}"
+    },
+    {
+      "path": "/api/futures/prices/intraday",
+      "httpStatus": 200,
+      "code": 5001,
+      "msg": "Internal server error",
+      "points": 0,
+      "bodyHead": "{\"code\":5001,\"message\":\"Internal server error\",\"request_id\":\"1cb8c89df82945bba3e139e09a83d15b\",\"data\":null}"
+    }
+  ],
+  "jin10": [
+    {
+      "step": "initialize",
+      "status": 200,
+      "protocolVersion": "2025-06-18",
+      "head": "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"capabilities\":{\"logging\":{},\"resources\":{},\"tools\":{}},\"protocolVersion\":\"2025-06-18\",\"serverInfo\":{\"name\":\"jin10-mcp\",\"title\":\"金十数据智能开放平台\",\"description\":\"基于MCP协议的智能数据服务，为您提供实时、准确、全面的金融与市场数据接口。\",\"version\":\"1.0.0\",\"websiteUrl\":\"https://mcp.jin10"
+    },
+    {
+      "step": "tools/call get_kline",
+      "status": 200,
+      "head": "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"data\\\":{\\\"code\\\":\\\"XAUUSD\\\",\\\"klines\\\":[],\\\"name\\\":\\\"现货黄金\\\"},\\\"message\\\":\\\"\\\",\\\"status\\\":200}\"}],\"structuredContent\":{\"data\":{\"code\":\"XAUUSD\",\"klines\":[],\"name\":\"现货黄金\"},\"message\":\"\",\"status\":200}}}\n\n",
+      "resultKeys": [
+        "content",
+        "structuredContent"
+      ],
+      "isError": null
+    },
+    {
+      "step": "structured summary",
+      "topKeys": [
+        "data",
+        "message",
+        "status"
+      ],
+      "barsCount": null,
+      "sample": {
+        "data": {
+          "code": "XAUUSD",
+          "klines": [],
+          "name": "现货黄金"
+        },
+        "message": "",
+        "status": 200
+      }
+    }
+  ]
+}

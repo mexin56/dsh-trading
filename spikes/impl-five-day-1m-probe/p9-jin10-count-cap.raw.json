@@ -1,0 +1,105 @@
+{
+  "ranAt": "2026-10-14T01:56:31.088Z",
+  "calls": [
+    {
+      "label": "XAUUSD recent count=100",
+      "args": {
+        "code": "XAUUSD",
+        "time": 1791939391,
+        "count": 100
+      },
+      "isError": null,
+      "status": 200,
+      "message": "",
+      "bars": 100,
+      "first": {
+        "close": "4156.77",
+        "high": "4158.01",
+        "low": "4156.54",
+        "open": "4157.97",
+        "time": 1791939360,
+        "volume": 176
+      },
+      "last": {
+        "close": "4156.80",
+        "high": "4157.60",
+        "low": "4156.61",
+        "open": "4157.51",
+        "time": 1791933420,
+        "volume": 95
+      },
+      "days": 2
+    },
+    {
+      "label": "XAUUSD recent count=1000",
+      "args": {
+        "code": "XAUUSD",
+        "time": 1791939391,
+        "count": 1000
+      },
+      "isError": null,
+      "status": 200,
+      "message": "",
+      "bars": 100,
+      "first": {
+        "close": "4156.77",
+        "high": "4158.01",
+        "low": "4156.54",
+        "open": "4157.97",
+        "time": 1791939360,
+        "volume": 176
+      },
+      "last": {
+        "close": "4156.80",
+        "high": "4157.60",
+        "low": "4156.61",
+        "open": "4157.51",
+        "time": 1791933420,
+        "volume": 95
+      },
+      "days": 2
+    },
+    {
+      "label": "XAUUSD recent count=300",
+      "args": {
+        "code": "XAUUSD",
+        "time": 1791939391,
+        "count": 300
+      },
+      "isError": null,
+      "status": 200,
+      "message": "",
+      "bars": 100,
+      "first": {
+        "close": "4156.77",
+        "high": "4158.01",
+        "low": "4156.54",
+        "open": "4157.97",
+        "time": 1791939360,
+        "volume": 176
+      },
+      "last": {
+        "close": "4156.80",
+        "high": "4157.60",
+        "low": "4156.61",
+        "open": "4157.51",
+        "time": 1791933420,
+        "volume": 95
+      },
+      "days": 2
+    },
+    {
+      "label": "XAUUSD 5d-ago count=100",
+      "args": {
+        "code": "XAUUSD",
+        "time": 1791510991,
+        "count": 100
+      },
+      "isError": null,
+      "status": 200,
+      "message": "",
+      "bars": 0,
+      "head": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"data\\\":{\\\"code\\\":\\\"XAUUSD\\\",\\\"klines\\\":[],\\\"name\\\":\\\"现货黄金\\\"},\\\"message\\\":\\\"\\\",\\\"status\\\":200}\"}],\"structuredContent\":{\"data\":{\"code\":\"XAUUSD\",\"klines"
+    }
+  ]
+}
