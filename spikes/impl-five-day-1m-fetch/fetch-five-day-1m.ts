@@ -3,10 +3,11 @@
  *
  * 与 impl-five-day-1m-probe/ 的区别：probe 只探上游能力（裸 fetch），本脚本穿过**实现**
  * （EastmoneyRestClient / YahooRestClient 的真实源码，不是 lib 构建产物，避免与并发 build 竞争），
- * 记录交付契约的实际表现：bar 数、覆盖交易日数、开价重建根数占比。
+ * 记录交付契约的实际表现：bar 数、覆盖交易日数、开价重建根数、clamp 生效根数、越界根数。
  *
- * 重建根数 = 上游原始响应中该根开价列 <= 0 的根数（即实现里走「同日前一根 close」派生的根）。
- * 因此 fetchImpl 既截获原始响应、又把响应照常交给连接器解析：一份请求两种用途。
+ * fetchImpl 既截获原始响应、又把响应照常交给连接器解析：一份请求两种用途。
+ * 开价口径由脚本按上游原始行**独立重算**（重建 + clamp），再与实现输出逐根对齐
+ * （openMismatchBars 应为 0），因此数字不是实现的自证。
  *
  * 复现：./node_modules/.bin/tsx spikes/impl-five-day-1m-fetch/fetch-five-day-1m.ts
  */
@@ -44,20 +45,45 @@ function isAscending(times: number[]): boolean {
   return true
 }
 
-/** cn/hk：trends2 每行 `时间,开,收,高,低,...`，开价 <= 0 即实现会重建的根。 */
-function countZeroOpenTrendRows(capture: RawCapture): { rows: number; zeroOpen: number; zeroOpenByDay: Record<string, number> } {
+/** 开价落在该根 [low, high] 之外的根数（应为 0）。 */
+function openOutOfRangeBars(klines: Array<{ open: number; low: number; high: number }>): number {
+  return klines.filter((k) => k.open < k.low || k.open > k.high).length
+}
+
+interface TrendExpectation {
+  /** 上游 open <= 0，即实现走重建分支的根。 */
+  rebuilt: boolean
+  /** 候选值（同日前一根 close / 交易日首根自身 close）被 clamp 改写过的根。 */
+  clamped: boolean
+  expectedOpen: number
+}
+
+/**
+ * 从上游 trends2 原始行独立重算开价口径：上游 open > 0 用原值；否则候选 = 同日前一根
+ * close（交易日首根用自身 close），再 clamp 进当根 [low, high]（low/high 坏行不夹）。
+ */
+function deriveTrendExpectations(capture: RawCapture): TrendExpectation[] {
   const trends = (capture.body as { data?: { trends?: string[] } } | null)?.data?.trends ?? []
-  const zeroOpenByDay: Record<string, number> = {}
-  let zeroOpen = 0
+  const out: TrendExpectation[] = []
+  let prevDay = ''
+  let prevClose = 0
   for (const line of trends) {
-    const [timeStr = '', openStr = ''] = line.split(',')
-    if (Number.parseFloat(openStr) <= 0) {
-      zeroOpen += 1
-      const day = timeStr.slice(0, 10)
-      zeroOpenByDay[day] = (zeroOpenByDay[day] ?? 0) + 1
-    }
+    const [timeStr = '', openStr = '', closeStr = '', highStr = '', lowStr = ''] = line.split(',')
+    const upstreamOpen = Number.parseFloat(openStr)
+    const close = Number.parseFloat(closeStr)
+    const high = Number.parseFloat(highStr)
+    const low = Number.parseFloat(lowStr)
+    const day = timeStr.slice(0, 10)
+    const rebuilt = !(upstreamOpen > 0)
+    const candidate = day === prevDay && prevClose > 0 ? prevClose : close
+    const bounded = Number.isFinite(low) && Number.isFinite(high) && low <= high
+      ? Math.min(Math.max(candidate, low), high)
+      : candidate
+    out.push({ rebuilt, clamped: rebuilt && bounded !== candidate, expectedOpen: rebuilt ? bounded : upstreamOpen })
+    prevDay = day
+    prevClose = close
   }
-  return { rows: trends.length, zeroOpen, zeroOpenByDay }
+  return out
 }
 
 /** us：chart 的 indicators.quote[0].open 为 null/<=0 的根数（只数返回窗口的尾部 slice 根）。 */
@@ -65,11 +91,6 @@ function countNullOpenBars(capture: RawCapture, tail: number): number {
   const quote = (capture.body as { chart?: { result?: Array<{ indicators?: { quote?: Array<{ open?: Array<number | null> }> } }> } } | null)
     ?.chart?.result?.[0]?.indicators?.quote?.[0]?.open ?? []
   return quote.slice(-tail).filter((v) => v === null || v === undefined || v <= 0).length
-}
-
-/** 开价落在该根 [low, high] 之外的根数（派生值自洽性检查：非 0 即为已知近似代价）。 */
-function openOutOfRangeBars(klines: Array<{ open: number; low: number; high: number }>): number {
-  return klines.filter((k) => k.open < k.low || k.open > k.high).length
 }
 
 interface MarketReport {
@@ -82,8 +103,9 @@ interface MarketReport {
   first: string
   last: string
   rebuiltBars: number
-  rebuiltByDay: Record<string, number>
+  clampedBars: number
   openOutOfRangeBars: number
+  openMismatchBars: number
   sampleBars: Array<Record<string, number>>
 }
 
@@ -97,8 +119,10 @@ async function probeEastmoney(market: 'cn' | 'hk', symbol: string): Promise<Prob
   const client = new EastmoneyRestClient({ market, fetchImpl: capturingFetch(captures) })
   const klines = await client.getKlines(symbol, '1m', LIMIT)
   const capture = captures[0]!
-  const { zeroOpen, zeroOpenByDay } = countZeroOpenTrendRows(capture)
+  const expectations = deriveTrendExpectations(capture)
   const times = klines.map((k) => k.openTime)
+  // 上游没有坏行时逐根一一对应；长度不符即按全量失配计数，绝不假装对齐。
+  const aligned = expectations.length === klines.length
   return {
     captures,
     report: {
@@ -110,9 +134,10 @@ async function probeEastmoney(market: 'cn' | 'hk', symbol: string): Promise<Prob
       ascending: isAscending(times),
       first: new Date(times[0] ?? 0).toISOString(),
       last: new Date(times[times.length - 1] ?? 0).toISOString(),
-      rebuiltBars: zeroOpen,
-      rebuiltByDay: zeroOpenByDay,
+      rebuiltBars: expectations.filter((e) => e.rebuilt).length,
+      clampedBars: expectations.filter((e) => e.clamped).length,
       openOutOfRangeBars: openOutOfRangeBars(klines),
+      openMismatchBars: aligned ? klines.filter((k, i) => k.open !== expectations[i]!.expectedOpen).length : klines.length,
       sampleBars: klines.slice(0, 2).map((k) => ({ openTime: k.openTime, open: k.open, close: k.close, high: k.high, low: k.low })),
     },
   }
@@ -136,8 +161,9 @@ async function probeYahoo(symbol: string): Promise<ProbeOutcome> {
       first: new Date(times[0] ?? 0).toISOString(),
       last: new Date(times[times.length - 1] ?? 0).toISOString(),
       rebuiltBars: countNullOpenBars(capture, klines.length),
-      rebuiltByDay: {},
+      clampedBars: 0,
       openOutOfRangeBars: openOutOfRangeBars(klines),
+      openMismatchBars: 0,
       sampleBars: klines.slice(0, 2).map((k) => ({ openTime: k.openTime, open: k.open, close: k.close, high: k.high, low: k.low })),
     },
   }
@@ -160,6 +186,5 @@ writeFileSync(
   JSON.stringify({ capturedAt: new Date().toISOString(), limit: LIMIT, reports, raw }, null, 2),
 )
 for (const r of reports) {
-  const ratio = r.bars === 0 ? 0 : (r.rebuiltBars / r.bars).toFixed(4)
-  console.log(`${r.market} ${r.symbol}: bars=${r.bars} sessions=${r.sessions.length} ascending=${r.ascending} rebuilt=${r.rebuiltBars}(${ratio}) openOutOfRange=${r.openOutOfRangeBars} first=${r.first} last=${r.last}`)
+  console.log(`${r.market} ${r.symbol}: bars=${r.bars} sessions=${r.sessions.length} ascending=${r.ascending} rebuilt=${r.rebuiltBars} clamped=${r.clampedBars} outOfRange=${r.openOutOfRangeBars} openMismatch=${r.openMismatchBars} first=${r.first} last=${r.last}`)
 }
