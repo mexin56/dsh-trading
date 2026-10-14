@@ -38,6 +38,41 @@ export function toEastmoneySecid(symbol: string): { secid: string; canonical: st
   return { secid: `${prefix}.${code}`, canonical: `${code}.${market}` }
 }
 
+/**
+ * ulist.np/get 报价行字段：f1=小数位数 f2=最新价 f3=涨跌幅(%) f5=成交量(手) f12=代码
+ * f13=市场 f14=名称 f18=昨收 f124=行情时间(秒)。价格类字段是 ×10^f1 的整数。
+ */
+const QUOTE_FIELDS = 'f1,f2,f3,f5,f12,f13,f14,f18,f124'
+
+/** ulist.np/get 响应骨架：命中的行在 data.diff；未收录的 secid 使 data 为 null。 */
+interface QuoteListResponse {
+  data?: { total?: number; diff?: Array<Record<string, unknown>> } | null
+}
+
+/** 报价字段 → 有限数；null/空串/停牌占位返回 undefined，由调用方决定兜底值。 */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+/** cn 市场的分精度兜底倍率：×100（2 位小数），只在报价行没给出可用的 f1 时使用。 */
+const CN_PRICE_SCALE = 100
+
+/**
+ * 报价行的价格除数 = 10^f1（f1 = 上游给该标的声明的小数位数）：A 股股票 f1=2、A 股 ETF
+ * f1=3（2026-10-14 实测），故取价一律按行——市场级 ×100 会把 ETF 读成 10 倍。
+ * f1 缺失或落在 0..6 之外时回落到市场级常数。
+ */
+function quotePriceScale(decimalDigits: unknown): number {
+  const digits = toFiniteNumber(decimalDigits)
+  if (digits === undefined || !Number.isInteger(digits) || digits < 0 || digits > 6) return CN_PRICE_SCALE
+  return 10 ** digits
+}
+
 export interface AkshareRestOptions {
   apiUrl?: string
   fetchImpl?: typeof fetch
@@ -73,22 +108,35 @@ export class AkshareRestClient {
 
   async getTicker(symbol: string): Promise<Ticker> {
     const { secid, canonical } = toEastmoneySecid(symbol)
-    // f60=昨收 f170=涨跌幅（×100 分精度整数；官方昨收锚点，UI 头部/侧栏直接消费）。
-    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f47,f60,f86,f170`
-    const res = await this.requestJson<{ data?: { f43?: number; f47?: number; f60?: number; f86?: number; f170?: number } }>(url)
-    if (!res.data) {
+    // 报价走批量端点 ulist.np/get（secids 传单个 secid 等价）：2026-10-14 实测
+    // /api/qt/stock/get 对任意 secid 都是传输层空回，而同一时刻同域同 UA 的
+    // ulist.np/get 正常。原始响应与逐只交叉验证见 spikes/impl-eastmoney-quote-endpoint/。
+    const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${secid}&fields=${QUOTE_FIELDS}`
+    const res = await this.requestJson<QuoteListResponse>(url)
+    // 未收录的 secid 上游是「少返回行」而不是报错（只传无效 secid 时 data:null），
+    // 故拿不到行即该标的不存在，按 not found 抛错（与旧端点 data 为空时的语义一致）。
+    const row = res.data?.diff?.[0]
+    if (row === undefined) {
       throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `AkShare/Eastmoney quote not found: ${symbol}`)
     }
-    const rawPrice = typeof res.data.f43 === 'number' ? res.data.f43 / 100 : 0
-    const prevClose = typeof res.data.f60 === 'number' && res.data.f60 > 0 ? res.data.f60 / 100 : undefined
-    const changePercent = typeof res.data.f170 === 'number' && Number.isFinite(res.data.f170) ? res.data.f170 / 100 : undefined
+
+    const scale = quotePriceScale(row.f1)
+    const rawPrice = toFiniteNumber(row.f2)
+    const price = rawPrice !== undefined && rawPrice > 0 ? rawPrice / scale : 0
+    // 官方昨收锚点（与 tencent fields[4] 同语义）：涨跌幅基准，UI 头部/侧栏直接消费。
+    const prevClose = toFiniteNumber(row.f18)
+    const changePercent = toFiniteNumber(row.f3)
+    const quoteTime = toFiniteNumber(row.f124)
+    const name = typeof row.f14 === 'string' && row.f14.trim() ? row.f14.trim() : undefined
+
     return {
       symbol: canonical,
-      price: rawPrice > 0 ? rawPrice : 0,
-      volume: res.data.f47 ?? 0,
-      timestamp: res.data.f86 ? res.data.f86 * 1000 : Date.now(),
-      ...(prevClose !== undefined ? { prevClose } : {}),
-      ...(changePercent !== undefined ? { changePercent } : {}),
+      ...(name ? { name } : {}),
+      price,
+      volume: toFiniteNumber(row.f5) ?? 0,
+      timestamp: quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now(),
+      ...(prevClose !== undefined && prevClose > 0 ? { prevClose: prevClose / scale } : {}),
+      ...(changePercent !== undefined ? { changePercent: changePercent / 100 } : {}),
     }
   }
 

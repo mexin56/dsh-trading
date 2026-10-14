@@ -114,3 +114,73 @@ describe('QmtRestClient 交易接口', () => {
     await expect(client.getBalance()).rejects.toThrowError(/accountId is required/)
   })
 })
+
+describe('QmtRestClient.getTicker 网关离线时的东财回退', () => {
+  // fixture 是 2026-10-14 14:52（Asia/Shanghai 盘中）push2 `ulist.np/get` 的真实响应行，
+  // 逐字段照抄；旧回退打的 /api/qt/stock/get 同日对任意 secid 都是传输层空回。
+  it('用户查普通股票报价且本地网关离线时，回退按报价行的 f1=2 取价', async () => {
+    // Given 本地 QMT 网关不可达（stub 对网关路径直接抛错），东财对该 secid 返回贵州茅台报价行
+    const { impl, urls } = stubFetch([
+      {
+        match: '/api/qt/ulist.np/get',
+        body: {
+          data: {
+            total: 1,
+            diff: [{ f1: 2, f2: 128547, f5: 21865, f124: 1791960743 }],
+          },
+        },
+      },
+    ])
+    const client = new QmtRestClient({ fetchImpl: impl })
+
+    // When 用户查询 600519.SH
+    const ticker = await client.getTicker('600519.SH')
+
+    // Then 先试网关、失败后落在 ulist.np/get 上，价格是 128547 / 10^2
+    expect(urls[0]).toContain('/api/v1/market/ticker')
+    expect(urls[1]).toContain('/api/qt/ulist.np/get?secids=1.600519')
+    expect(ticker).toEqual({
+      symbol: '600519.SH',
+      price: 1285.47,
+      volume: 21865,
+      timestamp: 1791960743000,
+    })
+  })
+
+  it('用户查 A 股 ETF 报价且本地网关离线时，回退按报价行的 f1=3 取价，而不是市场级 ÷100', async () => {
+    // Given 本地网关不可达，东财对 0.159869 返回游戏ETF华夏报价行（ETF 的 f1=3 与股票不同档）
+    const { impl } = stubFetch([
+      {
+        match: '/api/qt/ulist.np/get',
+        body: {
+          data: {
+            total: 1,
+            diff: [{ f1: 3, f2: 1056, f5: 4824962, f124: 1791960744 }],
+          },
+        },
+      },
+    ])
+    const client = new QmtRestClient({ fetchImpl: impl })
+
+    // When 用户查询 159869.SZ
+    const ticker = await client.getTicker('159869.SZ')
+
+    // Then 价格是 1056 / 10^3 = 1.056 元（同刻腾讯同值），市场级 ÷100 会得到 10.56 元
+    expect(ticker.price).toBe(1.056)
+    expect(ticker.volume).toBe(4824962)
+  })
+
+  it('用户查未收录的代码且本地网关离线时，回退保持零价快照的降级语义，不另抛新错误码', async () => {
+    // Given 本地网关不可达，东财对未收录的 secid 只回 data:null（HTTP 仍 200）
+    const { impl } = stubFetch([{ match: '/api/qt/ulist.np/get', body: { rc: 102, data: null } }])
+    const client = new QmtRestClient({ fetchImpl: impl })
+
+    // When 用户查询一个不存在的代码
+    const ticker = await client.getTicker('999999.SZ')
+
+    // Then 与网关返回非 0 code 时的兜底同形（价格 0），不改动本连接器的错误契约
+    expect(ticker.price).toBe(0)
+    expect(ticker.volume).toBe(0)
+    expect(ticker.symbol).toBe('999999.SZ')
+  })
+})

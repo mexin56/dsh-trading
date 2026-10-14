@@ -69,8 +69,14 @@ Status: implemented
 - **未收录 secid 的契约**：批量端点对无效 secid 是「少返回行」而不是报错（只传无效 secid
   时 `data:null`），故「diff 里拿不到行」判 `TRADING_SYMBOL_NOT_FOUND`，与旧端点
   `data` 为空时的语义一致。
-- 同一条已失效的 `stock/get` 仍被 `connector-akshare` 与 `connector-qmt`（本地网关离线
-  回退）使用；本机路由不在它们上，故本次未一并验证与改动，留任务看板的跟进卡。
+- 同一条端点契约已收敛到另两个打东财报价的连接器：`connector-akshare` 的 `getTicker`（主取价
+  路径）与 `connector-qmt` 的 `getTicker`（本地网关离线时的回退）都改打 `ulist.np/get`，取价
+  同样按报价行的 `f1`。qmt 回退对未收录的 secid 保持它自己的降级语义（零价快照，与网关
+  返回非 0 code 时同形）——`TRADING_SYMBOL_NOT_FOUND` 不在 `TradingErrorCode` 词汇表内，
+  该包不为此新增类型错误（同 bybit 对同一缺口的取舍）。2026-10-14 盘中用两包的构建产物实测：
+  贵州茅台 f1=2 → f2=128547 即 1285.47 元、游戏ETF华夏 f1=3 → f2=1056 即 1.056 元，同刻腾讯
+  qt.gtimg.cn（GBK 解码）为 1285.57 / 1.056；沿市场级 ÷100 会把 ETF 读成 10.56 元。两包单测
+  的报价 fixture 换成同批真实响应行。
 - 同一条 `ulist.np/get` 在批量场景一次传多 secid，承载 `MarketDataService.getTickers`（自选栏每拍
   1 次请求）：行→符号用响应行的 `f13`+`f12` 拼回 secid，不依赖返回顺序；取价仍按行 `f1`。
   契约与桥侧语义见 [批量报价能力](2026-10-14-batch-tickers-capability.md)。
