@@ -30,7 +30,9 @@ function probeFetch(rawFile) {
     urls.push(url)
     const res = await globalThis.fetch(url, init)
     const bytes = new Uint8Array(await res.arrayBuffer())
-    writeFileSync(new URL(`./${rawFile}`, import.meta.url), bytes)
+    // 默认只打印不写盘：落盘的字节是本 spike 的冻结证据，EVIDENCE.md 的 sha256 表取自那一跑，
+    // 覆盖它们会让文档与文件对不上。只有开辟新取证目录时才 R0_WRITE=1 写盘。
+    if (process.env.R0_WRITE === '1') writeFileSync(new URL(`./${rawFile}`, import.meta.url), bytes)
     out(`  [fetch] ${url} → HTTP ${res.status} ${bytes.length} B sha256:${sha16(bytes)} → ${rawFile}`)
     return new Response(bytes, { status: res.status, statusText: res.statusText, headers: res.headers })
   }
@@ -101,8 +103,15 @@ const hkOffline = await new TencentRestClient('hk', { fetchImpl: hkReplay.impl }
 const same = (a, b) => Object.keys(a).length === Object.keys(b).length
   && Object.keys(a).every((k) => a[k]?.name === b[k]?.name && a[k]?.price === b[k]?.price && a[k]?.symbol === b[k]?.symbol)
 out(`== 离线重放（注入落盘字节，零网络）==`)
-out(`  cn 与在线一致=${same(cnTickers, cnOffline)}（离线注入 fetch 被调用 ${cnReplay.calls()} 次，零真实网络）`)
-out(`  hk 与在线一致=${same(hkTickers, hkOffline)}（离线注入 fetch 被调用 ${hkReplay.calls()} 次，零真实网络）`)
+if (process.env.R0_WRITE === '1') {
+  out(`  cn 与在线一致=${same(cnTickers, cnOffline)}（离线注入 fetch 被调用 ${cnReplay.calls()} 次，零真实网络）`)
+  out(`  hk 与在线一致=${same(hkTickers, hkOffline)}（离线注入 fetch 被调用 ${hkReplay.calls()} 次，零真实网络）`)
+} else {
+  // 落盘字节是更早一跑的冻结证据，与本跑实时快照非同刻，「与在线一致」的比较在此没有意义；
+  // 重放本身仍证明那些字节能被同一条解析路径读回。
+  out(`  落盘字节是更早一跑的冻结证据：重放读回 cn ${Object.keys(cnOffline).length} 只 / hk ${Object.keys(hkOffline).length} 只，`)
+  out(`  与本跑实时快照非同刻，故不做一致性比较（该比较只在 R0_WRITE=1 的同跑取证里有意义）`)
+}
 
 const summary = {
   probedAt: new Date().toISOString(),
@@ -124,5 +133,10 @@ const summary = {
   singlePath: { price: single.price, batchPrice: batch?.price, sameRow, upstreamRequests: singleProbe.urls.length },
   emptyInput: { result: empty, upstreamRequests: idleProbe.urls.length },
 }
-writeFileSync(new URL('./r0-result.json', import.meta.url), `${JSON.stringify(summary, null, 2)}\n`)
-writeFileSync(new URL('./r0-stdout.txt', import.meta.url), `${log.join('\n')}\n`)
+// 与原始字节同一道闸门：默认只打印，不覆盖已冻结的证据文件（EVIDENCE.md 的 sha256 表取自那一跑）。
+if (process.env.R0_WRITE === '1') {
+  writeFileSync(new URL('./r0-result.json', import.meta.url), `${JSON.stringify(summary, null, 2)}\n`)
+  writeFileSync(new URL('./r0-stdout.txt', import.meta.url), `${log.join('\n')}\n`)
+} else {
+  out('（未写盘：默认只打印；R0_WRITE=1 才落盘原始字节与 r0-result.json / r0-stdout.txt）')
+}
