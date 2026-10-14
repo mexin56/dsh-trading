@@ -339,8 +339,38 @@ export function createPlaceOrderTool(deps: PlaceOrderToolDeps) {
   })
 }
 
+/**
+ * 本连接器在路由层的 provider slug（cn/hk 两个实例共用同一个 slug；
+ * docs/guides/exchange-routing.md §2.2）。
+ */
+export const ROUTER_PROVIDER = 'tencent'
+
+/**
+ * 路由闸门（互斥纪律）：preset 平面的同市场连接器行挂在**同一个**
+ * `cordis:group + isolate` realm 里（`isolate: { tradingCnMarketData: true }` 的
+ * label=true → loader 给该组一个 LocalRealm、组内子行共用，见 cordis-plugin-loader
+ * 的 `isolate()`），因此任意时刻只能有一个 provider 真正 provide 市场服务键——每个
+ * provider 自己按路由让位。
+ *
+ * 缺这道闸门时：用户把 cn/hk 路由切到别家（如 eastmoney），腾讯实例仍无条件 provide →
+ * 后挂载的那行抛 `service "tradingCnMarketData" has been registered at
+ * <dsh-trading-tencent>` → 整个 agent preset 判 invalid，新建会话直接失败
+ * （2026-10-14 实测复现）。
+ *
+ * 无 router 服务的老部署（或手搓 ctx 的单测）→ 放行，保持旧的单 provider 行为；
+ * 与 eastmoney/xysz/qmt/tushare/akshare 的 `routeAllows` 同款语义。
+ */
+export function routeAllows(ctx: Context, market: MarketOption): boolean {
+  const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown })
+    .get?.('tradingMarketRouter', false) as { activeProvider(m: string): string | undefined } | undefined
+  if (router === undefined) return true
+  return router.activeProvider(market) === ROUTER_PROVIDER
+}
+
 export function apply(ctx: Context, config: Config): void {
   const market = config.market
+  // 路由未选中本 provider → 零注册（既不 provide 服务、也不注册工具），把该市场让给选中的那家。
+  if (!routeAllows(ctx, market)) return
   const key = marketDataKey(market)
 
   // provide：Service 基类随插件 fiber 注册，插件卸载自动注销；服务键按实例分流
