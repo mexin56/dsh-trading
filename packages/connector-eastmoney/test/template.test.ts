@@ -231,6 +231,40 @@ describe('EastmoneyRestClient.getKlines', () => {
     expect(klines.map((k) => k.openTime)).toEqual([Date.UTC(2026, 9, 14, 1, 30), Date.UTC(2026, 9, 14, 1, 31)])
     expect(klines.map((k) => k.open)).toEqual([1287.0, 1287.5])
   })
+
+  it('用户取历史 1m 时重建开价被夹进当根高低区间（越界候选收敛到边界）', async () => {
+    // Given 上游 4 根全为 0.00 开价，且候选值分别越过当根 high 与 low：
+    //   09:30 首根用自身 close（1250.00，落在 1248.00..1252.00 内，不触发 clamp）
+    //   09:31 候选=前一根 close 1250.00，但当根 high=1248.50 → 夹到 high
+    //   09:32 候选=前一根 close 1247.20，但当根 low=1249.60 → 夹到 low
+    //   09:33 候选=前一根 close 1250.60，落在 1249.00..1251.00 内 → 原值
+    const { impl } = stubFetch([
+      {
+        match: '/api/qt/stock/trends2/get',
+        body: {
+          data: {
+            trends: [
+              '2026-10-13 09:30,0.00,1250.00,1252.00,1248.00,900,1160000.000,0.00',
+              '2026-10-13 09:31,0.00,1247.20,1248.50,1246.80,1100,1420000.000,0.00',
+              '2026-10-13 09:32,0.00,1250.60,1251.40,1249.60,1200,1500000.000,0.00',
+              '2026-10-13 09:33,0.00,1250.20,1251.00,1249.00,800,1000000.000,0.00',
+            ],
+          },
+        },
+      },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户取该段 1m
+    const klines = await client.getKlines('600519.SH', '1m', 2500)
+
+    // Then 越界候选被夹到当根边界，未越界的候选保持原值
+    expect(klines.map((k) => k.open)).toEqual([1250.0, 1248.5, 1249.6, 1250.6])
+    // Then 每根都满足 low <= open <= high（蜡烛实体不戳出影线）
+    expect(klines.every((k) => k.low <= k.open && k.open <= k.high)).toBe(true)
+    // Then close 不被改写（下一根的候选仍取真实 close）
+    expect(klines.map((k) => k.close)).toEqual([1250.0, 1247.2, 1250.6, 1250.2])
+  })
 })
 
 describe('EastmoneyRestClient.listInstruments', () => {

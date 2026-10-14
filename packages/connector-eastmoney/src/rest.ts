@@ -206,6 +206,16 @@ const DATACENTER_REFERER = 'https://data.eastmoney.com/'
  */
 const TRENDS_NDAYS = 5
 
+/**
+ * 把重建出的开价收敛进当根 [low, high]：真实分钟 bar 恒有 low <= open <= high，
+ * 故越界的候选值一定偏离真值，夹到最近边界比放它出去更接近真值（也避免实体戳出影线）。
+ * low/high 非有限值或 low > high（上游坏行）时原样返回，不做改写。
+ */
+function clampToBarRange(value: number, low: number, high: number): number {
+  if (!Number.isFinite(low) || !Number.isFinite(high) || low > high) return value
+  return Math.min(Math.max(value, low), high)
+}
+
 /** 数据中心 /api/data/v1/get 响应骨架（列名随报表而变，data 行按需解析）。 */
 interface EastmoneyDataCenterResponse {
   success?: boolean
@@ -355,15 +365,16 @@ export class EastmoneyRestClient {
    * 开价的派生语义（2026-10-14 实测，spikes/impl-five-day-1m-probe/）：ndays>1 时上游
    * 只给「当日」那一段真实开价，历史交易日每根的第 2 列恒为 0.00（cn 241/241、hk 331/331
    * 全为 0），close 与腾讯 m1 逐根一致、high/low 有 ≤0.5 的舍入差。因此：
-   *   - 上游 open > 0：用上游值（当日、以及非当日偶发的真实值）；
-   *   - 上游 open = 0：用同日前一根的 close（1m 粒度下，前一根收盘是该分钟开盘价
-   *     最佳可得近似）；每个交易日首根没有同日前一根，取该根自身 close——该根自洽，
-   *     且不把上游未给出的跨日缺口算进来（午后首根用的是午休前最后一根的 close，
-   *     午休不移动价格，同日前一根语义成立）。
-   * 重建后的 open 是派生值而非取数：实测有少量根的开价落在该根 [low, high] 之外
-   * （2026-10-14 五日窗口：cn 242/1002、hk 28/1362，多数是最小变动价位量级，单根最大
-   * 差值 cn 2.99 元，来自 2026-10-09 09:31 的分钟边界跳空；见 spikes/impl-five-day-1m-fetch/）
-   * ——消费方按「近似开价」用。
+   *   - 上游 open > 0：用上游值（当日、以及非当日偶发的真实值），不做任何改写；
+   *   - 上游 open = 0：重建 + clamp——候选值是同日前一根的 close（1m 粒度下，前一根收盘
+   *     是该分钟开盘价最佳可得近似；每个交易日首根没有同日前一根，取该根自身 close，不把
+   *     上游未给出的跨日缺口算进来，午后首根用的是午休前最后一根的 close，午休不移动价格），
+   *     再 clamp 进**当根** [low, high]：真实分钟 bar 恒有 low <= open <= high，该分钟真实
+   *     开价必然落在自身高低区间内，clamp 比原候选更接近真值，也避免实体戳出影线。
+   *     low/high 非有限值或 low > high 时保留候选值（上游坏行不强行改写）。
+   * 重建后的 open 仍是派生值而非取数，但已保证自洽：2026-10-14 五日窗口实测，clamp 前
+   * 有 cn 242/1007、hk 28/1367 根越界（多数是最小变动价位量级，单根最大 cn 2.99 元，来自
+   * 2026-10-09 09:31 的分钟边界跳空），clamp 后越界 0 根（spikes/impl-five-day-1m-fetch/）。
    */
   private async getIntradayTrends(secid: string, limit: number): Promise<Kline[]> {
     const url = `${this.historyBaseUrl}/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=${TRENDS_NDAYS}&iscr=0`
@@ -381,10 +392,12 @@ export class EastmoneyRestClient {
       const timeStr = parts[0] ?? ''
       const day = timeStr.slice(0, 10)
       const close = parseFloat(parts[2] ?? '')
+      const high = parseFloat(parts[3] ?? '')
+      const low = parseFloat(parts[4] ?? '')
       const upstreamOpen = parseFloat(parts[1] ?? '')
       const open = upstreamOpen > 0
         ? upstreamOpen
-        : day === prevDay && prevClose > 0 ? prevClose : close
+        : clampToBarRange(day === prevDay && prevClose > 0 ? prevClose : close, low, high)
 
       let openTime: number
       try {
@@ -396,8 +409,8 @@ export class EastmoneyRestClient {
       klines.push({
         openTime,
         open,
-        high: parseFloat(parts[3] ?? ''),
-        low: parseFloat(parts[4] ?? ''),
+        high,
+        low,
         close,
         volume: parseFloat(parts[5] ?? ''),
         closeTime: openTime + stepMs - 1,
