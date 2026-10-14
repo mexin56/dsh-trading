@@ -1,6 +1,6 @@
 {
   "name": "@dshtrading/connector-ibkr",
-  "description": "【模板】交易所连接器插件脚手架：IBKR（ibkr）v2 插件骨架 —— 市场数据服务 + 交易服务 + 三态闸门 + BYOK 凭证 ref。生成器：node scripts/new-connector.mjs --slug <exchange>",
+  "description": "美股（us）行情与交易连接器：经用户本机 Interactive Brokers Client Portal Gateway（/iserver、/portfolio、/hmds）实现 MarketDataService/TradeService 双契约，服务键 tradingUsMarketData/tradingUsTrade，三态闸门 + dry-run 缺省。",
   "version": "0.6.1",
   "type": "module",
   "main": "lib/index.js",

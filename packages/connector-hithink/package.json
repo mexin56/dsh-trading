@@ -1,6 +1,6 @@
 {
   "name": "@dshtrading/connector-hithink",
-  "description": "【模板】交易所连接器插件脚手架：HiThink（hithink）v2 插件骨架 —— 市场数据服务 + 交易服务 + 三态闸门 + BYOK 凭证 ref。生成器：node scripts/new-connector.mjs --slug <exchange>",
+  "description": "同花顺（问财）OpenAPI A 股与期货数据连接器（BYOK，凭证 ref 为 HITHINK_FINANCE_API_KEY）：实现 tradingCnMarketData 与 tradingFuturesMarketData 行情服务（ticker / K 线 / 基本面 / 集合竞价 / 连板池）；仅数据面，无交易通道、不注册工具。",
   "version": "0.6.1",
   "type": "module",
   "main": "lib/index.js",

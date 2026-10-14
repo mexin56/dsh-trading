@@ -1,6 +1,6 @@
 {
   "name": "@dshtrading/connector-ccxt",
-  "description": "【模板】交易所连接器插件脚手架：CCXT（ccxt）v2 插件骨架 —— 市场数据服务 + 交易服务 + 三态闸门 + BYOK 凭证 ref。生成器：node scripts/new-connector.mjs --slug <exchange>",
+  "description": "沿用 CCXT 所名词汇的加密现货多所行情连接器（自写 binance/okx/bybit 三条直连分支，不依赖 ccxt 库）：ticker 与 K 线 + 保留三态闸门的交易占位服务；现货限定，账户读面未实现。",
   "version": "0.6.1",
   "type": "module",
   "main": "lib/index.js",
