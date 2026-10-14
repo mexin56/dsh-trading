@@ -61,7 +61,9 @@ Status: implemented
      `@dshtrading/api` 的 Interval 联合**——连接器不认识这个词汇，它是纯客户端视图级别。
   3. **拼接轴与特化着色**：轻量图表横轴是「一根 bar 一个槽位」，隔夜与午休空档天然
      被压缩，日界由 `fiveDayDayStarts` 显式标出（竖分隔线经 `timeToCoordinate` 定位 +
-     日界刻度显示 MM-DD HH:mm）。成交量色由 `fiveDayVolumeColor(档位, 深色)` 给出，
+     日界刻度显示 MM-DD HH:mm；图表坐标 → 容器坐标的换算只有 `chart-coordinate.ts`
+     一处——容器含左价格轴，overlay 必须加 `priceScale('left').width()`，第二份加减规则
+     会让竖线/选区整体平移一个轴宽）。成交量色由 `fiveDayVolumeColor(档位, 深色)` 给出，
      **不受红涨绿跌设置影响**（读的是量比不是涨跌）：亮色 r<1 `#d9a01f`、1≤r<2
      `#ee7f72`、2≤r<3 `#c62828`、r≥3 `#1c1c1e`，中性灰 `#a8adb8`；深色对应
      `#e8c552` / `#f0958b` / `#e5484d` / `#f2f4f8`、中性灰 `#6b7280`。深色主题的取舍：
