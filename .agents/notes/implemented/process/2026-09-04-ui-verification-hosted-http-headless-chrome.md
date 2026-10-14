@@ -46,6 +46,7 @@ Status: implemented
 
 - 界面验证证据统一为桌面壳**窗口级截图 + Computer Use 交互**：窗口可后台（AX 路径不抢焦点）、不依赖桌面状态、不卷入用户隐私；代价是机器必须已授予 Accessibility + Screen Recording。
 - 载体同步：根 [AGENTS.md](../../../../AGENTS.md)「Home 与运行验证」bullet、[release skill](../../../../.agents/skills/dsh-trading-release/SKILL.md) §5 本地抽查、全局 skill `ui-screenshot-verify` 与 `~/.agents/harness/task-routing.md` 的 UI 验证路由。历史证据里按旧手法拍下的截图（cockpit 12 类型、2026-09-09 桌面壳复验等）原地不动——它们是当时的事实，不是现行手法声明。
+- 2026-10-14 实拍复核（本机，工作区 `8dbd0eb7`）：`env -u ELECTRON_RUN_AS_NODE open --env DSH_HOME=$HOME/.dsh-trading "/Applications/DSH Trading.app"` 起壳（日志 `[desktop] dsh home: /Users/zcl/.dsh-trading`、宿主 `--profile trading-web --no-open --port 52477`）→ `check_permissions` 两项 granted → `list_windows` 取 `pid 65038 / window_id 4018` → `get_window_state` 窗口截图读图确认行情视图（自选四市场、K 线 + KDAS 标线、量比分档量能、状态栏 `交易中`）→ 像素点击 (540,57) 命中「知识库」页签 → 复检截图确认切到知识图谱（`118 张卡片 · 11 个主题簇`）→ `osascript quit` 后无残留进程、端口释放。**两条约束由此实测确认**：Electron 渲染的 web 内容不进 AX 面（首帧 198 元素仅菜单项，`element_token` 点不到目标，须走像素路径），且点击工具自报 `effect:"unverifiable"`——断言只能来自复检读图。证据：`.local/acceptance/computer-use-smoke-2026-10-14/`（本机，不入库）。
 - tokenized URL 只在本机日志与本地命令中出现，不写入仓库文件与对外材料。
 
 ## home 守卫（2026-10-01 修正）：ui:check 不再误用宿主 ~/.dsh
