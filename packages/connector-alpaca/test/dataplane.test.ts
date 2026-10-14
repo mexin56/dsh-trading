@@ -81,6 +81,16 @@ describe('Alpaca 连接器数据面行的 loader 解析面', () => {
     expect(resolved.demoSecretRef).toBe('ALPACA_PAPER_SECRET_KEY')
   })
 
+  it('用户显式写 env:live 时不被 schema 默认值打回 demo', () => {
+    // Given: 用户在行 config 里显式声明实盘环境
+    // When: 按 cordis loader 语义解析行 config
+    // Then: env=live 原样保留，且 live 面凭证 ref 随之切换（默认值只补缺省字段）
+    const resolved = resolveConfig(plugin as never, { enabled: true, env: 'live' }) as ConfigType
+    expect(resolved.env).toBe('live')
+    expect(resolved.apiKeyRef).toBe('ALPACA_API_KEY')
+    expect(resolved.liveTrading).toBe(false)
+  })
+
   it('用户宿主挂载该行时行情与交易两个服务都注册进各自注册表', () => {
     // Given: loader 解析后的行 config（真服务构造，不经假服务替身）
     // When: 挂载数据面行

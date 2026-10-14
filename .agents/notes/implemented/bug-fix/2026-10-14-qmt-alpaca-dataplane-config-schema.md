@@ -55,20 +55,39 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
 - qmt/alpaca 两个数据面行的加载失败消失：行情与交易服务双双注册，GUI 与只读账户工具在
   路由选中这两家时能解析到服务（剩下的 `TRADING_AUTH_FAILED: accountId is required` 与
   「Alpaca credentials missing」是用户侧配置缺口，不再是「未激活」）。
-- 宿主 `--dump-config-schema` 对这两行从 `status: absent` / `unknownConfig` 变为真实
-  configRef（设置面可投影其配置字段）。
+- 刷新 profile 副本后，宿主 `--dump-config-schema` 对这两行将从 `status: absent` /
+  `unknownConfig` 变为真实 configRef（设置面可投影其配置字段）；当前（未刷新）复跑仍是
+  `absent`，因为该命令解析的是 profile 副本里的模块，不是仓库产物。
 - 仍存量的同类债：其他 17 个数据面入口依旧不导出 `Config`，只是当前不崩（服务兜底或行内
-  restate）。看板已登记系统性收敛卡。
-- 运行中的实例要见到修复需刷新 profile 副本（`scripts/refresh-profile.sh trading-web`）并重启宿主。
+  restate：okx 的 patch 行额外写了 `env: demo` 才没踩到）。已开看板卡
+  `456cf455`（收敛 + 结构门禁）。
+- 运行中的桌面实例仍加载修复前的 profile 副本（`~/.dsh-trading/profiles/trading-web/node_modules/@dshtrading/connector-{qmt,alpaca}/lib/dataplane.js`
+  仍是 `export { apply, inject }`）：要见到修复需刷新 profile 副本并重启宿主，本变更未做
+  （实例运行中不执行 plugin install、不擅自重启）。
 
 ## Verification
 
-- 复现与修复后对照（真实模块 + 真实行 config，真服务构造）：修复前 qmt/alpaca `apply` 抛
-  `requireNonEmpty` TypeError、两张注册表皆空；修复后 loader 解析出
+- **宿主启动告警的真实取证（修复前）**：`~/Library/Logs/dsh-trading-desktop/dsh-host.log`
+  起自第 168 行共 17 处 `dsh: warning: 2 entries did not activate`，两条分别是
+  `dsh-trading-us-dataplane-alpaca (@dshtrading/connector-alpaca/dataplane)` 与
+  `dsh-trading-cn-dataplane-qmt (@dshtrading/connector-qmt/dataplane)`，堆栈落在
+  `requireNonEmpty → new OrderIntentLedger → new <X>TradeService → new apply`（与本次定位一致）。
+- **loader 激活路径前后对照**：`node spikes/impl-qmt-alpaca-dataplane-activation/run-loader-activation-probe.mjs`
+  （真实 router 插件 + 真实行 config `{enabled:true}`，走 `ctx.registry.plugin` 即 loader 的激活路径）：
+  修复后 `cn/qmt: activated | 模块导出 Config=true | market=[qmt] trade=[qmt]`、
+  `us/alpaca: activated | … trade=[alpaca]`；同一脚本对桌面实例当前加载的 profile 副本
+  （修复前构建）仍是 `did not activate | Config=false | market=[] trade=[] | TypeError: … reading 'trim'`。
+- 复现与修复后对照（真服务构造）：修复后 loader 解析出
   `{enabled:true, env:'demo', dryRun:true, liveTrading:false, gatewayUrl:'http://127.0.0.1:5800'}`，
-  注册表双双得到 `cn/qmt`、`us/alpaca`。
-- 回归证明：把两个 `dataplane.ts` 还原到修复前，两包新测试各 4 例全红（`git show HEAD:` 临时还原后
-  再复原）；修复后 `pnpm --filter @dshtrading/connector-qmt --filter @dshtrading/connector-alpaca test`
-  21 + 26 例全绿。
-- `pnpm -r test` 全仓无 FAIL；`node scripts/test-audit.mjs --check` 无新增测试债；
-  `node scripts/typecheck-gate.mjs` 未超基线。
+  注册表双双得到 `cn/qmt`、`us/alpaca`；只读调用余下的
+  `TRADING_AUTH_FAILED: accountId is required`、「Alpaca credentials missing」属用户配置缺口。
+- 回归证明：把两个 `dataplane.ts` 还原到修复前（`git show HEAD~1:` 临时还原后再复原），
+  两包新测试各 4 例全红；修复后 `pnpm --filter @dshtrading/connector-qmt --filter @dshtrading/connector-alpaca test`
+  22 + 27 例全绿（含「未给 env → demo」与「显式 env:live 不被打回 demo」）。
+- `pnpm gates:all`（2026-10-14，HEAD b6a623e4）：16 条门禁 15 通过 / 1 失败，失败项 `test:scripts`
+  与环境相关且与本变更无关——`scripts/futu-openapi-bridge.py:110` 在模块顶层 `OpenQuoteContext`
+  要求 OpenD，本机 OpenD 未运行（`nc -z 127.0.0.1 11111` → CLOSED）致 hook 超时；本变更未触碰
+  `scripts/`（`git diff --stat HEAD~1 HEAD -- scripts/` 为空），已开看板卡 `7a9bb413`
+  （该测试同时存在超时泄漏子进程问题，本次清理了 3 个残留桥进程）。
+- `pnpm -r test`（同批）无 FAIL；`node scripts/test-audit.mjs --check` 无新增测试债；
+  `node scripts/typecheck-gate.mjs` 未超基线；`node scripts/docs-link-check.mjs` 无新增断链。
