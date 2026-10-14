@@ -179,3 +179,18 @@ Status: implemented
 **测试 4 例**：未设 DSH_HOME 且本机有 trading home ⇒ 告警且返回值仍是缺省 home；显式指向 trading home ⇒ 安静；显式指向别的目录 ⇒ 安静（那是用户的选择，不是误用）；空白 `DSH_HOME` 视为未设（与既有语义一致）。第三例的期望值走 `resolve()`：`dshHomeDir` 对显式值也做 `resolve`，Windows 上 POSIX 绝对路径会带上驱动器前缀（`D:\tmp\...`）——硬编码 `/tmp/...` 只在 POSIX 成立，2026-10-09 的 windows-latest 矩阵据此判红。
 
 **踩坑记录**：加 import 时没先看文件头，重复声明了 `existsSync` ⇒ 构建失败（rolldown PARSE_ERROR）⇒ 该包 `lib/` 未产出 ⇒ 测试连锁失败成"找不到入口"。**症状在测试、根因在构建** —— 先看构建日志而不是测试堆栈。
+
+## 同一 home 单宿主纪律（2026-10-14 实测）
+
+一个 trading home 同时只能有**一个**宿主。第二个宿主不会崩，而是**丢掉 home 级租约后静默降级**：2026-10-14 桌面壳在 10:20 启动时，`trading-tasks/ledger-v1.json.lock` 已被 10:15 起的另一个宿主（pid 85727）持有，启动日志打
+
+```
+[dsh-trading/tasks] task ledger unavailable (locked by another live host?): LedgerLockedError:
+task ledger is locked by another live host process (pid 85727): …/trading-tasks/ledger-v1.json.lock
+```
+
+界面表现为**「定时任务服务不可用」**；同一轮里用户还看到**会话历史为空**（工作区 `cowork` 下磁盘上有 197 个会话目录）——同一类 home 级租约冲突是当前最可能的解释（`storages/`、`selection.json` 等同样带 writer-lease），界面侧尚未逐项证实。
+
+**桌面壳的宿主形态**：`open -b com.dsh-trading.desktop` 拉起桌面壳后，真正在跑的宿主进程是 `node ~/.local/bin/dsh --profile trading-web --no-open --port 8888`（wrapper 形态、缺省端口 8888、`DSH_HOME=~/.dsh-trading`），其输出落在 `/tmp/trading-web-5dN.log`；`~/Library/Logs/dsh-trading-desktop/dsh-host.log` 里那套 `[desktop] spawning host on 127.0.0.1:<port>` 是**自带 runtime** 形态（另一条启动路径），两者不是同一个进程。判「现在哪个宿主在跑」看 `ps -eo pid,lstart,command | grep 'profile trading-web'`，判「谁持有任务账本」看 `~/.dsh-trading/trading-tasks/ledger-v1.json.lock` 的 pid 是否活着。
+
+**纪律**：验证/取证用的宿主**不得**与桌面壳共用 `~/.dsh-trading`（本次事故里我起的验证宿主 54734 就是干扰源之一）；要么用独立 home，要么取完证立刻停掉再让桌面壳启动。持有者已死的陈旧 `ledger-v1.json.lock` 可以删除（文件里只有 pid/host/token，真正的互斥是 sqlite 租约）。
