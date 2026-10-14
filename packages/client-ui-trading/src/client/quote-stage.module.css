@@ -411,6 +411,38 @@
   margin: 6px 0 2px;
 }
 
+/* 自定义指标加载失败行（选择器内）：可见失败态 + 「重试」按钮（2026-10-14）。 */
+.pickerLoadFailure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border-radius: var(--dsw-futu-radius-sm, 4px);
+  border: 1px solid var(--dsw-futu-up-border, rgba(230, 69, 69, 0.22));
+  background: var(--dsw-futu-up-bg, rgba(230, 69, 69, 0.08));
+  color: var(--dsw-futu-up, #e64545);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pickerLoadFailureText {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.pickerLoadRetry {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--dsw-futu-radius-sm, 4px);
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .pickerRow {
   display: flex;
   align-items: center;

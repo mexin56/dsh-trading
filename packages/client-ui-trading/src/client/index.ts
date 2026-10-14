@@ -24,10 +24,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ISessions, SessionTarget } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { IndicatorMarketScope, IndicatorRegistry } from '@dshtrading/indicators'
 import type { Instrument, MarketId } from './types.ts'
-import { validateCustomIndicatorAsync } from '@dshtrading/indicators'
 import { createSelectionStore, createWatchlistGroupsStore, createWatchlistStore } from './store.ts'
 import { createChartStateStore } from './chart-state.ts'
-import { indicators, markCustomIndicator, unmarkCustomIndicator } from './indicator-registry.ts'
+import { indicators, unmarkCustomIndicator } from './indicator-registry.ts'
+import { customIndicatorLoader } from './indicator-load.ts'
 import { stageViews } from './stage-views.ts'
 import { createTradingBridgeService } from './api.ts'
 import { OrderCard, WatchlistChipCard } from './toolview.tsx'
@@ -38,7 +38,7 @@ import { SessionRail } from './SessionRail.tsx'
 import { ChatResizeHandle } from './ChatResizeHandle.tsx'
 import { foldStore, marketFoldStore } from './fold-store.ts'
 import { rightbarStore } from './rightbar-store.ts'
-import { deleteCustomIndicator, fetchCustomIndicators, subscribeTradingEvents } from './api.ts'
+import { deleteCustomIndicator, subscribeTradingBridgeReady, subscribeTradingEvents } from './api.ts'
 import { wireHostWatchlistSync } from './host-watchlist-sync.ts'
 import { wireHostChartSync } from './host-chart-sync.ts'
 import './tokens.css'
@@ -168,30 +168,21 @@ export function apply(ctx: ClientContext): void {
     for (const definition of service.list()) indicators.register(definition)
   })
 
-  // Issue #19 + #30：异步拉取并注册已持久化的自定义指标；SSE 'indicators' 失效
-  // 信号到达时重拉（register 同名覆盖幂等），indicator_author 入库无需刷新即上榜。
-  const loadCustomIndicators = async (): Promise<void> => {
-    try {
-      const customList = await fetchCustomIndicators()
-      for (const item of customList) {
-        // issue #31：浏览器端校验走 Worker 超时熔断（validateCustomIndicatorAsync），
-        // 补 new Function 裸执行「恶意/死循环源码卡死主线程」的既知缺口。
-        const result = await validateCustomIndicatorAsync(item)
-        if (result.ok) {
-          indicators.register(result.definition)
-          markCustomIndicator(result.definition.id)
-        }
-      }
-    } catch (e) {
-      console.warn('[dsh-trading] failed to fetch custom indicators:', e)
-    }
-  }
-  void loadCustomIndicators()
+  // Issue #19 + #30，2026-10-14 失败可见性：自定义指标的拉取/校验/登记收口在
+  // indicator-load.ts（桥类失败退避重试、校验类失败立即可见不重试、失败态模块级
+  // 可观测）。这里只接三个触发源：启动首拉、桥就绪（EventSource `open`）、SSE
+  // `indicators` 失效信号；重拉幂等（register 同名覆盖）。
+  void customIndicatorLoader.load()
+
+  // 桥就绪订阅先于 subscribeTradingEvents 建立（后者创建 EventSource 单例）：
+  // 首个 `open` 帧要能落到订阅者身上——挂载期首拉若在桥就绪前失败，这里是唯一
+  // 的自愈入口（旧实现没有任何 open 重拉路径）。
+  subscribeTradingBridgeReady(() => { customIndicatorLoader.bridgeReady() })
 
   // SSE 失效信号订阅（issue #30）：EventSource 单例在 api.ts（多视图共享一条
-  // 连接）；EventSource 不可用或桥 503 → 一次性 fetch 的现状兜底（不劣于现状）。
+  // 连接）；EventSource 不可用或桥 503 → 退避重试的现状兜底（不劣于现状）。
   subscribeTradingEvents({
-    indicators: () => { void loadCustomIndicators() },
+    indicators: () => { customIndicatorLoader.reload() },
   })
 
   // 自选股 host SSOT 同步（issue #32）：启动同步 + 一次性迁移 + 变更 host-first

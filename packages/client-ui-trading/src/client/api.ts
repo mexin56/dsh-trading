@@ -287,14 +287,16 @@ export async function fetchSymbols(market: MarketId, q?: string): Promise<Symbol
   return Array.isArray(wire.symbols) ? wire.symbols : []
 }
 
-/** 拉取自定义指标列表（Issue #19）。 */
+/**
+ * 拉取自定义指标列表（Issue #19）。失败必须 reject：空数组只表示「确实没有
+ * 自定义指标」，桥不可达是另一回事。把失败吞成空数组会让「桥挂了」和「没有
+ * 自定义指标」变成同一个状态——2026-10-14 KDAS「自建指标不见了」正是这条路径
+ * （一次性 fetch 静默空数组 + 只在 SSE 失效信号时重拉 = 瞬时失败即永久缺失且
+ * 界面不可见）。失败分类与重试见 indicator-load.ts。
+ */
 export async function fetchCustomIndicators(): Promise<CustomIndicatorRecord[]> {
-  try {
-    const wire = await getJson<{ ok: boolean; indicators: CustomIndicatorRecord[] }>('/dshtrading/api/indicators/custom')
-    return Array.isArray(wire.indicators) ? wire.indicators : []
-  } catch {
-    return []
-  }
+  const wire = await getJson<{ ok: boolean; indicators: CustomIndicatorRecord[] }>('/dshtrading/api/indicators/custom')
+  return Array.isArray(wire.indicators) ? wire.indicators : []
 }
 
 /** 删除自定义指标。 */
@@ -980,12 +982,19 @@ type TradingEventHandlers = Partial<Record<TradingEventStoreName, () => void>>
 /** 模块级单例：多视图共享一条 EventSource 连接（多标签页各自一条，天然隔离）。 */
 let tradingEventSource: EventSource | null = null
 const tradingEventListeners = new Set<(store: TradingEventStoreName) => void>()
+/** 桥就绪监听者（EventSource `open`）：首连与每次自动重连都触发一次。 */
+const tradingBridgeReadyListeners = new Set<() => void>()
 
 function ensureTradingEventSource(): void {
   if (tradingEventSource !== null) return
   // 无 EventSource（老浏览器/非 web 环境）→ 一次性 fetch 的现状兜底。
   if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
   const source = new EventSource('/dshtrading/api/events')
+  // `open` 是「桥可达」的唯一客户端证据（onerror 只说明连接断了，原生重连成功
+  // 与否没有别的回调）：挂载期拉取若发生在桥就绪之前，这里是唯一能自愈的触发点。
+  source.addEventListener('open', () => {
+    for (const listener of [...tradingBridgeReadyListeners]) listener()
+  })
   source.addEventListener('store.changed', (event) => {
     try {
       const data = JSON.parse((event as MessageEvent).data as string) as { store?: string }
@@ -1016,6 +1025,16 @@ export function subscribeTradingEvents(handlers: TradingEventHandlers): () => vo
       tradingEventSource = null
     }
   }
+}
+
+/**
+ * 订阅「桥就绪」通知（EventSource `open`：首连与每次自动重连）。加载期失败的
+ * 自定义指标靠它在桥可用的第一时间重拉（2026-10-14），不必等下一次失效信号。
+ */
+export function subscribeTradingBridgeReady(handler: () => void): () => void {
+  ensureTradingEventSource()
+  tradingBridgeReadyListeners.add(handler)
+  return () => { tradingBridgeReadyListeners.delete(handler) }
 }
 
 /**

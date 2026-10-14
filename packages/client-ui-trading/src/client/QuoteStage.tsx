@@ -36,6 +36,7 @@ import {
   fmtChange, fmtClock, fmtCompact, fmtPercent, fmtPrice, scaleLocaleOf,
 } from './format.ts'
 import { indicators, isCustomIndicator } from './indicator-registry.ts'
+import { customIndicatorLoader, type IndicatorLoadFailure } from './indicator-load.ts'
 import { isTradFiPerp, resolveAssetClass, rowForm } from './instrument-meta.ts'
 import type { IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
 import {
@@ -126,6 +127,11 @@ const RATIO_TIER_KEY: Record<FiveDayTier, MarketLocaleKey> = {
 
 export type Translate = (key: MarketLocaleKey, params?: Record<string, unknown>) => string
 
+/** 自定义指标加载失败态的稳定订阅/读取引用（useSyncExternalStore 要求引用稳定，
+ * 内联箭头每次渲染都会重订阅）。 */
+const subscribeIndicatorLoad = (listener: () => void): (() => void) => customIndicatorLoader.subscribe(listener)
+const readIndicatorLoadFailure = (): IndicatorLoadFailure | null => customIndicatorLoader.failure()
+
 export type UseStoreState<TState> = <TSelected>(selector: (state: TState) => TSelected) => TSelected
 
 export interface QuoteStageProps extends GuiApprovalContextProps {
@@ -211,6 +217,10 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   }
   // 指标名册修订号：插件晚于首帧合并 definition 时触发重渲染。
   const rosterVersion = useSyncExternalStore(indicators.subscribe, indicators.getVersion)
+
+  // 自定义指标加载失败态（模块级 store，见 indicator-load.ts）：失败可不可见只由
+  // 这一份状态决定——选择器内的一行提示 + 「重试」按钮（2026-10-14 KDAS 案）。
+  const indicatorLoadFailure = useSyncExternalStore(subscribeIndicatorLoad, readIndicatorLoadFailure)
 
   const [chartInterval, setIntervalFor] = useState<string>(() => {
     if (market === undefined) return '1d'
@@ -1105,6 +1115,8 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                   editingIndicator={editingIndicator}
                   scopeKey={market !== undefined && symbol !== undefined ? symbolScopeKey(market, symbol) : undefined}
                   symbolLabel={symbol}
+                  loadFailure={indicatorLoadFailure}
+                  onRetryLoad={() => { customIndicatorLoader.reload() }}
                   onToggle={(id) => {
                     toggleIndicatorVisible(id)
                     setEditingIndicator(null)
@@ -1508,7 +1520,8 @@ function StatusBar(props: {
   )
 }
 
-function IndicatorPicker(props: {
+/** 指标选择器面板（同文件内导出：选择器渲染的独立用例直接 mount 它）。 */
+export function IndicatorPicker(props: {
   t: Translate
   /** 当前标的可见实例（勾选态/参数编辑的数据源）。 */
   instances: IndicatorInstance[]
@@ -1521,6 +1534,10 @@ function IndicatorPicker(props: {
   scopeKey?: string | undefined
   /** 当前标的 symbol（覆盖提示文案用）。 */
   symbolLabel?: string | undefined
+  /** 自定义指标加载失败态（模块级 store 注入）；null = 无失败、不渲染提示行。 */
+  loadFailure: IndicatorLoadFailure | null
+  /** 「重试」按钮动作（重拉桥并按同一套失败分类刷新失败态）。 */
+  onRetryLoad: () => void
   onToggle: (id: string) => void
   onEdit: (id: string) => void
   /** 适用范围写入：scope === undefined 删除该市场条目（落回全部级别应用）。 */
@@ -1530,7 +1547,7 @@ function IndicatorPicker(props: {
   onDelete: (id: string) => void
   onClose: () => void
 }): React.JSX.Element {
-  const { t, market, instances, activeInstances, editingIndicator, scopeKey, symbolLabel, onToggle, onEdit, onSetScope, onApply, onRemoveGlobal, onDelete, onClose } = props
+  const { t, market, instances, activeInstances, editingIndicator, scopeKey, symbolLabel, loadFailure, onRetryLoad, onToggle, onEdit, onSetScope, onApply, onRemoveGlobal, onDelete, onClose } = props
   // 决策 5：只列当前市场可用的指标（如港股通持股比例不进 crypto/us/cn 的选择器）。
   const definitions = availableDefinitions(indicators.list(), market)
   const empty = definitions.length === 0
@@ -1539,6 +1556,25 @@ function IndicatorPicker(props: {
       <div className={css.pickerBackdrop} onClick={onClose} aria-hidden="true" />
       <div className={css.pickerPanel} role="dialog" aria-label={t('indicator.picker')}>
         <div className={css.pickerTitle}>{t('indicator.picker')}</div>
+        {/* 自定义指标加载失败行（2026-10-14）：失败必须在这里可见——旧实现只在
+            console.warn 里失败，用户看到的是「自建指标凭空消失」。 */}
+        {loadFailure !== null && (
+          <div className={css.pickerLoadFailure} role="status">
+            <span className={css.pickerLoadFailureText}>{t('indicator.loadFailed', { reason: loadFailure.reason })}</span>
+            {loadFailure.retryable ? (
+              <>
+                {loadFailure.exhausted && (
+                  <span className={css.pickerLoadFailureText}>{t('indicator.loadRetryStopped')}</span>
+                )}
+                <button type="button" className={css.pickerLoadRetry} onClick={onRetryLoad}>
+                  {t('indicator.loadRetry')}
+                </button>
+              </>
+            ) : (
+              <span className={css.pickerLoadFailureText}>{t('indicator.loadInvalid')}</span>
+            )}
+          </div>
+        )}
         {empty ? (
           <div className={css.pickerGroupTitle}>{t('indicator.empty')}</div>
         ) : (
