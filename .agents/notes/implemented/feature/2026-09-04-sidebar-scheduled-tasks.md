@@ -54,6 +54,6 @@ Status: implemented
 >
 > **新不变量**：错过触发点不逐条补跑不变（消费时才从当前时刻取下一个匹配，宿主跨多个触发点仍只跑一次）；被跳过的触发点不滞留；**触发点在有会话落定前保持到期**——补偿窗口内快照的 `nextRunAt` 就是这个尚未跑完的到期时刻；尝试计数在内存里，宿主重启即重置（重启本身就是一次恢复，旧触发点仍到期）；用户改动排期时旧补偿状态作废、从首试重新计数；任务被删除即清掉其补偿状态。
 >
-> 验证：`packages/bot-api` 265 用例全绿（新增 11：名册三态 4 + 触发点补偿 7，假时钟驱动、契约网关/名册 fixture、零通用 mock/零真实等待）；`packages/api` 15 用例全绿；两包 `tsc --noEmit` 0 错；`node scripts/test-audit.mjs --check` 无新增测试债；`node scripts/i18n-audit.mjs --check` OK（1057 zh 键，含新增两种原因的面板映射与 zh/en 文案）。
+> 验证：`packages/bot-api` 266 用例全绿（新增 12：名册三态 4 + 触发点补偿 8，假时钟驱动、契约网关/名册 fixture、零通用 mock/零真实等待）；`packages/api` 15 用例全绿；两包 `tsc --noEmit` 0 错；`node scripts/test-audit.mjs --check` 无新增测试债；`node scripts/i18n-audit.mjs --check` OK（1057 zh 键，含新增两种原因的面板映射与 zh/en 文案）。
 >
 > 已知边界（未做动态验证）：网关 promise 永不落定（`session/create` 悬挂）时启动在途标志不清，该触发点会一直保持未消费——与「执行记录本身长期 open」同源，轮询的失联收敛（`staleExecutionMs`）只结算账本记录，不等价于启动落定。

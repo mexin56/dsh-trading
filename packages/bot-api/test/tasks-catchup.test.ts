@@ -300,6 +300,22 @@ describe('TradingTasksService 触发点补偿', () => {
     expect(task?.schedule?.lastSkip).toMatchObject({ triggerPoint: newTriggerPoint, reason: 'registry-unavailable' })
   })
 
+  it('用户 启动途中删除任务后不再有它的执行与补偿状态', async () => {
+    // Given 窗口开着、一条钉住工作区的每日任务，首次尝试已开跑（启动在途）
+    const window = createWindowFixture()
+    const service = makeService(window.fake, window.roster, { tickMs: 5_000 })
+    service.start()
+    const taskId = createTask(service, { id: 't-deleted', workspaceId: 'ws-main', cron: DAILY_AT_NINE })
+    await driveUntil(() => (taskOf(service, taskId)?.executions.length ?? 0) >= 1)
+    expect(taskOf(service, taskId)?.executions[0]?.endedAt).toBeUndefined()
+    // When 启动还没落定时删掉任务，随后窗口内那次启动失败
+    service.apply({ requestId: 'delete-1', action: { kind: 'delete', taskId } } as never)
+    await advanceSteps(8)
+    // Then 任务与执行都不再出现，也不会为它重开执行
+    expect(taskOf(service, taskId)).toBeUndefined()
+    expect(service.snapshot().tasks).toEqual([])
+  })
+
   it('用户 手动运行失败不进入补偿（没有触发点可补）', async () => {
     // Given 窗口开着，一条只手动运行的任务钉住了工作区
     const window = createWindowFixture()
