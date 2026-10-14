@@ -362,7 +362,8 @@ export class EastmoneyRestClient {
    *     午休不移动价格，同日前一根语义成立）。
    * 重建后的 open 是派生值而非取数：实测有少量根的开价落在该根 [low, high] 之外
    * （2026-10-14 五日窗口：cn 242/1002、hk 28/1362，多数是最小变动价位量级，单根最大
-   * 差值 cn 2.99 元，来自 2026-10-09 09:31 的分钟边界跳空）——消费方按「近似开价」用。
+   * 差值 cn 2.99 元，来自 2026-10-09 09:31 的分钟边界跳空；见 spikes/impl-five-day-1m-fetch/）
+   * ——消费方按「近似开价」用。
    */
   private async getIntradayTrends(secid: string, limit: number): Promise<Kline[]> {
     const url = `${this.historyBaseUrl}/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ndays=${TRENDS_NDAYS}&iscr=0`
