@@ -29,7 +29,9 @@ function stubGlobalFetch(): string[] {
   const urls: string[] = []
   const impl = (async (input: unknown) => {
     urls.push(String(input))
-    return jsonResponse({ data: { f43: 380200, f58: '腾讯控股', f47: 15000000, f86: 1725000000 } })
+    return jsonResponse({
+      data: { total: 1, diff: [{ f1: 3, f2: 380200, f3: 24, f5: 15000000, f12: '00700', f13: 116, f14: '腾讯控股', f18: 380000, f124: 1725000000 }] },
+    })
   }) as typeof fetch
   vi.stubGlobal('fetch', impl)
   return urls
@@ -76,7 +78,7 @@ describe('connector-eastmoney dataplane（注册表模式）', () => {
     const ticker = await service.getTicker('700')
     expect(ticker.symbol).toBe('00700.HK')
     expect(urls).toHaveLength(1)
-    expect(urls[0]).toContain('secid=116.00700')
+    expect(urls[0]).toContain('secids=116.00700')
   })
 
   it('缺省 market → isolate tradingCnMarketData + 注册 (cn, eastmoney)，且实例按 A 股解析', async () => {
@@ -93,7 +95,7 @@ describe('connector-eastmoney dataplane（注册表模式）', () => {
     const service = registrations[0]?.service as { getTicker(s: string): Promise<{ symbol: string }> }
     const ticker = await service.getTicker('600519.SH')
     expect(ticker.symbol).toBe('600519.SH')
-    expect(urls[0]).toContain('secid=1.600519')
+    expect(urls[0]).toContain('secids=1.600519')
     // cn 实例不接港股宽容形（市场不串味）
     await expect(service.getTicker('700')).rejects.toMatchObject({ code: 'TRADING_UNSUPPORTED_SYMBOL' })
   })
@@ -126,7 +128,7 @@ describe('connector-eastmoney dataplane（无注册表的老部署回退）', ()
     const service = provided.tradingHkMarketData as { getTicker(s: string): Promise<{ symbol: string }> }
     const ticker = await service.getTicker('700')
     expect(ticker.symbol).toBe('00700.HK')
-    expect(urls[0]).toContain('secid=116.00700')
+    expect(urls[0]).toContain('secids=116.00700')
   })
 
   it('缺省 market → 回退 provide tradingCnMarketData', () => {

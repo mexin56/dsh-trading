@@ -62,18 +62,14 @@ describe('EastmoneyRestClient 符号与周期映射', () => {
 })
 
 describe('EastmoneyRestClient.getTicker', () => {
-  it('拉取并解析 A 股 Ticker 快照（分精度整数除以 100，含官方昨收/涨跌幅）', async () => {
+  it('拉取并解析 A 股 Ticker 快照（按行 f1 小数位数取价，含官方昨收/涨跌幅）', async () => {
     const { impl, urls } = stubFetch([
       {
-        match: '/api/qt/stock/get',
+        match: '/api/qt/ulist.np/get',
         body: {
           data: {
-            f43: 175050,
-            f47: 25000,
-            f58: '贵州茅台',
-            f60: 174800,
-            f86: 1725000000,
-            f170: 15,
+            total: 1,
+            diff: [{ f1: 2, f2: 175050, f3: 15, f5: 25000, f12: '600519', f13: 1, f14: '贵州茅台', f18: 174800, f124: 1725000000 }],
           },
         },
       },
@@ -81,8 +77,8 @@ describe('EastmoneyRestClient.getTicker', () => {
     const client = new EastmoneyRestClient({ fetchImpl: impl })
     const ticker = await client.getTicker('600519.SH')
 
-    expect(urls[0]).toContain('secid=1.600519')
-    expect(urls[0]).toContain('f60')
+    expect(urls[0]).toContain('secids=1.600519')
+    expect(urls[0]).toContain('f18')
     expect(ticker).toEqual({
       symbol: '600519.SH',
       name: '贵州茅台',
@@ -97,13 +93,11 @@ describe('EastmoneyRestClient.getTicker', () => {
   it('处理 "-" 停牌/无数据占位符', async () => {
     const { impl } = stubFetch([
       {
-        match: '/api/qt/stock/get',
+        match: '/api/qt/ulist.np/get',
         body: {
           data: {
-            f43: '-',
-            f47: 0,
-            f58: '退市标的',
-            f86: 1725000000,
+            total: 1,
+            diff: [{ f1: 2, f2: '-', f5: 0, f14: '退市标的', f124: 1725000000 }],
           },
         },
       },
@@ -118,8 +112,8 @@ describe('EastmoneyRestClient.getTicker', () => {
     const tickerPriceRaw = 175050 // 上游返回 175050 即 1750.50 元
     const { impl } = stubFetch([
       {
-        match: '/api/qt/stock/get',
-        body: { data: { f43: tickerPriceRaw, f47: 25000, f58: '贵州茅台', f86: 1725000000 } },
+        match: '/api/qt/ulist.np/get',
+        body: { data: { total: 1, diff: [{ f1: 2, f2: tickerPriceRaw, f5: 25000, f14: '贵州茅台', f124: 1725000000 }] } },
       },
       {
         match: '/api/qt/stock/kline/get',
@@ -132,6 +126,52 @@ describe('EastmoneyRestClient.getTicker', () => {
 
     const ratio = Math.abs(ticker.price - klines[0].close) / klines[0].close
     expect(ratio).toBeLessThan(0.05)
+  })
+
+  it('用户查看 A 股 ETF 自选行时按行 f1=3 取价，不吃市场级 ×100 常数', async () => {
+    // Given 上游报价行自带 f1=3（2026-10-14 交叉验证：159869 游戏ETF华夏 f2=1058 即 1.058 元，腾讯 qt.gtimg.cn 同报 1.058）
+    const { impl } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 1, diff: [{ f1: 3, f2: 1058, f3: 95, f5: 4241490, f14: '游戏ETF华夏', f18: 1048, f124: 1791958299 }] } } },
+    ])
+
+    // When 用户取该 ETF 的最新报价
+    const ticker = await new EastmoneyRestClient({ fetchImpl: impl }).getTicker('159869.SZ')
+
+    // Then 价格按 3 位小数还原，昨收与涨跌幅同档
+    expect(ticker.price).toBe(1.058)
+    expect(ticker.prevClose).toBe(1.048)
+    expect(ticker.changePercent).toBe(0.95)
+  })
+
+  it('用户遇到不声明小数位数的报价行时落到市场级倍率', async () => {
+    // Given 一行 cn 报价与一行 hk 报价都缺 f1
+    const { impl } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 1, diff: [{ f2: 175050, f14: '贵州茅台' }] } } },
+    ])
+    const { impl: hkImpl } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 1, diff: [{ f2: 437600, f14: '腾讯控股' }] } } },
+    ])
+
+    // When 分别取两台实例的报价
+    const cn = await new EastmoneyRestClient({ fetchImpl: impl }).getTicker('600519.SH')
+    const hk = await new EastmoneyRestClient({ fetchImpl: hkImpl, market: 'hk' }).getTicker('00700.HK')
+
+    // Then 回落到 cn ×100 / hk ×1000
+    expect(cn.price).toBe(1750.5)
+    expect(hk.price).toBe(437.6)
+  })
+
+  it('用户查询上游未收录的代码时拿到 not found，而不是一条空报价', async () => {
+    // Given 上游对未收录 secid 返回 data:null，混传无效 secid 时只少返回行
+    const { impl } = stubFetch([{ match: '/api/qt/ulist.np/get', body: { data: null } }])
+    const { impl: emptyImpl } = stubFetch([{ match: '/api/qt/ulist.np/get', body: { data: { total: 0, diff: [] } } }])
+
+    // When 用户分别查询这两种空态
+    // Then 都按 not found 抛错
+    await expect(new EastmoneyRestClient({ fetchImpl: impl }).getTicker('600519.SH'))
+      .rejects.toMatchObject({ code: 'TRADING_SYMBOL_NOT_FOUND' })
+    await expect(new EastmoneyRestClient({ fetchImpl: emptyImpl }).getTicker('600519.SH'))
+      .rejects.toMatchObject({ code: 'TRADING_SYMBOL_NOT_FOUND' })
   })
 })
 
@@ -293,25 +333,25 @@ describe('EastmoneyRestClient.listInstruments', () => {
 
 
 describe('EastmoneyRestClient 港股面（2026-09-08，实证 spikes/impl-eastmoney-hk/）', () => {
-  it('港股 ticker：价格字段 ×1000（decimal=3），涨跌幅仍 ×100', async () => {
-    // 2026-09-08 11:23 实测：f43=437600 → 437.600，f60=438400 → 438.4，f170=-18 → -0.18%
+  it('港股 ticker：价格字段 ×1000（f1=3），涨跌幅仍 ×100', async () => {
+    // 2026-10-14 实测 ulist.np/get：f1=3 f2=426200 → 426.20，f18=425200 → 425.20，f3=24 → 0.24%
     const { impl, urls } = stubFetch([
       {
-        match: '/api/qt/stock/get',
-        body: { data: { f43: 437600, f44: 439200, f45: 435000, f46: 437000, f47: 4239248, f58: '腾讯控股', f60: 438400, f86: 1788837793, f170: -18 } },
+        match: '/api/qt/ulist.np/get',
+        body: { data: { total: 1, diff: [{ f1: 3, f2: 426200, f3: 24, f5: 12577994, f12: '00700', f13: 116, f14: '腾讯控股', f18: 425200, f124: 1791958268 }] } },
       },
     ])
     const client = new EastmoneyRestClient({ fetchImpl: impl, market: 'hk' })
     const ticker = await client.getTicker('00700.HK')
-    expect(urls[0]).toContain('secid=116.00700')
+    expect(urls[0]).toContain('secids=116.00700')
     expect(ticker).toEqual({
       symbol: '00700.HK',
       name: '腾讯控股',
-      price: 437.6,
-      volume: 4239248,
-      timestamp: 1788837793000,
-      prevClose: 438.4,
-      changePercent: -0.18,
+      price: 426.2,
+      volume: 12577994,
+      timestamp: 1791958268000,
+      prevClose: 425.2,
+      changePercent: 0.24,
     })
   })
 

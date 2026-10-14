@@ -93,7 +93,12 @@ export function utc8WallTimeToEpochMs(value: string): number {
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0)) - UTC8_MS
 }
 
-/** 东财价格字段的分精度倍率：cn ×100（2 位小数），hk ×1000（3 位小数，响应 decimal=3）。 */
+/**
+ * 东财价格字段的**市场级**分精度倍率：cn ×100，hk ×1000（响应 decimal=3）。
+ * 它只是 f1 缺失时的兜底——报价行自带 f1 = 该标的小数位数，且股票与 ETF 不同档
+ * （2026-10-14 实测：cn 股票 f1=2 而 cn ETF / hk 均 f1=3），故取值一律走按行的
+ * quotePriceScale()，市场级常数对 A 股 ETF 会差 10 倍。
+ */
 export function eastmoneyPriceScale(market: EastmoneyMarket): number {
   return market === 'hk' ? 1000 : 100
 }
@@ -119,6 +124,20 @@ function toFiniteNumber(value: unknown): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+/**
+ * 报价行的价格除数 = 10^f1（f1 = 上游给该标的声明的小数位数）。按行取值才同时对
+ * 股票与 ETF 成立：2026-10-14 逐只与腾讯 qt.gtimg.cn 交叉验证——游戏ETF华夏 f1=3 →
+ * f2=1058 即 1.058 元（腾讯 1.058）、东瑞股份 f1=2 → f2=1413 即 14.13 元（腾讯 14.13）、
+ * 腾讯控股 f1=3 → f2=426200 即 426.2 港元。f1 缺失或超出 0..6 时回落到市场级常数。
+ */
+function quotePriceScale(decimalDigits: unknown, market: EastmoneyMarket): number {
+  const digits = toFiniteNumber(decimalDigits)
+  if (digits === undefined || !Number.isInteger(digits) || digits < 0 || digits > 6) {
+    return eastmoneyPriceScale(market)
+  }
+  return 10 ** digits
 }
 
 /**
@@ -216,6 +235,17 @@ function clampToBarRange(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), high)
 }
 
+/**
+ * 报价行字段（ulist.np/get）：f1=小数位数 f2=最新价 f3=涨跌幅(%) f5=成交量(手)
+ * f12=代码 f13=市场 f14=名称 f18=昨收 f124=行情时间(秒)。价格类字段是 ×10^f1 的整数。
+ */
+const QUOTE_FIELDS = 'f1,f2,f3,f5,f12,f13,f14,f18,f124'
+
+/** ulist.np/get 响应骨架：命中的行在 data.diff；未收录的 secid 使 data 为 null。 */
+interface EastmoneyQuoteListResponse {
+  data?: { total?: number; diff?: Array<Record<string, unknown>> } | null
+}
+
 /** 数据中心 /api/data/v1/get 响应骨架（列名随报表而变，data 行按需解析）。 */
 interface EastmoneyDataCenterResponse {
   success?: boolean
@@ -270,32 +300,31 @@ export class EastmoneyRestClient {
 
   async getTicker(symbol: string): Promise<Ticker> {
     const { secid, canonical, market } = toEastmoneySecid(symbol, this.market)
-    const scale = eastmoneyPriceScale(market)
-    // f60=昨收 f169=涨跌额 f170=涨跌幅（均为 ×100 分精度整数；'-' 停牌占位）。
-    const url = `${this.baseUrl}/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f86,f169,f170`
-    const res = await this.requestJson<{ data?: Record<string, unknown> }>(url)
+    // 报价走批量端点 ulist.np/get（secids 传单个 secid 等价）：2026-10-14 实测 push2 与
+    // push2his 的 /api/qt/stock/get 对任意 secid 都空回（curl: (52) Empty reply from
+    // server），而同一时刻、同域、同 UA 的 ulist.np/get 与 kline/trends2/search 全部正常
+    // ——单标的报价端点没了，不是网络故障。原始证据见 spikes/impl-eastmoney-quote-endpoint/。
+    const url = `${this.baseUrl}/api/qt/ulist.np/get?secids=${secid}&fields=${QUOTE_FIELDS}`
+    const res = await this.requestJson<EastmoneyQuoteListResponse>(url)
+    const row = res.data?.diff?.[0]
 
-    if (!res.data) {
+    // 未收录的 secid 上游返回 data:null；有效与无效混传时只少返回行、HTTP 仍 200，
+    // 故「拿不到行」即该标的不存在，按 not found 抛错（与该端点原 data 为空的语义一致）。
+    if (row === undefined) {
       throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `Eastmoney symbol not found: ${symbol}`)
     }
 
-    const d = res.data
-    let rawPrice = 0
-    if (typeof d.f43 === 'number') {
-      rawPrice = d.f43 / scale
-    } else if (typeof d.f43 === 'string' && d.f43 !== '-' && d.f43 !== '−') {
-      const parsed = parseFloat(d.f43)
-      rawPrice = Number.isNaN(parsed) ? 0 : parsed / scale
-    }
+    const scale = quotePriceScale(row.f1, market)
+    const rawPrice = parseScaled(row.f2, scale) ?? 0
     const price = rawPrice > 0 ? rawPrice : 0
-    const volume = typeof d.f47 === 'number' ? d.f47 : typeof d.f47 === 'string' ? parseFloat(d.f47) : 0
-    const timestamp = typeof d.f86 === 'number' ? d.f86 * 1000 : Date.now()
+    const volume = toFiniteNumber(row.f5) ?? 0
+    const quoteTime = toFiniteNumber(row.f124)
+    const timestamp = quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now()
     // 官方昨收锚点（与 tencent fields[4] 同语义）：涨跌幅基准，UI 头部/侧栏直接消费。
-    // hk 昨收同样 ×1000（f60=438400 → 438.4）；涨跌幅 f170 两市场均 ×100。
-    const prevClose = market === 'hk' ? parseScaled(d.f60, scale) : parseScaledHundred(d.f60)
-    const changePercent = parseScaledHundred(d.f170)
+    const prevClose = parseScaled(row.f18, scale)
+    const changePercent = parseScaledHundred(row.f3)
 
-    const name = typeof d.f58 === 'string' && d.f58.trim() ? d.f58.trim() : undefined
+    const name = typeof row.f14 === 'string' && row.f14.trim() ? row.f14.trim() : undefined
 
     return {
       symbol: canonical,

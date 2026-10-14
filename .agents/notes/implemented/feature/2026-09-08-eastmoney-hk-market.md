@@ -11,7 +11,11 @@ Status: implemented
 照抄 connector-tencent「单包双市场」模式扩展 connector-eastmoney：
 
 - **secid 映射**：`00700.HK` / `HK00700` / 裸 5 位数字 → `116.xxxxx`（A 股恒 6 位无歧义），toEastmoneySecid 返回值增 `market` 字段。
-- **价格缩放分市场**：东财 hk 价格字段 ×1000（响应 decimal=3；f43=437600 → 437.6），cn ×100；涨跌幅 f170 两市场均 ×100。eastmoneyPriceScale() 承载。
+- **价格缩放按行取**：报价行自带 `f1` = 该标的的小数位数，报价值 = 上游整数 / 10^f1
+  （2026-10-14 实测：cn 股票 f1=2、cn ETF 与 hk 均 f1=3；涨跌幅 f3/f170 两市场都是百分数
+  ×100，与 f1 无关）。`eastmoneyPriceScale()` 的市场级常数（cn ×100 / hk ×1000）只作 f1
+  缺失时的兜底——按市场取会把 cn ETF 读成 10 倍（游戏ETF华夏 1.059 元 → 10.59 元）。
+  见文末 2026-10-14 Addendum。
 - **cn/hk 的 1m 都走 trends2 分时端点**（push2his /api/qt/stock/trends2/get?secid=...&ndays=5，2026-10-14 起为五日窗口）：行格式同 kline/get（时间,开,收,高,低,量,额,均价），5 个交易日 ≈ cn 1205 / hk 1655 根；非交易日自然回落最近交易日，与客户端「最后一根 bar 的本地日」筛选语义自洽。kline/get 的 klt=1 只有当日（`lmt`/`end` 被上游忽略），故 cn 也走 trends2。
 - **hk 5m/日 K 走 kline/get**（klt=5 已实证返回真实 bar；日 K klt=101 因触发限频未验证成功响应，但同端点同格式，解析器与 cn 共用）。
 - **时间锚定**：trends2/kline 分钟时间是 UTC+8 墙钟——新增 utc8WallTimeToEpochMs 固定偏移换算（CN/HK 永久 UTC+8 无夏令时），与机器时区无关；cn 旧路径的机器本地解析保持不动（最小改动）。
@@ -52,6 +56,21 @@ Status: implemented
   `registry.list('hk')` 里选中它）——这与本文原记的「hk.provider=eastmoney
   时才激活」的 `routeAllows` 门不冲突：`routeAllows` 管的是**行情服务**的注册，
   持股端点由桥按能力解析。
+
+## Addendum (2026-10-14, 单标的报价端点失效 → 改用 ulist.np/get)
+
+- `/api/qt/stock/get` 在 2026-10-14 对任意 secid 都是传输层空回（curl `(52) Empty reply
+  from server`），push2 与 push2his 两个域都一样；同一时刻、同域、同 UA 的
+  `ulist.np/get`、`trends2/get`、`kline/get` 全部正常——失败跟着**路径**走，不是网络故障。
+  原始响应与逐只交叉验证见 spikes/impl-eastmoney-quote-endpoint/。
+  `getTicker` 因此改打 `ulist.np/get?secids=<单个 secid>`，取值换到列表方言
+  （f1/f2/f3/f5/f12/f13/f14/f18/f124：名称在 f14、昨收在 f18、行情时间在 f124）。修复前
+  侧栏每只标的都拿不到 ticker，自选行价格显示 `—`、行名停在存进去的代码上。
+- **未收录 secid 的契约**：批量端点对无效 secid 是「少返回行」而不是报错（只传无效 secid
+  时 `data:null`），故「diff 里拿不到行」判 `TRADING_SYMBOL_NOT_FOUND`，与旧端点
+  `data` 为空时的语义一致。
+- 同一条已失效的 `stock/get` 仍被 `connector-akshare` 与 `connector-qmt`（本地网关离线
+  回退）使用；本机路由不在它们上，故本次未一并验证与改动，留任务看板的跟进卡。
 
 ## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
 
