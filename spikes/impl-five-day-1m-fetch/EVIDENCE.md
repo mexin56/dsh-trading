@@ -1,0 +1,44 @@
+# Spike 证据：五日 1m 取数（东财 trends2 ndays=5 / 雅虎 limit 截尾）
+
+探针日期：2026-10-14（Asia/Shanghai 上午盘，cn/hk 当日未收盘，故当日只到 10:07）。
+数字全部来自真实网络响应，且**穿过实现**（`EastmoneyRestClient` / `YahooRestClient` 的
+`src/rest.ts` 源码，非 `lib/` 构建产物，避免与并发 build 竞争）；原始响应逐字落盘。
+
+## 复现
+
+```bash
+cd /Users/zcl/code/dsh-trading
+./node_modules/.bin/tsx spikes/impl-five-day-1m-fetch/fetch-five-day-1m.ts
+```
+
+原始响应：`five-day-1m-fetch.raw.json`（三个市场的完整上游 body + 逐市场报告）。
+请求各一次：东财 2 次（cn/hk trends2）、雅虎 1 次（AAPL chart）。
+
+## 结果
+
+| 市场 | 标的 | 请求 | bars | 覆盖交易日 | 升序 | 重建根 | 重建占比 | 开价越界根 |
+|---|---|---|---|---|---|---|---|---|
+| cn | 600519.SH | trends2 `ndays=5`（`limit=2500`） | 1002 | 5 | 是 | 964 | 96.2% | 242 |
+| hk | 00700.HK | trends2 `ndays=5`（`limit=2500`） | 1362 | 5 | 是 | 1324 | 97.2% | 28 |
+| us | AAPL | chart `interval=1m&range=7d`（`limit=2500`） | 2500 | 7 | 是 | 1（上游 null 行） | 0.04% | 0 |
+
+- cn：`first=2026-10-08T01:30:00Z`（= 10-08 09:30 CST），`last=2026-10-14T02:07:00Z`（= 10-14 10:07 CST）。
+- hk：同窗口，`last` 同为 10-14 10:07 HKT。
+- us：`first=2026-10-05T17:20:00Z`，`last=2026-10-13T20:00:00Z`；上游整窗 2730 根，`limit=2500`
+  截尾后仍覆盖 7 个会话（> 5），截尾落在最旧侧、最新侧完整保留。
+
+## 结论与已知代价
+
+1. **东财 1m 的五日窗口只能由 trends2 `ndays=5` 表达**（kline/get 的 klt=1 只有当日，
+   `lmt`/`end` 均被忽略；ndays=10 → `rc:1`）。实现按此路由，cn 与 hk 一致。
+2. **开价是派生值**：`ndays>1` 时上游只给当日那一段真实开价，历史交易日每根第 2 列恒为
+   0.00（本次 cn 964/1002、hk 1324/1362 根为 0，与 probe 的 241/241、331/331 一致）。
+   实现用「同日前一根 close」重建，交易日首根用该根自身 close。
+3. **重建的自洽性代价已量化**：重建根中少量开价落在该根 `[low, high]` 之外
+   （cn 242 根、hk 28 根；多数是最小变动价位量级，单根最大 cn 2.99 元 —— 2026-10-09 09:31
+   的分钟边界跳空）。即 `open` 是近似而非交易所开价，消费方按近似用；`close/volume` 与
+   腾讯 m1 逐根一致（probe p5），`high/low` 有 ≤0.5 的舍入差。
+4. **雅虎侧契约已兑现**：`getKlines(symbol, interval, limit)` 在本层 `slice(-limit)`，
+   `limit=2500` 返回 2500 根（< 整窗 2730），不再把整窗透给消费方。
+5. cn 在腾讯路由下仍结构性不足（上游 m1 上限 800 根 ≈ 3.3 个交易日，超限静默降级到 320），
+   本工作包不改该连接器，客户端按能力降级。
