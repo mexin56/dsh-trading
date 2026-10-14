@@ -55,15 +55,22 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
 - qmt/alpaca 两个数据面行的加载失败消失：行情与交易服务双双注册，GUI 与只读账户工具在
   路由选中这两家时能解析到服务（剩下的 `TRADING_AUTH_FAILED: accountId is required` 与
   「Alpaca credentials missing」是用户侧配置缺口，不再是「未激活」）。
-- 刷新 profile 副本后，宿主 `--dump-config-schema` 对这两行将从 `status: absent` /
-  `unknownConfig` 变为真实 configRef（设置面可投影其配置字段）；当前（未刷新）复跑仍是
-  `absent`，因为该命令解析的是 profile 副本里的模块，不是仓库产物。
+- 刷新 profile 副本后，宿主 `--dump-config-schema` 对这两行从 `status: absent` /
+  `unknownConfig` 变为 `status: schema` + 真实 configRef（2026-10-14 授权刷新
+  `~/.dsh-trading/profiles/trading-web` 后实测）。注意该命令解析的是 **profile 副本**里的模块，
+  且 profile 归属 `DSH_HOME`：本会话继承宿主 `DSH_HOME=~/.dsh`，而 `~/.dsh/profiles/trading-web`
+  下另有一份**未刷新**的旧副本，照继承环境跑 dump 会继续看到 `absent`（第一次实测即踩此坑）；
+  本项目一切 profile 命令都必须显式 `DSH_HOME=~/.dsh-trading`。
+- 已按授权停实例 → `scripts/refresh-profile.sh --dsh-home ~/.dsh-trading trading-web` → 以桌面壳
+  同款命令行（app 内 host bin + host-symbol-normalizer，`DSH_HOME=~/.dsh-trading`）重启宿主：
+  启动输出只有 `dsh web: …token…` 一行，**无** `entries did not activate`。桌面壳 GUI 本轮未能从
+  命令行拉起（`open -a "DSH Trading"` 返回 0 但无进程），需人工打开；验证用的宿主进程已停，未留残留。
 - 仍存量的同类债：其他 17 个数据面入口依旧不导出 `Config`，只是当前不崩（服务兜底或行内
   restate：okx 的 patch 行额外写了 `env: demo` 才没踩到）。已开看板卡
   `456cf455`（收敛 + 结构门禁）。
-- 运行中的桌面实例仍加载修复前的 profile 副本（`~/.dsh-trading/profiles/trading-web/node_modules/@dshtrading/connector-{qmt,alpaca}/lib/dataplane.js`
-  仍是 `export { apply, inject }`）：要见到修复需刷新 profile 副本并重启宿主，本变更未做
-  （实例运行中不执行 plugin install、不擅自重启）。
+- 运行中的桌面实例原先加载修复前的副本（`…/node_modules/@dshtrading/connector-{qmt,alpaca}/lib/dataplane.js`
+  只有 `export { apply, inject }`）；2026-10-14 经用户授权已刷新副本并重启宿主一次取证，
+  桌面壳 GUI 需人工打开。
 
 ## Verification
 
@@ -75,8 +82,12 @@ config 是 `{"enabled":true}`，apply 抛 `TypeError: Cannot read properties of 
 - **loader 激活路径前后对照**：`node spikes/impl-qmt-alpaca-dataplane-activation/run-loader-activation-probe.mjs`
   （真实 router 插件 + 真实行 config `{enabled:true}`，走 `ctx.registry.plugin` 即 loader 的激活路径）：
   修复后 `cn/qmt: activated | 模块导出 Config=true | market=[qmt] trade=[qmt]`、
-  `us/alpaca: activated | … trade=[alpaca]`；同一脚本对桌面实例当前加载的 profile 副本
+  `us/alpaca: activated | … trade=[alpaca]`；同一脚本对桌面实例当时加载的 profile 副本
   （修复前构建）仍是 `did not activate | Config=false | market=[] trade=[] | TypeError: … reading 'trim'`。
+- **刷新后实例级启动日志**：修复前 `dsh-host.log` 每次启动 2 条告警；刷新副本后按桌面壳同款
+  命令行启动，输出仅 `dsh web: http://127.0.0.1:54734/?token=…` 一行，无 `did not activate`；
+  同批 `DSH_HOME=~/.dsh-trading dsh --profile trading-web --dump-config-schema` 两行均
+  `status: schema`（`config109` / `config111`）。
 - 复现与修复后对照（真服务构造）：修复后 loader 解析出
   `{enabled:true, env:'demo', dryRun:true, liveTrading:false, gatewayUrl:'http://127.0.0.1:5800'}`，
   注册表双双得到 `cn/qmt`、`us/alpaca`；只读调用余下的
