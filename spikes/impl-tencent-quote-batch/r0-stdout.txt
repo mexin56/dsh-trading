@@ -1,0 +1,22 @@
+== cn 批量 getTickers ==
+  [fetch] https://qt.gtimg.cn/q=sh600519,sz000001,sz159869,sh000688,sz999999 → HTTP 200 2034 B sha256:3f1e62ee8dfe5596 → r0-raw-cn-batch.gbk
+  600519.SH   wire=sh600519   → 贵州茅台 1285.41 CNY ts=1791960251000 symbol=600519.SH
+  000001.SZ   wire=sz000001   → 平安银行 11.5 CNY ts=1791960252000 symbol=000001.SZ
+  159869.SZ   wire=sz159869   → 游戏ETF华夏 1.057 CNY ts=1791960252000 symbol=159869.SZ
+  000688.SH   wire=sh000688   → 科创50 1385.25 CNY ts=1791960252000 symbol=000688.SH
+  999999.SZ   wire=sz999999   → 跳过（未收录/无行）
+  入参 5 个 / 返回 4 个 / 上游请求 1 次
+== hk 批量 getTickers ==
+  [fetch] https://qt.gtimg.cn/q=r_hk00700,r_hk02714,r_hkHSI → HTTP 200 1242 B sha256:a38f76630faaee9d → r0-raw-hk-batch.gbk
+  00700.HK  wire=r_hk00700   → 腾讯控股 426.4 HKD ts=1791960252000 symbol=00700.HK
+  02714.HK  wire=r_hk02714   → 牧原股份 35.22 HKD ts=1791960228000 symbol=02714.HK
+  HSI       wire=r_hkHSI     → 恒生指数 24370.95 HKD ts=1791960254000 symbol=HSI.HK
+  入参 3 个 / 返回 3 个 / 上游请求 1 次
+== 单标的 getTicker 回归（重构后单/批量读数一致） ==
+  [fetch] https://qt.gtimg.cn/q=sh600519 → HTTP 200 543 B sha256:12ffce336cedee59 → r0-raw-cn-single.gbk
+  getTicker('600519.SH') → 贵州茅台 1285.41 / 上游请求 1 次
+  批量同标的          → 贵州茅台 1285.41 / 同一行(名称+规范形 symbol 一致)=true 价格跳动=0.00
+== 空入参 == → {} / 上游请求 0 次
+== 离线重放（注入落盘字节，零网络）==
+  cn 与在线一致=true（离线注入 fetch 被调用 1 次，零真实网络）
+  hk 与在线一致=true（离线注入 fetch 被调用 1 次，零真实网络）

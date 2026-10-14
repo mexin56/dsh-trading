@@ -290,6 +290,16 @@ export type TickerOutcome =
   | { ok: true; ticker: Ticker }
   | { ok: false; code: string; message: string }
 
+/**
+ * 批量行形状守卫（fail-closed）：只有非空对象才算「确实拿到了行」。
+ * `getTickers` 是公开可选能力、实现质量不在本桥假设内；某实现漏行时返回
+ * null/undefined/原始值一律按缺行处理并回落逐只 `getTicker` —— 绝不为凑齐
+ * 入参造假值，也绝不把坏值包成 `{ok:true}` 当行情上行给客户端。
+ */
+function isBatchTicker(value: unknown): value is Ticker {
+  return typeof value === 'object' && value !== null
+}
+
 export interface MarketsWire {
   markets: MarketInfoWire[]
 }
@@ -785,16 +795,52 @@ export class TradingBridge {
     }
     const service = this.host.getMarketService(market)
     if (service === undefined) throw new BridgeProtocolError(400, `market ${market} is not installed`)
-    const outcomes = await Promise.all(unique.map(async (symbol): Promise<TickerOutcome> => {
-      try {
-        return { ok: true, ticker: await service.getTicker(symbol) }
-      } catch (error) {
-        return { ok: false, ...errorPayload(error) }
-      }
-    }))
+    return { tickers: await this.fetchTickerOutcomes(service, unique) }
+  }
+
+  /** 单只取数：成败各自成信封，错误码取自连接器抛出的 TradingError。 */
+  private async fetchTickerOutcome(service: MarketDataService, symbol: string): Promise<TickerOutcome> {
+    try {
+      return { ok: true, ticker: await service.getTicker(symbol) }
+    } catch (error) {
+      return { ok: false, ...errorPayload(error) }
+    }
+  }
+
+  /**
+   * 批量报价取数（2026-10-14 批量端点）：连接器实现 `getTickers` 时一次调用取全批，
+   * 只有确实拿到行的符号走批量，缺行回落逐只 `getTicker`（保住各符号自己的错误码，
+   * 如 TRADING_UNSUPPORTED_SYMBOL / TRADING_SYMBOL_NOT_FOUND）；整批抛错时全批
+   * 记同一份错误信封且不再逐只重试（故障期不得把上游压力放大 N 倍）。
+   * 未实现 `getTickers` 的连接器（绝大多数）逐只路径不变；返回顺序 = 入参顺序。
+   */
+  private async fetchTickerOutcomes(service: MarketDataService, symbols: string[]): Promise<Record<string, TickerOutcome>> {
     const tickers: Record<string, TickerOutcome> = {}
-    unique.forEach((symbol, index) => { tickers[symbol] = outcomes[index] as TickerOutcome })
-    return { tickers }
+    if (typeof service.getTickers !== 'function') {
+      const outcomes = await Promise.all(symbols.map(async (symbol): Promise<TickerOutcome> => this.fetchTickerOutcome(service, symbol)))
+      symbols.forEach((symbol, index) => { tickers[symbol] = outcomes[index] as TickerOutcome })
+      return tickers
+    }
+    let batch: Record<string, Ticker> | undefined
+    try {
+      batch = await service.getTickers(symbols)
+    } catch (error) {
+      const envelope = errorPayload(error)
+      for (const symbol of symbols) tickers[symbol] = { ok: false, ...envelope }
+      return tickers
+    }
+    const missing = symbols.filter(symbol => !isBatchTicker(batch?.[symbol]))
+    const fallback = new Map<string, TickerOutcome>()
+    if (missing.length > 0) {
+      const outcomes = await Promise.all(missing.map(async (symbol): Promise<TickerOutcome> => this.fetchTickerOutcome(service, symbol)))
+      missing.forEach((symbol, index) => { fallback.set(symbol, outcomes[index] as TickerOutcome) })
+    }
+    for (const symbol of symbols) {
+      const ticker = batch?.[symbol]
+      // 缺行/坏行符号必已在 fallback 里补过；只有非空对象才直接采用（不做任何修补/造假）。
+      tickers[symbol] = isBatchTicker(ticker) ? { ok: true, ticker } : fallback.get(symbol) as TickerOutcome
+    }
+    return tickers
   }
 
   /** K 线：透传 interval（连接器自行校验各自支持集）。 */

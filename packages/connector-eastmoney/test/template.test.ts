@@ -307,6 +307,165 @@ describe('EastmoneyRestClient.getKlines', () => {
   })
 })
 
+/**
+ * 批量报价 getTickers（2026-10-14 契约）。fixture 直接取自真实响应
+ * spikes/impl-eastmoney-quote-endpoint/p1-quote-endpoint-and-scale.raw.json 的
+ * ulist_cn / ulist_hk / ulist_mixedValidInvalid 三段，不做任何人为加工。
+ */
+const ROW_MUYUAN_CN = { f1: 2, f2: 4096, f3: 15, f5: 149927, f12: '002714', f13: 0, f14: '牧原股份', f18: 4090, f124: 1791958479 }
+const ROW_DONGRUI_CN = { f1: 2, f2: 1413, f3: -140, f5: 49215, f12: '001201', f13: 0, f14: '东瑞股份', f18: 1433, f124: 1791958479 }
+const CN_DIFF_ROWS = [
+  ROW_MUYUAN_CN,
+  ROW_DONGRUI_CN,
+  { f1: 3, f2: 1059, f3: 105, f5: 4251402, f12: '159869', f13: 0, f14: '游戏ETF华夏', f18: 1048, f124: 1791958479 },
+  { f1: 3, f2: 1025, f3: 230, f5: 24230556, f12: '513050', f13: 1, f14: '中概互联网ETF易方达', f18: 1002, f124: 1791958481 },
+  { f1: 3, f2: 1834, f3: -219, f5: 1896496, f12: '517520', f13: 1, f14: '黄金股ETF永赢', f18: 1875, f124: 1791958480 },
+]
+const HK_DIFF_ROWS = [
+  { f1: 3, f2: 35400, f3: -11, f5: 616400, f12: '02714', f13: 116, f14: '牧原股份', f18: 35440, f124: 1791958476 },
+  { f1: 3, f2: 426000, f3: 19, f5: 12698294, f12: '00700', f13: 116, f14: '腾讯控股', f18: 425200, f124: 1791958481 },
+]
+
+describe('EastmoneyRestClient.getTickers（批量报价，2026-10-14 契约）', () => {
+  it('用户刷新 A 股自选栏时 5 只标的一次请求取全，价格各按本行 f1 还原', async () => {
+    // Given 上游 ulist.np/get 一次返回 5 行真实响应（cn 股票 f1=2、cn ETF f1=3 混在同一批）
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 5, diff: CN_DIFF_ROWS } } },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取这 5 只
+    const tickers = await client.getTickers(['002714.SZ', '001201.SZ', '159869.SZ', '513050.SH', '517520.SH'])
+
+    // Then 5 只标的只发 1 次请求，且请求带全部 5 个 secid
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain('secids=0.002714,0.001201,0.159869,1.513050,1.517520')
+    expect(Object.keys(tickers).sort()).toEqual(['001201.SZ', '002714.SZ', '159869.SZ', '513050.SH', '517520.SH'])
+    // Then 每只价格按**本行** f1 取除数：ETF 行 f1=3 → 1.059，若吃市场级 ×100 会错成 10.59
+    expect(tickers['159869.SZ']).toEqual({
+      symbol: '159869.SZ',
+      name: '游戏ETF华夏',
+      price: 1.059,
+      volume: 4251402,
+      timestamp: 1791958479000,
+      prevClose: 1.048,
+      changePercent: 1.05,
+    })
+    expect(tickers['002714.SZ']).toMatchObject({ price: 40.96, prevClose: 40.9, changePercent: 0.15 })
+    expect(tickers['513050.SH']).toMatchObject({ price: 1.025, prevClose: 1.002, changePercent: 2.3 })
+    expect(tickers['517520.SH']).toMatchObject({ name: '黄金股ETF永赢', price: 1.834, changePercent: -2.19 })
+  })
+
+  it('用户自选里含未收录代码时只少那一只，整批不失败也不造假行', async () => {
+    // Given 上游对「有效 + 未收录」的 secid 列表只回有效那一行
+    // （真实 ulist_mixedValidInvalid：secids=0.001201,0.999999 只回 total=1 的 001201 一行）
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 1, diff: [ROW_DONGRUI_CN] } } },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取一只已收录与一只未收录的标的
+    const tickers = await client.getTickers(['001201.SZ', '999999.SZ'])
+
+    // Then 两只 secid 都发在同一次请求里（不因缺行重发），但只返回拿到的那只
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain('secids=0.001201,0.999999')
+    expect(Object.keys(tickers)).toEqual(['001201.SZ'])
+    expect(tickers['001201.SZ']).toMatchObject({ symbol: '001201.SZ', name: '东瑞股份', price: 14.13 })
+    // Then 缺行的那只不出现在结果里（由调用方回落单取拿自己的 not found），也绝不补一条假行
+    expect('999999.SZ' in tickers).toBe(false)
+  })
+
+  it('用户自选为空时批量取价返回空表且不发请求', async () => {
+    // Given 一个会记录任何请求的桩上游
+    const { impl, urls } = stubFetch([])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取 0 只标的
+    const tickers = await client.getTickers([])
+
+    // Then 得到空表，且**一次上游请求都没发**（空自选不该花掉一次取数）
+    expect(tickers).toEqual({})
+    expect(urls).toHaveLength(0)
+  })
+
+  it('用户自选里混入本市场之外的形态时该符号被跳过，可解析的照常批量取', async () => {
+    // Given cn 实例的入参里混进港股形态（toEastmoneySecid 会抛 TRADING_UNSUPPORTED_SYMBOL）
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 1, diff: [ROW_MUYUAN_CN] } } },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取一只 A 股与一只港股形态
+    const tickers = await client.getTickers(['002714.SZ', '00700.HK'])
+
+    // Then 只有 A 股进结果，请求里不含港股 secid（不跨市场取数、整批不因畸形符号失败）
+    expect(Object.keys(tickers)).toEqual(['002714.SZ'])
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).not.toContain('116.00700')
+    expect(urls[0]).toContain('secids=0.002714')
+
+    // Then 全是外地形态时连请求都不发
+    const allForeign = await client.getTickers(['00700.HK', 'HK00700'])
+    expect(allForeign).toEqual({})
+    expect(urls).toHaveLength(1)
+  })
+
+  it('用户自选的写法与上游返回顺序无关地映射回各自原字符串', async () => {
+    // Given 上游把 5 行按与入参**相反**的顺序返回（行序不可信，只认 f13+f12）
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 5, diff: [...CN_DIFF_ROWS].reverse() } } },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户混用带后缀与裸代码写法批量取价
+    const tickers = await client.getTickers(['517520.SH', '513050', '159869.SZ', '001201.SZ', '002714.SZ'])
+
+    // Then 每个入参原字符串都拿到**它自己那一行**的快照（键=入参原字符串，symbol 仍规范形）
+    expect(Object.keys(tickers).sort()).toEqual(['001201.SZ', '002714.SZ', '159869.SZ', '513050', '517520.SH'])
+    expect(tickers['513050']).toMatchObject({ symbol: '513050.SH', name: '中概互联网ETF易方达', price: 1.025 })
+    expect(tickers['517520.SH']).toMatchObject({ name: '黄金股ETF永赢', price: 1.834 })
+    expect(tickers['002714.SZ']).toMatchObject({ name: '牧原股份', price: 40.96 })
+    expect(tickers['001201.SZ']).toMatchObject({ name: '东瑞股份', price: 14.13 })
+    expect(urls).toHaveLength(1)
+  })
+
+  it('用户批量刷新港股自选栏时两只港股一次请求取全，价格按 f1=3', async () => {
+    // Given 上游 hk 报价一次返回 2 行真实响应（真实 ulist_hk）
+    const { impl, urls } = stubFetch([
+      { match: '/api/qt/ulist.np/get', body: { data: { total: 2, diff: HK_DIFF_ROWS } } },
+    ])
+    const client = new EastmoneyRestClient({ fetchImpl: impl, market: 'hk' })
+
+    // When 用户批量取两只港股
+    const tickers = await client.getTickers(['02714.HK', '00700.HK'])
+
+    // Then 一次请求带两个港股 secid，两只都按 f1=3 还原
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain('secids=116.02714,116.00700')
+    expect(tickers['00700.HK']).toEqual({
+      symbol: '00700.HK',
+      name: '腾讯控股',
+      price: 426,
+      volume: 12698294,
+      timestamp: 1791958481000,
+      prevClose: 425.2,
+      changePercent: 0.19,
+    })
+    expect(tickers['02714.HK']).toMatchObject({ symbol: '02714.HK', name: '牧原股份', price: 35.4, prevClose: 35.44 })
+  })
+
+  it('运营遇到上游 5xx 时整批抛出，不退化成空表', async () => {
+    // Given 上游对批量报价端点返回 502
+    const { impl } = stubFetch([{ match: '/api/qt/ulist.np/get', body: { error: 'bad gateway' }, status: 502 }])
+    const client = new EastmoneyRestClient({ fetchImpl: impl })
+
+    // When 用户批量取一只标的
+    // Then 整批按上游故障抛出（调用方上报整批失败，不做 N 次重试、也不把空表当成功）
+    await expect(client.getTickers(['002714.SZ'])).rejects.toMatchObject({ code: 'TRADING_UPSTREAM_ERROR' })
+  })
+})
+
 describe('EastmoneyRestClient.listInstruments', () => {
   it('搜索股票代码联想', async () => {
     const { impl, urls } = stubFetch([

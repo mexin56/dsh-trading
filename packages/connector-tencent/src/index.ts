@@ -113,6 +113,16 @@ export class TencentMarketDataService extends Service implements MarketDataServi
     return this.client.getTicker(symbol)
   }
 
+  /**
+   * 批量最新报价（MarketDataService 可选契约 2026-10-14）：一次上游请求取多只标的，
+   * 自选栏「每拍 N 次请求」降成 1 次（cn / hk 实例同能力，均走同一报价行端点）。
+   * 键=入参原字符串、未知/字段不足的符号跳过、整批失败抛出、不自行分片——语义见
+   * TencentRestClient.getTickers。
+   */
+  getTickers(symbols: string[]): Promise<Record<string, TencentTicker>> {
+    return this.client.getTickers(symbols)
+  }
+
   /** 基本面快照（同一报价行解析，MarketDataService 可选契约 2026-09-02）。 */
   getFundamentals(symbol: string): Promise<StockFundamentals> {
     return this.client.getFundamentals(symbol)

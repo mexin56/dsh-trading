@@ -708,6 +708,20 @@ export interface MarketDataService {
   getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]>
   subscribeTicker(symbol: string, cb: (ticker: Ticker) => void): Disposable
   /**
+   * 批量最新报价（GUI 自选/盘中列表每拍取价用，2026-10-14）：一次请求取多只标的，
+   * 免掉「N 只标的 N 次请求」。键**必须是入参里的原字符串**（调用方按它一一对应），
+   * 值为该标的的行情快照（`Ticker.symbol` 仍是市场规范形）。
+   *
+   * 语义约定（调用方与实现共同遵守）：
+   *   - 只返回**确实拿到**的标的：未收录/无法解析的符号不出现在结果里，由调用方回落
+   *     到 `getTicker` 单取（保住各符号自己的错误码），故实现**不得**为凑齐入参造假行；
+   *   - 整批取数失败（网络/上游故障）**应抛出**，调用方按整批失败上报，不做 N 次重试；
+   *   - 单次请求的标的数由调用方裁剪（桥侧 MAX_SYMBOLS），实现无需自行分片。
+   *
+   * 可选方法：数据源无原生批量端点的市场不实现，调用方自动回落逐只 `getTicker`。
+   */
+  getTickers?(symbols: string[]): Promise<Record<string, Ticker>>
+  /**
    * 查询本市场/交易所支持的全部标的名册（动态全集，Issue #15）。
    * 输出 `symbol` 一律市场规范词汇（docs/guides/symbol-vocabulary.md），形态由符号后缀承载
    * （`-SWAP` = 永续，`instrumentFormOf` 是唯一裁决实现）；每行可带

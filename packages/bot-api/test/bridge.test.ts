@@ -4,7 +4,7 @@
  */
 import type { GuiApprovalSeat } from '../src/gui-approval.ts'
 import { describe, expect, it, vi } from 'vitest'
-import type { MarketDataService, NewsAggregator } from '@dshtrading/api'
+import type { MarketDataService, NewsAggregator, Ticker } from '@dshtrading/api'
 import { createMemoryCustomStrategyStore } from '@dshtrading/strategies'
 import {
   BridgeProtocolError,
@@ -76,6 +76,143 @@ describe('TradingBridge.tickers', () => {
     await expect(bridge.tickers('crypto', Array.from({ length: MAX_SYMBOLS + 1 }, (_, i) => `S${i}`)))
       .rejects.toThrowError(/too many symbols/)
     await expect(bridge.tickers('crypto', [''])).rejects.toThrowError(/symbols is required/)
+  })
+
+  it('用户自选栏一拍取五只标的时桥只调一次 getTickers 且入参是去重后的全部符号', async () => {
+    // Given 一个记录批量/逐只入参的行情服务（五只标的批量都能拿到）
+    const batchCalls: string[][] = []
+    const singleCalls: string[] = []
+    const service = fakeService({
+      getTicker: async (symbol) => {
+        singleCalls.push(symbol)
+        return { symbol, price: 1, timestamp: 2 }
+      },
+      getTickers: async (symbols) => {
+        batchCalls.push([...symbols])
+        return Object.fromEntries(symbols.map(symbol => [symbol, { symbol, price: 9, timestamp: 8 }]))
+      },
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingUsMarketData: service }))
+
+    // When 客户端一拍请求五只（带重复项与空白项）
+    const wire = await bridge.tickers('us', ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'AAPL', ' '])
+
+    // Then 上游只被请求一次，入参是去重后的五个符号，逐只路径一次也没走
+    expect(batchCalls).toEqual([['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN']])
+    expect(singleCalls).toEqual([])
+    expect(Object.keys(wire.tickers)).toEqual(['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN'])
+    expect(wire.tickers.AMZN).toEqual({ ok: true, ticker: { symbol: 'AMZN', price: 9, timestamp: 8 } })
+  })
+
+  it('管理员看到的标的中批量未收录的那只回落单取并保住它自己的错误码', async () => {
+    // Given 批量端点只认得 AAPL，MSFT/BAD 缺行；单取对 BAD 抛市场错误码
+    const singleCalls: string[] = []
+    const service = fakeService({
+      getTicker: async (symbol) => {
+        singleCalls.push(symbol)
+        if (symbol === 'BAD') throw Object.assign(new Error('unknown symbol'), { code: 'TRADING_UNSUPPORTED_SYMBOL' })
+        return { symbol, price: 3, timestamp: 4 }
+      },
+      getTickers: async () => ({ AAPL: { symbol: 'AAPL', price: 9, timestamp: 8 } }),
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingUsMarketData: service }))
+
+    // When 客户端请求 AAPL / MSFT / BAD 三只
+    const wire = await bridge.tickers('us', ['AAPL', 'MSFT', 'BAD'])
+
+    // Then 只有缺行的两只走单取，且各自成败独立、错误码与顺序原样保留
+    expect(singleCalls).toEqual(['MSFT', 'BAD'])
+    expect(Object.keys(wire.tickers)).toEqual(['AAPL', 'MSFT', 'BAD'])
+    expect(wire.tickers.AAPL).toEqual({ ok: true, ticker: { symbol: 'AAPL', price: 9, timestamp: 8 } })
+    expect(wire.tickers.MSFT).toEqual({ ok: true, ticker: { symbol: 'MSFT', price: 3, timestamp: 4 } })
+    expect(wire.tickers.BAD).toEqual({ ok: false, code: 'TRADING_UNSUPPORTED_SYMBOL', message: 'unknown symbol' })
+  })
+
+  it('管理员遇到上游整批故障时全批记同一份错误信封且不再逐只重试', async () => {
+    // Given 批量端点整批抛网络错误，单取路径可被记录
+    const singleCalls: string[] = []
+    const service = fakeService({
+      getTicker: async (symbol) => {
+        singleCalls.push(symbol)
+        return { symbol, price: 1, timestamp: 1 }
+      },
+      getTickers: async () => {
+        throw Object.assign(new Error('upstream unavailable'), { code: 'TRADING_UPSTREAM_ERROR' })
+      },
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingUsMarketData: service }))
+
+    // When 客户端一拍请求三只
+    const wire = await bridge.tickers('us', ['AAPL', 'MSFT', 'NVDA'])
+
+    // Then 三只记同一份信封，一只都没有回落单取（故障期不放大请求）
+    expect(singleCalls).toEqual([])
+    const envelope = { ok: false, code: 'TRADING_UPSTREAM_ERROR', message: 'upstream unavailable' }
+    expect(wire.tickers).toEqual({ AAPL: envelope, MSFT: envelope, NVDA: envelope })
+  })
+
+  it('客户遇到的连接器未实现批量能力时逐只取数：入参去重透传、逐 symbol 独立成败', async () => {
+    // Given 一个只有 getTicker 的连接器服务（无 getTickers），BAD 抛错码
+    const singleCalls: string[] = []
+    const service = fakeService({
+      getTicker: async (symbol) => {
+        singleCalls.push(symbol)
+        if (symbol === 'BAD') throw Object.assign(new Error('unknown symbol'), { code: 'TRADING_SYMBOL_NOT_FOUND' })
+        return { symbol, price: 5, timestamp: 6 }
+      },
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingCnMarketData: service }))
+
+    // When 客户端请求 AAPL / BAD / AAPL
+    const wire = await bridge.tickers('cn', ['AAPL', 'BAD', 'AAPL'])
+
+    // Then 无批量能力可走：单取拿到去重后的两只，成败各自成信封
+    expect('getTickers' in service).toBe(false)
+    expect(singleCalls).toEqual(['AAPL', 'BAD'])
+    expect(wire.tickers).toEqual({
+      AAPL: { ok: true, ticker: { symbol: 'AAPL', price: 5, timestamp: 6 } },
+      BAD: { ok: false, code: 'TRADING_SYMBOL_NOT_FOUND', message: 'unknown symbol' },
+    })
+  })
+
+  it('管理员遇到批量端点返回空值时该符号回落单取，空值不会当成行情上行', async () => {
+    // Given 记录调用入参的连接器：getTickers 对两只符号都返回空值（契约外实现），
+    //       getTicker 对 AAPL 正常返回、对 BAD 抛 TRADING_SYMBOL_NOT_FOUND
+    const batchCalls: string[][] = []
+    const singleCalls: string[] = []
+    const service = fakeService({
+      getTicker: async (symbol) => {
+        singleCalls.push(symbol)
+        if (symbol === 'BAD') throw Object.assign(new Error('unknown symbol'), { code: 'TRADING_SYMBOL_NOT_FOUND' })
+        return { symbol, price: 11, timestamp: 12 }
+      },
+      getTickers: async (symbols) => {
+        batchCalls.push([...symbols])
+        return { AAPL: null, BAD: null } as unknown as Record<string, Ticker>
+      },
+    })
+    const bridge = new TradingBridge(fakeHost({ tradingUsMarketData: service }))
+
+    // When 客户端一拍请求这两只
+    const wire = await bridge.tickers('us', ['AAPL', 'BAD'])
+
+    // Then 走的确实是批量路径（不是「未实现 getTickers」路径），且两只符号全部回落单取
+    expect(batchCalls).toEqual([['AAPL', 'BAD']])
+    expect(singleCalls).toEqual(['AAPL', 'BAD'])
+    // Then AAPL 从单取拿到真值，BAD 拿到它自己的错误信封（空值一律不当作行情上行）
+    expect(wire.tickers).toEqual({
+      AAPL: { ok: true, ticker: { symbol: 'AAPL', price: 11, timestamp: 12 } },
+      BAD: { ok: false, code: 'TRADING_SYMBOL_NOT_FOUND', message: 'unknown symbol' },
+    })
+    // Then wire 里不存在任何 ticker:null / ticker:undefined：成功信封的 ticker 必为非空对象，失败信封无 ticker 键
+    for (const outcome of Object.values(wire.tickers)) {
+      if (outcome.ok) {
+        expect(typeof outcome.ticker).toBe('object')
+        expect(outcome.ticker).not.toBeNull()
+      } else {
+        expect(outcome).not.toHaveProperty('ticker')
+      }
+    }
   })
 })
 

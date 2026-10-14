@@ -535,6 +535,32 @@ export function isoWithOffset(epochMs: number, timeZone: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/* 报价响应文本 → 行映射（单标的与批量共用同一套正则）                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 整段报价响应文本（**已 GBK 解码**）→ wire(小写归一)→字段数组。
+ *
+ * 每行形如 `v_<wire>="字段~字段~…";\n`——wire 原样可能是 `sh600519` / `r_hk00700` /
+ * `r_hkHSI`。**键统一小写归一**：hk 指数 wire 大小写敏感（`r_hkHSI` 有行、`r_hkhsi` 返回
+ * `v_pv_none_match="1";`，2026-10-14 实测），请求侧必须原样带大小写，只有查表键归一化；
+ * 规范形由调用方持有的 sym 还原，不用响应键（否则指数会变成 `hsi.HK`）。字段切分与单标的
+ * 路径同源，批量不另写解析器。
+ *
+ * 未知代码的两种上游形态都在调用侧处理：单标的短 body `v_pv_none="1"`（键也匹配不上）、
+ * 批量响应里**整行缺席**（2026-10-14 实证 `q=sh600519,sz000001,sz159869,sz999999` 只回
+ * 3 行，HTTP 200）。
+ */
+function parseQuoteRows(text: string): Map<string, string[]> {
+  const rows = new Map<string, string[]>()
+  for (const m of text.matchAll(/v_([A-Za-z0-9_^]+)="([^"]*)"/g)) {
+    const wire = (m[1] ?? '').toLowerCase()
+    if (!rows.has(wire)) rows.set(wire, (m[2] ?? '').split('~'))
+  }
+  return rows
+}
+
+/* ------------------------------------------------------------------ */
 /* 腾讯行情客户端（无凭证、可注入 fetch，便于单测）                            */
 /* ------------------------------------------------------------------ */
 
@@ -615,7 +641,11 @@ export class TencentRestClient {
     return new Uint8Array(await res.arrayBuffer())
   }
 
-  /** 报价 wire 形态：cn=sh600519；hk=r_hk00700（hk K 线另用 hk 前缀，见文件头注）。 */
+  /**
+   * 报价 wire 形态：cn=sh600519；hk=r_hk00700（hk K 线另用 hk 前缀，见文件头注）。
+   * **大小写原样进 URL**：hk 指数 wire 大小写敏感（`r_hkHSI` 有行、`r_hkhsi` 返回
+   * `v_pv_none_match="1";`，2026-10-14 实测），只有响应查表键才小写归一。
+   */
   #quoteWireCode(symbol: string): string {
     return this.#market === 'hk' ? `r_hk${symbol}` : symbol
   }
@@ -626,23 +656,22 @@ export class TencentRestClient {
   }
 
   /**
-   * 报价行取数（getTicker/getFundamentals 共用）：**GBK 解码**（响应 charset=GBK，
-   * UTF-8 直接乱码）；未知代码返回 `v_pv_none="1"` 之类短 body，按
-   * TRADING_UNSUPPORTED_SYMBOL 上报。返回 `~` 分隔字段数组 + 行情时间戳。
+   * 报价批量取数：一次 `GET /q=<wire,wire,…>`（腾讯端点原生支持逗号列表，2026-10-14 实证
+   * 40 码单请求 HTTP 200 / 17954 B / 180 ms）→ wire(小写)→字段数组。wires 原样拼 URL
+   * （hk 指数大小写敏感，见 #quoteWireCode）；整批失败（网络/超时/HTTP 非 2xx）在
+   * #requestArrayBuffer 里抛出，不在这里吞。
    */
-  async #fetchQuoteFields(symbol: string): Promise<{ fields: string[]; timestamp: number; sym: string }> {
-    const sym = normalizeSymbol(this.#market, symbol)
-    const url = `${this.#quoteBaseUrl}/q=${this.#quoteWireCode(sym)}`
-    const bytes = await this.#requestArrayBuffer(url)
-    const text = new TextDecoder('gbk').decode(bytes)
-    const m = /="([^"]*)"/.exec(text)
-    if (!m) {
-      throw new TradingServiceError(
-        'TRADING_UNSUPPORTED_SYMBOL',
-        `Tencent ticker for ${sym}: unparseable payload ${JSON.stringify(text.slice(0, 80))} (unknown symbol?)`,
-      )
-    }
-    const fields = m[1].split('~')
+  async #fetchQuoteRows(wires: readonly string[]): Promise<Map<string, string[]>> {
+    const url = `${this.#quoteBaseUrl}/q=${wires.join(',')}`
+    const text = new TextDecoder('gbk').decode(await this.#requestArrayBuffer(url))
+    return parseQuoteRows(text)
+  }
+
+  /**
+   * 单行校验（getTicker 与 getTickers **共用**）：字段数 < 35 = 未知/退市代码的短行
+   * （`v_pv_none="1"` 之类）；字段 30 是行情时间（cn=Asia/Shanghai，hk=Asia/Hong_Kong）。
+   */
+  #validateQuoteRow(fields: string[], sym: string): { fields: string[]; timestamp: number } {
     if (fields.length < 35) {
       throw new TradingServiceError(
         'TRADING_UNSUPPORTED_SYMBOL',
@@ -652,7 +681,34 @@ export class TencentRestClient {
     const timestamp = this.#market === 'hk'
       ? wallTimeToEpochMs(fields[30] ?? '', 'Asia/Hong_Kong')
       : wallTimeToEpochMs(fields[30] ?? '', 'Asia/Shanghai')
-    return { fields, timestamp, sym }
+    return { fields, timestamp }
+  }
+
+  /** 已校验的行 → 契约快照（getTicker 与 getTickers 共用同一解析与规范形出口）。 */
+  #tickerFrom(fields: string[], timestamp: number, sym: string): TencentTicker {
+    const parsed = this.#market === 'hk' ? parseHkTicker(fields, timestamp) : parseCnTicker(fields, timestamp)
+    // 输出一律规范形（响应体 fields[2] 是裸代码，交易所信息在请求时的 wire 前缀里）。
+    return { ...parsed, symbol: toCanonicalTencentSymbol(this.#market, sym) }
+  }
+
+  /**
+   * 单标的报价行取数（getTicker/getFundamentals/getOrderbook/getActiveBuySnapshot 共用）：
+   * **GBK 解码**（响应 charset=GBK，UTF-8 直接乱码）；未知代码返回 `v_pv_none="1"` 之类
+   * 短 body（行键匹配不上），按 TRADING_UNSUPPORTED_SYMBOL 上报。返回 `~` 分隔字段数组 +
+   * 行情时间戳 + 规范化符号。
+   */
+  async #fetchQuoteFields(symbol: string): Promise<{ fields: string[]; timestamp: number; sym: string }> {
+    const sym = normalizeSymbol(this.#market, symbol)
+    const wire = this.#quoteWireCode(sym)
+    const rows = await this.#fetchQuoteRows([wire])
+    const fields = rows.get(wire.toLowerCase())
+    if (fields === undefined) {
+      throw new TradingServiceError(
+        'TRADING_UNSUPPORTED_SYMBOL',
+        `Tencent ticker for ${sym}: no row for wire ${wire} (${rows.size} quote rows in payload, unknown symbol?)`,
+      )
+    }
+    return { ...this.#validateQuoteRow(fields, sym), sym }
   }
 
   /**
@@ -660,9 +716,57 @@ export class TencentRestClient {
    */
   async getTicker(symbol: string): Promise<TencentTicker> {
     const { fields, timestamp, sym } = await this.#fetchQuoteFields(symbol)
-    const parsed = this.#market === 'hk' ? parseHkTicker(fields, timestamp) : parseCnTicker(fields, timestamp)
-    // 输出一律规范形（响应体 fields[2] 是裸代码，交易所信息在请求时的 wire 前缀里）。
-    return { ...parsed, symbol: toCanonicalTencentSymbol(this.#market, sym) }
+    return this.#tickerFrom(fields, timestamp, sym)
+  }
+
+  /**
+   * 批量最新报价（api 可选契约 getTickers，2026-10-14）：自选栏「每拍 N 只标的 N 次请求」
+   * → **一次请求**（`q=` 原生支持逗号列表，实证见 #fetchQuoteRows）。**实现不分片**——
+   * 单次请求的标的数由调用方按 MAX_SYMBOLS 裁剪。
+   *
+   * 契约语义：
+   *   - 键 = **入参原字符串**（调用方按它一一对应），值 Ticker.symbol 仍是市场规范形；
+   *   - 只返回**确实拿到**的标的：入参不可规范化、上游整行缺席、行字段不足、行内时间读数
+   *     坏掉——一律跳过该符号（调用方回落 getTicker 拿它自己的错误码），绝不凑数造假行；
+   *   - 整批 HTTP/网络失败 → 抛出（不做 N 次重试）；
+   *   - 空入参（或全部入参都不可规范化）→ `{}` 且**不发请求**。
+   */
+  async getTickers(symbols: string[]): Promise<Record<string, TencentTicker>> {
+    const tickers: Record<string, TencentTicker> = {}
+    if (symbols.length === 0) return tickers
+
+    // wire（小写归一，查表键）→ 该 wire 的入参与规范形符号：同一 wire 的多个入参
+    // （600519 / 600519.SH）共享一行；wire 本体保留原大小写发请求（hk 指数大小写敏感）。
+    const byWire = new Map<string, { wire: string; sym: string; inputs: string[] }>()
+    for (const symbol of symbols) {
+      let sym: string
+      try {
+        sym = normalizeSymbol(this.#market, symbol)
+      } catch {
+        continue // 不可规范化：不是「确实拿到」的标的，交给调用方回落 getTicker
+      }
+      const wire = this.#quoteWireCode(sym)
+      const key = wire.toLowerCase()
+      const group = byWire.get(key)
+      if (group === undefined) byWire.set(key, { wire, sym, inputs: [symbol] })
+      else if (!group.inputs.includes(symbol)) group.inputs.push(symbol)
+    }
+    if (byWire.size === 0) return tickers
+
+    const rows = await this.#fetchQuoteRows([...byWire.values()].map((group) => group.wire))
+    for (const [key, group] of byWire) {
+      const fields = rows.get(key)
+      if (fields === undefined) continue // 未知代码在批量响应里整行缺席 → 跳过，不拖垮整批
+      let ticker: TencentTicker
+      try {
+        const row = this.#validateQuoteRow(fields, group.sym)
+        ticker = this.#tickerFrom(row.fields, row.timestamp, group.sym)
+      } catch {
+        continue // 短行（未知/退市）或行内时间读数坏 → 该符号跳过，整批照常返回
+      }
+      for (const input of group.inputs) tickers[input] = ticker
+    }
+    return tickers
   }
 
   /**

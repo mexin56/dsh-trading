@@ -1,0 +1,94 @@
+{
+  "probedAt": "2026-10-14T06:44:14.552Z",
+  "offlineReplay": {
+    "cnMatchesLive": true,
+    "hkMatchesLive": true
+  },
+  "cn": {
+    "requested": [
+      "600519.SH",
+      "000001.SZ",
+      "159869.SZ",
+      "000688.SH",
+      "999999.SZ"
+    ],
+    "returnedKeys": [
+      "600519.SH",
+      "000001.SZ",
+      "159869.SZ",
+      "000688.SH"
+    ],
+    "upstreamRequests": 1,
+    "upstreamUrl": "https://qt.gtimg.cn/q=sh600519,sz000001,sz159869,sh000688,sz999999",
+    "rows": {
+      "600519.SH": {
+        "name": "贵州茅台",
+        "price": 1285.41,
+        "symbol": "600519.SH",
+        "timestamp": 1791960251000
+      },
+      "000001.SZ": {
+        "name": "平安银行",
+        "price": 11.5,
+        "symbol": "000001.SZ",
+        "timestamp": 1791960252000
+      },
+      "159869.SZ": {
+        "name": "游戏ETF华夏",
+        "price": 1.057,
+        "symbol": "159869.SZ",
+        "timestamp": 1791960252000
+      },
+      "000688.SH": {
+        "name": "科创50",
+        "price": 1385.25,
+        "symbol": "000688.SH",
+        "timestamp": 1791960252000
+      }
+    }
+  },
+  "hk": {
+    "requested": [
+      "00700.HK",
+      "02714.HK",
+      "HSI"
+    ],
+    "returnedKeys": [
+      "00700.HK",
+      "02714.HK",
+      "HSI"
+    ],
+    "upstreamRequests": 1,
+    "upstreamUrl": "https://qt.gtimg.cn/q=r_hk00700,r_hk02714,r_hkHSI",
+    "rows": {
+      "00700.HK": {
+        "name": "腾讯控股",
+        "price": 426.4,
+        "symbol": "00700.HK",
+        "timestamp": 1791960252000
+      },
+      "02714.HK": {
+        "name": "牧原股份",
+        "price": 35.22,
+        "symbol": "02714.HK",
+        "timestamp": 1791960228000
+      },
+      "HSI": {
+        "name": "恒生指数",
+        "price": 24370.95,
+        "symbol": "HSI.HK",
+        "timestamp": 1791960254000
+      }
+    }
+  },
+  "singlePath": {
+    "price": 1285.41,
+    "batchPrice": 1285.41,
+    "sameRow": true,
+    "upstreamRequests": 1
+  },
+  "emptyInput": {
+    "result": {},
+    "upstreamRequests": 0
+  }
+}

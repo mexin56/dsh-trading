@@ -141,6 +141,48 @@ function quotePriceScale(decimalDigits: unknown, market: EastmoneyMarket): numbe
 }
 
 /**
+ * 报价行 → Ticker 快照（单标的 `getTicker` 与批量 `getTickers` 共用同一个解析器，避免养出
+ * 第二套取价逻辑）：价格与昨收都按**该行**的 f1 取除数，涨跌幅走 ×100；f14 缺失或空白时不带 name。
+ */
+function parseQuoteRow(row: Record<string, unknown>, canonical: string, market: EastmoneyMarket): Ticker {
+  const scale = quotePriceScale(row.f1, market)
+  const rawPrice = parseScaled(row.f2, scale) ?? 0
+  const price = rawPrice > 0 ? rawPrice : 0
+  const volume = toFiniteNumber(row.f5) ?? 0
+  const quoteTime = toFiniteNumber(row.f124)
+  const timestamp = quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now()
+  // 官方昨收锚点（与 tencent fields[4] 同语义）：涨跌幅基准，UI 头部/侧栏直接消费。
+  const prevClose = parseScaled(row.f18, scale)
+  const changePercent = parseScaledHundred(row.f3)
+
+  const name = typeof row.f14 === 'string' && row.f14.trim() ? row.f14.trim() : undefined
+
+  return {
+    symbol: canonical,
+    ...(name ? { name } : {}),
+    price,
+    volume: volume > 0 ? volume : 0,
+    timestamp,
+    ...(prevClose !== undefined && prevClose > 0 ? { prevClose } : {}),
+    ...(changePercent !== undefined ? { changePercent } : {}),
+  }
+}
+
+/**
+ * 报价行 → 它自己的 secid（f13=市场 + f12=代码）。批量路径靠它把响应行还原成请求时算出的
+ * secid，**不依赖上游返回顺序**；两列任一缺失就弃掉这一行（宁可少一只标的，也不把行错配给
+ * 别的符号）。f12 正常是已补零的字符串（cn `002714` / hk `00700`），数值形照 String 处理。
+ */
+function quoteRowSecid(row: Record<string, unknown>): string | undefined {
+  const market = toFiniteNumber(row.f13)
+  const code = typeof row.f12 === 'string' ? row.f12.trim()
+    : typeof row.f12 === 'number' ? String(row.f12)
+      : ''
+  if (market === undefined || !Number.isInteger(market) || code === '') return undefined
+  return `${market}.${code}`
+}
+
+/**
  * 将标准代码转为东财 secid。**按连接器市场分流**（2026-09-08 审查 H3/L1）：同一个
  * 东财服务实例可能服务 cn 或 hk，形态解析必须知道自己是哪个市场——否则港股宽容
  * 形 `700` 会落进 CN 兜底（secid 0.700 / canonical 700.SZ），查询到另一个市场
@@ -314,27 +356,59 @@ export class EastmoneyRestClient {
       throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `Eastmoney symbol not found: ${symbol}`)
     }
 
-    const scale = quotePriceScale(row.f1, market)
-    const rawPrice = parseScaled(row.f2, scale) ?? 0
-    const price = rawPrice > 0 ? rawPrice : 0
-    const volume = toFiniteNumber(row.f5) ?? 0
-    const quoteTime = toFiniteNumber(row.f124)
-    const timestamp = quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now()
-    // 官方昨收锚点（与 tencent fields[4] 同语义）：涨跌幅基准，UI 头部/侧栏直接消费。
-    const prevClose = parseScaled(row.f18, scale)
-    const changePercent = parseScaledHundred(row.f3)
+    return parseQuoteRow(row, canonical, market)
+  }
 
-    const name = typeof row.f14 === 'string' && row.f14.trim() ? row.f14.trim() : undefined
+  /**
+   * 批量最新报价：一次 `ulist.np/get` 取多只标的（契约见 @dshtrading/api 的
+   * `MarketDataService.getTickers`），把自选栏「N 只标的 N 次请求」压成 1 次。本连接器
+   * **不分片**——单次请求的标的数由调用方裁剪（桥侧 MAX_SYMBOLS）。
+   *
+   * 三个语义要点：
+   *   - 键是**入参原字符串**：同一 secid 的多种写法（`600519` / `600519.SH`）各占一个键，
+   *     共享同一份快照；`Ticker.symbol` 仍是规范形；
+   *   - 行→符号靠响应行的 f13+f12 拼回 secid 再查请求表，**与上游返回顺序无关**；
+   *   - 只返回确实拿到的标的：转不成 secid 的符号、以及 diff 里缺行的符号都不出现在结果里
+   *     （调用方按缺失回落单取，保住各符号自己的错误码）；整批 HTTP/网络失败才抛出。
+   */
+  async getTickers(symbols: string[]): Promise<Record<string, Ticker>> {
+    if (symbols.length === 0) return {}
 
-    return {
-      symbol: canonical,
-      ...(name ? { name } : {}),
-      price,
-      volume: volume > 0 ? volume : 0,
-      timestamp,
-      ...(prevClose !== undefined && prevClose > 0 ? { prevClose } : {}),
-      ...(changePercent !== undefined ? { changePercent } : {}),
+    // secid → 该 secid 的规范形，以及入参里指向它的全部原字符串（同一标的的多种写法共享一份快照）。
+    const requested = new Map<string, { canonical: string; originals: string[] }>()
+    for (const symbol of symbols) {
+      let mapped: { secid: string; canonical: string }
+      try {
+        mapped = toEastmoneySecid(symbol, this.market)
+      } catch {
+        // 跨市场形态/畸形符号转不成 secid → 跳过该符号，整批不失败。
+        continue
+      }
+      const hit = requested.get(mapped.secid)
+      if (hit === undefined) requested.set(mapped.secid, { canonical: mapped.canonical, originals: [symbol] })
+      else hit.originals.push(symbol)
     }
+    // 入参里没有一只能转成 secid：没有可发的请求，直接空手而归。
+    if (requested.size === 0) return {}
+
+    const url = `${this.baseUrl}/api/qt/ulist.np/get?secids=${[...requested.keys()].join(',')}&fields=${QUOTE_FIELDS}`
+    const res = await this.requestJson<EastmoneyQuoteListResponse>(url)
+
+    // data 为 null / 无 diff 是「一个都没收录」（只传无效 secid 的响应形态），不是故障——按契约空返回。
+    const rows: unknown[] = Array.isArray(res.data?.diff) ? (res.data?.diff as unknown[]) : []
+    const out: Record<string, Ticker> = {}
+    for (const raw of rows) {
+      if (raw === null || typeof raw !== 'object') continue
+      const row = raw as Record<string, unknown>
+      const secid = quoteRowSecid(row)
+      if (secid === undefined) continue
+      const hit = requested.get(secid)
+      // 响应里出现没请求过的 secid（或两列无法拼回）：不认这行，绝不把它错配给别的符号。
+      if (hit === undefined) continue
+      const ticker = parseQuoteRow(row, hit.canonical, this.market)
+      for (const original of hit.originals) out[original] = ticker
+    }
+    return out
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {

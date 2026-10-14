@@ -21,17 +21,26 @@ import { TencentMarketDataService } from '../src/index.ts'
 const CN_NAME_GBK = 'b9f3d6ddc3a9cca8' // 贵州茅台
 const HK_NAME_GBK = 'ccdad1b6bfd8b9c9' // 腾讯控股
 
-/** 把「ASCII 模板 + GBK 名字字节」拼成响应体（客户端按 GBK 解码）。 */
-function gbkResponse(template: string, nameHex: string): Uint8Array {
-  const [head, tail] = template.split('%NAME%')
-  const nameBytes = nameHex.match(/../g)!.map((h) => parseInt(h, 16))
-  const bytes = [
-    ...Buffer.from(head, 'latin1'),
-    ...nameBytes,
-    ...Buffer.from(tail, 'latin1'),
-  ]
+/** 把「ASCII 模板 + 按 %NAME% 顺序注入的 GBK 名字字节」拼成响应体（客户端按 GBK 解码）。 */
+function gbkBody(template: string, nameHexes: string[]): Uint8Array {
+  const bytes: number[] = []
+  template.split('%NAME%').forEach((part, index) => {
+    bytes.push(...Buffer.from(part, 'latin1'))
+    const hex = nameHexes[index]
+    if (hex !== undefined) bytes.push(...hex.match(/../g)!.map((h) => parseInt(h, 16)))
+  })
   return new Uint8Array(bytes)
 }
+
+/** 单行响应体（gbkBody 的常见形态）。 */
+function gbkResponse(template: string, nameHex: string): Uint8Array {
+  return gbkBody(template, [nameHex])
+}
+
+const CN_000001_NAME_GBK = 'c6bdb0b2d2f8d0d0' // 平安银行
+const CN_159869_NAME_GBK = 'd3cecfb7455446bbaacfc4' // 游戏ETF华夏
+const HK_02714_NAME_GBK = 'c4c1d4adb9c9b7dd' // 牧原股份
+const HK_HSI_NAME_GBK = 'bae3c9fad6b8cafd' // 恒生指数
 
 const CN_TICKER_TEMPLATE =
   'v_sh600519="1~%NAME%~600519~1297.40~1292.30~1289.00~16126~8576~7550~1297.35~5~1297.20~1~1297.10~3~1297.01~3~1297.00~11~1297.40~9~1297.50~11~1297.55~2~1297.68~1~1297.70~1~~20260828161500~5.10~0.39~1297.89~1288.00~1297.40/16126/2086008422~16126~208601~0.13~19.92~~1297.89~1288.00~0.77~16218.56~16218.56~6.46~1421.53~1163.07~0.54~-1~1293.56~18.22~19.70~~~0.10~208600.8422~168.6620~13~   A~GP-A~-3.84~1.93~4.01~32.41~27.30~1539.98~1151.01~-3.32~-3.94~4.63~1250081601~1250081601~-2.13~-6.26~1250081601~~~-6.94~0.02~~CNY~0~___D__F__N~1296.83~14~";\n'
@@ -246,6 +255,145 @@ describe('TencentRestClient.getTicker (hk)', () => {
       change: 7.4,
       changePercent: 1.65,
     })
+  })
+})
+
+/**
+ * 批量报价行夹具：字段布局取自**实测行原文**（CN_TICKER_TEMPLATE / HK_TICKER_TEMPLATE），
+ * 只改写被断言的位（与 cnActiveBuyRow 同款做法）；名字位留 %NAME% 以便按行内嵌 GBK 字节。
+ */
+function cnQuoteRow(wire: string, overrides: Record<number, string> = {}): string {
+  const fields = CN_TICKER_TEMPLATE.slice(CN_TICKER_TEMPLATE.indexOf('"') + 1, CN_TICKER_TEMPLATE.lastIndexOf('"')).split('~')
+  fields[1] = '%NAME%'
+  fields[2] = wire.replace(/^(?:sh|sz)/, '')
+  for (const [index, value] of Object.entries(overrides)) fields[Number(index)] = value
+  return `v_${wire}="${fields.join('~')}";\n`
+}
+
+function hkQuoteRow(wire: string, overrides: Record<number, string> = {}): string {
+  const fields = HK_TICKER_TEMPLATE.slice(HK_TICKER_TEMPLATE.indexOf('"') + 1, HK_TICKER_TEMPLATE.lastIndexOf('"')).split('~')
+  fields[1] = '%NAME%'
+  fields[2] = wire.replace(/^r_hk/, '')
+  for (const [index, value] of Object.entries(overrides)) fields[Number(index)] = value
+  return `v_${wire}="${fields.join('~')}";\n`
+}
+
+describe('TencentRestClient.getTickers（批量报价，2026-10-14）', () => {
+  it('用户看自选栏时，Given cn 股票与 ETF 混排 When 批量取价 Then 一次逗号列表请求拿回全部且键是入参原字符串', async () => {
+    // Given 三行实测布局的报价行（600519 股票 / 000001 股票 / 159869 ETF）
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkBody(
+        cnQuoteRow('sh600519')
+        + cnQuoteRow('sz000001', { 3: '11.49', 4: '11.57', 5: '11.57', 6: '865133' })
+        + cnQuoteRow('sz159869', { 3: '1.056', 4: '1.048', 5: '1.047', 6: '4391868' }),
+        [CN_NAME_GBK, CN_000001_NAME_GBK, CN_159869_NAME_GBK],
+      ),
+    }])
+    // When 批量取价（入参混用规范形 / 裸码 / sz 前缀三种写法）
+    const tickers = await client('cn', { fetchImpl: impl }).getTickers(['600519.SH', 'sz000001', '159869'])
+    // Then 上游只被请求一次，且是逗号列表——自选栏每拍 N 次请求降成 1 次
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=sh600519,sz000001,sz159869'])
+    // Then 键 = 入参原字符串（调用方按它一一对应），值里的 symbol 仍是市场规范形
+    // （键集合按原字符串核对；JS 对象的整数形键会重排，故比较集合而非顺序）
+    expect(Object.keys(tickers).sort()).toEqual(['159869', '600519.SH', 'sz000001'])
+    expect(tickers['600519.SH']).toMatchObject({ name: '贵州茅台', price: 1297.4, symbol: '600519.SH', currency: 'CNY' })
+    expect(tickers['sz000001']).toMatchObject({ name: '平安银行', price: 11.49, symbol: '000001.SZ', volume: 86_513_300 })
+    expect(tickers['159869']).toMatchObject({ name: '游戏ETF华夏', price: 1.056, symbol: '159869.SZ' })
+  })
+
+  it('用户自选栏混入未收录代码时，Given 上游整行缺席或回短行 When 批量取价 Then 该符号跳过而整批不失败', async () => {
+    // Given 请求三只、上游只回一行完整行 + 一行字段不足的短行（999999 是 sh 未知码、888888 整行缺席）
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkBody(`v_sh999999="1";\n${cnQuoteRow('sh600519')}`, [CN_NAME_GBK]),
+    }])
+    // When 批量取价
+    const tickers = await client('cn', { fetchImpl: impl }).getTickers(['600519', '999999', '888888'])
+    // Then 只返回确实拿到的标的：两个未知码都跳过，其余照常返回，整批不因它们失败
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=sh600519,sh999999,sz888888'])
+    expect(Object.keys(tickers)).toEqual(['600519'])
+    expect(tickers['600519']).toMatchObject({ name: '贵州茅台', price: 1297.4, symbol: '600519.SH' })
+    expect(tickers['999999']).toBeUndefined()
+    expect(tickers['888888']).toBeUndefined()
+  })
+
+  it('用户批量取港股时，Given r_hk 报价行 When 取价 Then 用 r_hk wire 前缀、GBK 解码与 hk 字段布局', async () => {
+    // Given 两行 r_hk 报价行（00700 原文；02714 只改写被断言的位）
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkBody(
+        hkQuoteRow('r_hk00700') + hkQuoteRow('r_hk02714', { 3: '35.220', 4: '35.440', 5: '35.660', 6: '639500.0', 33: '36.540' }),
+        [HK_NAME_GBK, HK_02714_NAME_GBK],
+      ),
+    }])
+    // When 批量取价
+    const tickers = await client('hk', { fetchImpl: impl }).getTickers(['00700.HK', '02714.HK'])
+    // Then 一次请求、r_hk 前缀、GBK 名字不乱码、hk 字段 6 单位是股（不乘 100）与规范形 symbol
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=r_hk00700,r_hk02714'])
+    expect(Object.keys(tickers)).toEqual(['00700.HK', '02714.HK'])
+    expect(tickers['00700.HK']).toMatchObject({ name: '腾讯控股', price: 455.2, currency: 'HKD', volume: 27_742_475, symbol: '00700.HK' })
+    expect(tickers['02714.HK']).toMatchObject({ name: '牧原股份', price: 35.22, symbol: '02714.HK', volume: 639_500 })
+  })
+
+  it('用户批量取港股指数时，Given 指数 wire 大小写敏感 When 大小写不同的两个入参取同一指数 Then 原样带 r_hkHSI 且共享一行', async () => {
+    // Given 上游只在 wire 大小写原样时给行（r_hkhsi 会回 v_pv_none_match="1";，2026-10-14 实测）
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkBody(`v_pv_none_match="1";\n${hkQuoteRow('r_hkHSI', { 3: '24358.080', 4: '24345.220' })}`, [HK_HSI_NAME_GBK]),
+    }])
+    // When 用大小写不同的两个入参取同一指数
+    const tickers = await client('hk', { fetchImpl: impl }).getTickers(['HSI', 'hsi'])
+    // Then 请求 wire 保留原大小写且只出现一次，两个入参键都拿到同一读数
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=r_hkHSI'])
+    expect(Object.keys(tickers)).toEqual(['HSI', 'hsi'])
+    expect(tickers['HSI']).toMatchObject({ name: '恒生指数', price: 24358.08, symbol: 'HSI.HK', currency: 'HKD' })
+    expect(tickers['hsi']).toEqual(tickers['HSI'])
+  })
+
+  it('用户传空自选列表时，Given 空入参 When 批量取价 Then 返回 {} 且一个请求都不发', async () => {
+    // Given 空数组
+    const { impl, urls } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(CN_TICKER_TEMPLATE, CN_NAME_GBK) }])
+    // When 批量取价
+    const tickers = await client('cn', { fetchImpl: impl }).getTickers([])
+    // Then 空结果且零请求（`q=` 空列表请求不上游）
+    expect(tickers).toEqual({})
+    expect(urls).toEqual([])
+  })
+
+  it('用户入参全不可规范化时，Given 全是非法符号 When 批量取价 Then 返回 {} 且不发请求（回落逐只取）', async () => {
+    // Given 三个规范化必失败的入参（空串 / 中文 / 港股码喂给 cn 客户端）
+    const { impl, urls } = stubFetch([{ match: 'qt.gtimg.cn', body: gbkResponse(CN_TICKER_TEMPLATE, CN_NAME_GBK) }])
+    // When 批量取价
+    const tickers = await client('cn', { fetchImpl: impl }).getTickers(['', '贵州茅台', '00700.HK'])
+    // Then 没有可发的 wire → 不请求、返回空；各符号的错误码留给调用方回落 getTicker 拿
+    expect(tickers).toEqual({})
+    expect(urls).toEqual([])
+  })
+
+  it('用户批量取价遇上游故障时，Given 上游 HTTP 500 When 调用 Then 整批抛出且不做逐只重试', async () => {
+    // Given 上游 5xx
+    const { impl, urls } = stubFetch([{ match: 'qt.gtimg.cn', body: 'boom', status: 500 }])
+    // When 批量取价
+    // Then 整批失败抛出（调用方按整批失败上报），且只打了这一次请求
+    await expect(client('cn', { fetchImpl: impl }).getTickers(['600519', '000001']))
+      .rejects.toMatchObject({ code: 'TRADING_EXCHANGE_ERROR' })
+    expect(urls).toEqual(['https://qt.gtimg.cn/q=sh600519,sz000001'])
+  })
+
+  it('用户经 cn 市场服务实例批量取价时，Given market=cn 的实例 When 调 getTickers Then 委派到同一次批量请求', async () => {
+    // Given market=cn 的行情服务实例
+    const { impl, urls } = stubFetch([{
+      match: 'qt.gtimg.cn',
+      body: gbkBody(cnQuoteRow('sh600519') + cnQuoteRow('sz000001', { 3: '11.49' }), [CN_NAME_GBK, CN_000001_NAME_GBK]),
+    }])
+    const service = new TencentMarketDataService(duckCtx().ctx, 'cn', { fetchImpl: impl })
+    // When 经服务面批量取价（api MarketDataService 可选契约）
+    const tickers = await service.getTickers(['600519', '000001'])
+    // Then 一次请求、两键、规范形 symbol——服务面与客户端同一条路径
+    expect(urls).toHaveLength(1)
+    expect(tickers['600519']).toMatchObject({ name: '贵州茅台', price: 1297.4, symbol: '600519.SH' })
+    expect(tickers['000001']).toMatchObject({ name: '平安银行', price: 11.49, symbol: '000001.SZ' })
   })
 })
 

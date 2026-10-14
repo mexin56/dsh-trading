@@ -74,3 +74,67 @@ node spikes/impl-eastmoney-quote-endpoint/p1-quote-endpoint-and-scale.mjs
   「同域其它路径同时正常」；但若某出口屏蔽了整个 push2 域，本次改动不解决那种情形（属另一层问题）。
 - 侧栏 UI 的最终确认需要在**刷新过 profile 并以东财为 cn/hk 活跃 provider 的桌面壳**里做；
   本探针证明的是连接器取数层，UI 渲染路径未改动。
+
+## 附. 批量报价 getTickers：自选 7 行压成 2 次请求（2026-10-14 追加上线后复测）
+
+复现：
+
+```bash
+cd /Users/zcl/code/dsh-trading
+pnpm --filter @dshtrading/connector-eastmoney build
+node spikes/impl-eastmoney-quote-endpoint/p2-getTickers-batch.mjs
+```
+
+探针先包一层 `globalThis.fetch` 记录每次请求的 URL，再调构建产物 `lib/rest.js` 的
+`EastmoneyRestClient.getTickers`：请求次数由**外层计数器**给出，不是靠返回值自证。
+
+| 批量调用 | 入参 | 取到 | 上游请求次数 |
+|---|---|---|---|
+| cn 实例 | `002714.SZ / 001201.SZ / 159869.SZ / 513050.SH / 517520.SH` + `00700.HK`（港股形态，按契约跳过） | 5/5 | **1** |
+| hk 实例 | `02714.HK / 00700.HK` | 2/2 | **1** |
+| cn 实例 | `[]`（自选为空） | `{}` | **0** |
+
+实际发出的两个 URL（探针输出原样）：
+
+```
+/api/qt/ulist.np/get?secids=0.002714,0.001201,0.159869,1.513050,1.517520&fields=f1,f2,f3,f5,f12,f13,f14,f18,f124
+/api/qt/ulist.np/get?secids=116.02714,116.00700&fields=f1,f2,f3,f5,f12,f13,f14,f18,f124
+```
+
+逐只读数（探针输出，实时快照，与第 2 节 14:14 的快照有盘中跳动）：
+
+```
+cn 五只（002714.SZ/001201.SZ/159869.SZ/513050.SH/517520.SH）一次请求取全
+  5/5 只取到，缺失 [无]
+    002714.SZ   牧原股份  price=40.9  prevClose=40.9  chg=0%
+    001201.SZ   东瑞股份  price=14.08  prevClose=14.33  chg=-1.74%
+    159869.SZ   游戏ETF华夏  price=1.057  prevClose=1.048  chg=0.86%
+    513050.SH   中概互联网ETF易方达  price=1.024  prevClose=1.002  chg=2.2%
+    517520.SH   黄金股ETF永赢  price=1.828  prevClose=1.875  chg=-2.51%
+  OK   cn 上游请求次数 = 1（期望 1）
+  OK   cn 五只全部取到（缺失 0）
+  OK   入参里的港股形态 00700.HK 按契约跳过（结果里不出现，整批仍成功）
+  OK   cn ETF 行按 f1=3 取价（159869 游戏ETF华夏 price=1.057，市场级 ÷100 会得到 ~10.6）
+
+hk 两只（02714.HK/00700.HK）一次请求取全
+  2/2 只取到，缺失 [无]
+    02714.HK    牧原股份  price=35.24  prevClose=35.44  chg=-0.56%
+    00700.HK    腾讯控股  price=426.2  prevClose=425.2  chg=0.24%
+  OK   hk 上游请求次数 = 1（期望 1）
+  OK   hk 两只全部取到（缺失 0）
+
+空入参（自选为空）
+  OK   返回空表 {}
+  OK   上游请求次数 = 0（期望 0）
+```
+
+本次探针坐实两件事：**按行 f1 取价在批量路径同样成立**（159869 那行 f1=3 → 1.057 元，而不是
+吃市场级 ÷100 得到的 10.57）；**cn 实例入参里转不成 secid 的符号（`00700.HK`）被跳过而整批仍成功**，
+它不出现在结果里，由调用方回落单取、保留自己的错误码。行→符号的映射不依赖响应顺序（用响应行的
+`f13`+`f12` 拼回 secid 再对照请求表），该性质另由
+`packages/connector-eastmoney/test/template.test.ts` 的「用户自选的写法与上游返回顺序无关地映射回
+各自原字符串」用例以**倒序的响应行**覆盖；未收录 secid 的「只少一行、不造假」由
+「用户自选里含未收录代码时只少那一只，整批不失败也不造假行」用例覆盖。
+
+本节未覆盖：与第 2 节同源的限制——只在当前出口（本机）实测；对照的 7 次请求是改动前的基线口径，
+未在本探针里重跑一遍旧路径做同时刻对照。

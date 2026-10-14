@@ -81,6 +81,26 @@ describe('connector-eastmoney dataplane（注册表模式）', () => {
     expect(urls[0]).toContain('secids=116.00700')
   })
 
+  it('用户批量刷新港股自选栏时数据面服务透传 getTickers，两种写法一次请求取全', async () => {
+    // Given 注册表上下文 + 打桩上游（一次回 116.00700 一行真实形态的港股报价）
+    const urls = stubGlobalFetch()
+    const { ctx, registrations } = makeRegistryCtx()
+    apply(ctx, { enabled: true, market: 'hk' })
+
+    // When 用户用裸码与规范形两种写法批量取同一只港股
+    const service = registrations[0]?.service as {
+      getTickers(s: string[]): Promise<Record<string, { symbol: string; name?: string; price: number }>>
+    }
+    const tickers = await service.getTickers(['700', '00700.HK'])
+
+    // Then 两个入参原字符串各占一个键、共享同一份规范形快照，且只发一次上游请求
+    expect(Object.keys(tickers).sort()).toEqual(['00700.HK', '700'])
+    expect(tickers['700']).toMatchObject({ symbol: '00700.HK', name: '腾讯控股', price: 380.2 })
+    expect(tickers['00700.HK']).toEqual(tickers['700'])
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain('secids=116.00700')
+  })
+
   it('缺省 market → isolate tradingCnMarketData + 注册 (cn, eastmoney)，且实例按 A 股解析', async () => {
     const urls = stubGlobalFetch()
     const { ctx, provided, registrations, isolateNames } = makeRegistryCtx()

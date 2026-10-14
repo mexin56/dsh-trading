@@ -69,6 +69,14 @@ export class EastmoneyMarketDataService extends Service implements MarketDataSer
     return this.client.getTicker(symbol)
   }
 
+  /**
+   * 批量最新报价（自选栏每拍取价用）：一次上游请求取多只标的。东财 ulist.np/get 原生支持
+   * 多 secid 逗号列表，cn/hk 实例都实现，故与 getSouthboundHoldings 不同、直接声明在类体上。
+   */
+  async getTickers(symbols: string[]): Promise<Record<string, Ticker>> {
+    return this.client.getTickers(symbols)
+  }
+
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
     return this.client.getKlines(symbol, interval, limit)
   }

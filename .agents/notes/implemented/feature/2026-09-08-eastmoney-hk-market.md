@@ -71,6 +71,9 @@ Status: implemented
   `data` 为空时的语义一致。
 - 同一条已失效的 `stock/get` 仍被 `connector-akshare` 与 `connector-qmt`（本地网关离线
   回退）使用；本机路由不在它们上，故本次未一并验证与改动，留任务看板的跟进卡。
+- 同一条 `ulist.np/get` 在批量场景一次传多 secid，承载 `MarketDataService.getTickers`（自选栏每拍
+  1 次请求）：行→符号用响应行的 `f13`+`f12` 拼回 secid，不依赖返回顺序；取价仍按行 `f1`。
+  契约与桥侧语义见 [批量报价能力](2026-10-14-batch-tickers-capability.md)。
 
 ## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
 
