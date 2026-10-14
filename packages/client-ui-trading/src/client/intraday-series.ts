@@ -8,17 +8,7 @@
  *   1m×1440 超交易所单次取数上限且对 56px 迷你图无视觉增益）。
  */
 import type { Kline, MarketId } from './types.ts'
-
-/** 股票市场时区（DST 由 Intl 处理）。crypto 返回 null = 滚动窗口，不做日期分组。 */
-const MARKET_TIMEZONE: Record<MarketId, string | null> = {
-  crypto: null,
-  us: 'America/New_York',
-  cn: 'Asia/Shanghai',
-  hk: 'Asia/Hong_Kong',
-  futures: 'Asia/Shanghai',
-  // 全球品种跨时区连续交易（周一 06:00 — 周六 05:00 北京时间），不做交易日分组。
-  global: null,
-}
+import { MARKET_TIMEZONE, marketLocalDay, marketLocalMinute } from './market-time.ts'
 
 export type IntradayInterval = '1m' | '5m'
 
@@ -47,10 +37,9 @@ export function selectIntradayCloses(market: MarketId, klines: readonly Kline[])
   if (klines.length === 0) return []
   const tz = MARKET_TIMEZONE[market]
   if (tz === null) return klines.map(k => k.close)
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
   const lastBar = klines[klines.length - 1] as Kline
-  const lastDay = fmt.format(lastBar.openTime)
-  return klines.filter(k => fmt.format(k.openTime) === lastDay).map(k => k.close)
+  const lastDay = marketLocalDay(tz, lastBar.openTime)
+  return klines.filter(k => marketLocalDay(tz, k.openTime) === lastDay).map(k => k.close)
 }
 
 /* ------------------------------------------------------------------ */
@@ -73,20 +62,6 @@ const SESSION_SPANS: Partial<Record<Exclude<MarketId, 'crypto'>, { spans: readon
   futures: { spans: [[540, 615], [630, 690], [810, 900], [1260, 1380]], total: 345 },
 }
 
-const timeFmtCache = new Map<string, Intl.DateTimeFormat>()
-
-function localMinutes(tz: string, openTime: number): number {
-  let fmt = timeFmtCache.get(tz)
-  if (fmt === undefined) {
-    fmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-    timeFmtCache.set(tz, fmt)
-  }
-  const parts = fmt.formatToParts(openTime)
-  const hour = Number(parts.find(p => p.type === 'hour')?.value)
-  const minute = Number(parts.find(p => p.type === 'minute')?.value)
-  return hour * 60 + minute
-}
-
 /**
  * bar 开盘时刻 → 当日交易时段内的 x 位置（0..1）。时段外（盘前/盘后/午休）
  * 钳制到最近边界：盘前→0，午休→上午收盘位置，盘后→1。
@@ -96,7 +71,7 @@ export function sessionXFraction(market: MarketId, openTime: number): number | n
   if (tz === null) return null
   const session = SESSION_SPANS[market as Exclude<MarketId, 'crypto'>]
   if (session === undefined) return null
-  const t = localMinutes(tz, openTime)
+  const t = marketLocalMinute(tz, openTime)
   let acc = 0
   for (const [start, end] of session.spans) {
     if (t <= start) return acc / session.total
@@ -114,10 +89,9 @@ export function selectIntradaySeries(market: MarketId, klines: readonly Kline[])
   if (klines.length === 0) return { closes: [] }
   const tz = MARKET_TIMEZONE[market]
   if (tz === null) return { closes: klines.map(k => k.close) }
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
   const lastBar = klines[klines.length - 1] as Kline
-  const lastDay = fmt.format(lastBar.openTime)
-  const dayBars = klines.filter(k => fmt.format(k.openTime) === lastDay)
+  const lastDay = marketLocalDay(tz, lastBar.openTime)
+  const dayBars = klines.filter(k => marketLocalDay(tz, k.openTime) === lastDay)
   return {
     closes: dayBars.map(k => k.close),
     xFractions: dayBars.map(k => sessionXFraction(market, k.openTime) ?? 0),

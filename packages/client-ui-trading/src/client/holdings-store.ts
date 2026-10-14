@@ -17,8 +17,9 @@
 import { createObservable } from './store.ts'
 import {
   fetchHoldings, fetchFx, confirmHoldings, discardHoldings, addHolding, updateHolding, removeHolding,
-  fetchMarkets, fetchTickers, fetchTradePositions, subscribeTradingEvents,
+  fetchTickers, fetchTradePositions, subscribeTradingEvents,
 } from './api.ts'
+import { ensureMarketProviders } from './market-providers.ts'
 import {
   DEFAULT_HOLDINGS_BASE_CURRENCY, HOLDINGS_BASE_CURRENCIES, HOLDINGS_BASE_CURRENCY_KEY, HOLDINGS_MARKETS,
   MARKET_DEFAULT_CURRENCY, holdingsPriceKey,
@@ -122,29 +123,10 @@ export async function reloadHoldingsBook(): Promise<void> {
   }
 }
 
-/** 各市场 provider 名缓存（live 持仓的 account 标签；拉一次）。 */
-let providers: Partial<Record<MarketId, string>> | null = null
-
-async function ensureProviders(): Promise<Partial<Record<MarketId, string>>> {
-  if (providers !== null) return providers
-  try {
-    const markets = await fetchMarkets()
-    const map: Partial<Record<MarketId, string>> = {}
-    for (const info of markets) {
-      if (info.provider !== undefined && (HOLDINGS_MARKETS as readonly string[]).includes(info.id)) {
-        map[info.id as MarketId] = info.provider
-      }
-    }
-    providers = map
-  } catch {
-    /* 下轮重试（providers 保持 null） */
-  }
-  return providers ?? {}
-}
-
 /** live 源（契约 §6.4）：四个市场逐个 GET /trade/positions?market=，失败静默跳过。 */
 export async function refreshLiveTagged(): Promise<void> {
-  const providersNow = await ensureProviders()
+  // provider 名（live 持仓的 account 标签）取自市场级单一缓存，见 market-providers.ts。
+  const providersNow = await ensureMarketProviders()
   const perMarket = await Promise.all(HOLDINGS_MARKETS.map(async (m): Promise<TaggedPosition[]> => {
     const result = await fetchTradePositions(m)
     if (result.rows === null) return [] // 未挂交易连接器/凭证缺失/失败 → 该市场静默跳过

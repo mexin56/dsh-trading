@@ -15,6 +15,7 @@ import type { Observable, SelectionState, WatchlistGroupOpResult, WatchlistGroup
 import { rowsFor } from './store.ts'
 import { changePercent, directionColor, fmtPercent, fmtPrice } from './format.ts'
 import { intradayCandidates, intradayRequest, selectIntradaySeries } from './intraday-series.ts'
+import { publishMarketProviders } from './market-providers.ts'
 import { colorModeStore } from './color-mode.ts'
 import { entryForm, entryMeta, formBadgeKey, resolveAssetClass, type InstrumentMeta } from './instrument-meta.ts'
 import { MARKET_TAB_KEY, normalizeSymbolInput } from './market-vocab.ts'
@@ -131,7 +132,7 @@ export function MarketSidebar({
   const reloadMarkets = useRef((): void => {})
   reloadMarkets.current = () => {
     fetchMarkets()
-      .then((infos) => { setMarkets(infos); setLoadError(false) })
+      .then((infos) => { setMarkets(infos); setLoadError(false); publishMarketProviders(infos) })
       .catch(() => { setLoadError(true) })
   }
   useEffect(() => { reloadMarkets.current() }, [])
