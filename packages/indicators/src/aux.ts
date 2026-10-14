@@ -6,6 +6,12 @@
  * 公布，与 K 线周期不对应）。本模块定义该注入缝的类型与对齐纯函数：指标用
  * definition.aux 声明需要的序列键，宿主按需 prefetch 后以同名键注入
  * definition.computeAux 的第三参。
+ *
+ * 两条注入通道的语义差别（2026-10-14 逐根通道）：
+ * - `aux` = **日频外部序列**（按交易日公布，与 K 线周期不对应）。宿主取不到数据
+ *   时不得调用 computeAux，消费方据此**整体隐藏**该指标实例——空 ≠ 0。
+ * - `barAux` = **级别相关的增强通道**：宿主按当前 K 线级别逐根算好整条序列后
+ *   注入 computeBarAux。它是增强而非数据源，缺失时指标**回落 compute**，绝不隐藏。
  */
 import type { Kline } from './types.ts'
 
@@ -24,6 +30,28 @@ export type AuxSeriesKey = string
 
 /** 注入进 compute 的外部序列集合：键 = 指标 definition.aux 声明的键。 */
 export type AuxSeriesMap = Readonly<Record<string, readonly AuxPoint[]>>
+
+/** 逐根序列来源键（开放词汇；当前有 'five-day-volume-tiers'）。 */
+export type AuxBarSeriesKey = string
+
+/** 逐根序列集合：键 = definition.barAux 声明的键。 */
+export type AuxBarSeriesMap = Readonly<Record<string, readonly (number | undefined)[]>>
+
+/**
+ * 逐根序列的值不变量（宿主注入方的契约，消费方按此写纯函数）：
+ * - 值数组长度**严格等于** bars.length（逐根对齐，不做前向填充、不做区间匹配）；
+ * - `undefined` = 该根无值（指标据此留空，不是 0）；
+ * - 数组元素只可能是有限数或 undefined，绝不出现 NaN/Infinity。
+ */
+
+/** 五日成交量档位通道键（冻结字面量）。 */
+export const FIVE_DAY_VOLUME_TIER_AUX_KEY: AuxBarSeriesKey = 'five-day-volume-tiers'
+
+/** 逐根档位编码词汇：下标即编码值。0 = 不可判（无前值/基准日/前值无量），1..4 = 量比四档。 */
+export const FIVE_DAY_VOLUME_TIER_CODES = ['noPrior', 'lt1', 'lt2', 'lt3', 'gte3'] as const
+
+/** 逐根档位编码（{@link FIVE_DAY_VOLUME_TIER_CODES} 的下标）。 */
+export type FiveDayVolumeTierCode = 0 | 1 | 2 | 3 | 4
 
 /**
  * 把日频外部序列对齐到 K 线序列：对每根 K 线取「date ≤ 该 K 线所属交易日」的

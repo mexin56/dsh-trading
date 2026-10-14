@@ -1,13 +1,14 @@
 /**
  * TradingView lightweight-charts v5 封装——中栏行情渲染器（富途牛牛视觉风格）。
  *
- * 结构：pane 0 = 蜡烛 + 主图叠加指标；pane 1 = 成交量；pane 2+ = 每个
- * 副图指标独占一 pane（v5 原生 panes）。渲染层对指标实现零感知，只消费
- * 注册表 compute 的输出（@dshtrading/indicators 注册表）。
+ * 结构：pane 0 = 蜡烛 + 主图叠加指标；pane 1+ = 每个副图指标独占一 pane
+ * （v5 原生 panes）。图表没有内置成交量 pane——成交量由指标名册里的 `vol`
+ * 指标（普通副图组）渲染，取消勾选即整个 pane 消失、下方副图随之上移。渲染层
+ * 对指标实现零感知，只消费注册表 compute 的输出（@dshtrading/indicators 注册表）。
  *
- * pane 内 legend：VOL（pane 1）与副图指标（pane 2+）的读数以绝对定位
- * overlay 显示在各自 pane 左上角（悬停跟随 readoutIndex，离场回落最新值）；
- * 主图指标读数由 QuoteStage 的读数行承载，不在这里重复。
+ * pane 内 legend：副图指标（pane 1+）的读数以绝对定位 overlay 显示在各自
+ * pane 左上角（悬停跟随 readoutIndex，离场回落最新值）；主图指标读数由
+ * QuoteStage 的读数行承载，不在这里重复。
  *
  * 视觉对齐：
  * - 红涨绿跌（#e64545 / #2ba471）
@@ -22,13 +23,13 @@ import type {
   Coordinate, IChartApi, ISeriesApi, ISeriesMarkersPluginApi, Logical, LogicalRange, MouseEventParams, SeriesType, Time, UTCTimestamp,
 } from 'lightweight-charts'
 import type { BarPrice, PriceFormatCustom } from 'lightweight-charts'
-import { fmtAxis, fmtCompact, priceDigits } from './format.ts'
+import { fmtAxis, priceDigits } from './format.ts'
 import { AXIS_FONT_FAMILY, AXIS_FONT_SIZE, AXIS_SCALE_MARGIN, axisMinimumWidth, percentLabel, percentLabelCandidates } from './axis-width.ts'
 import { getColorPalette, type ColorMode } from './color-mode.ts'
 import { resolveHistogramBarColor, resolveOutputColor } from './indicator-color.ts'
 import { isDarkTheme, useDarkTheme } from './theme-mode.ts'
 import { chartXToContainerX, containerXToChartX, visibleDayMarkXs } from './chart-coordinate.ts'
-import { fiveDayVolumeColor, fiveDayWheelStep, viewportResetStrategy, type FiveDayTier } from './five-day-series.ts'
+import { fiveDayWheelStep, viewportResetStrategy } from './five-day-series.ts'
 import type { IndicatorOutput } from '@dshtrading/indicators'
 import type { Kline } from './types.ts'
 
@@ -40,12 +41,6 @@ export interface TvBar {
   high: number
   low: number
   close: number
-}
-
-export interface TvVolume {
-  time: UTCTimestamp
-  value: number
-  color: string
 }
 
 /** 一个指标实例的渲染输入（key = instanceKey，diff 锚点）。 */
@@ -91,7 +86,6 @@ export interface MarkerHoverInfo {
 
 export interface TvChartProps {
   bars: readonly TvBar[]
-  volumes: readonly TvVolume[]
   /** market:symbol:interval——变化即全量重置并 fitContent。 */
   dataKey: string
   intraday: boolean
@@ -116,8 +110,6 @@ export interface TvChartProps {
   onMarkerHover?: (info: MarkerHoverInfo | null) => void
   /** 信号标记图上的短文案（买入/卖出，词典驱动）。 */
   markerTexts?: { entry: string; exit: string } | undefined
-  /** 数值紧凑单位 locale（zh = 亿/万，en = K/M/B；缺省 zh 现网口径）。 */
-  numLocale?: 'zh' | 'en' | undefined
   liveText?: string | undefined
   /**
    * 右键某根 K 线（KDAS 关键日菜单入口）：index = 命中柱逻辑下标，x/y = 容器坐标。
@@ -127,12 +119,12 @@ export interface TvChartProps {
    */
   onBarContextMenu?: (info: { index: number; x: number; y: number }) => boolean
   /**
-   * 五日级别（客户端视图级别 '5d'）：x 轴跨 5 个交易日拼接，成交量按「同分钟
-   * 量比」分档着色（不受红涨绿跌影响）。dayStarts = 除显示窗口首日外每个交易日
-   * 首根 bar 的 UTC 秒（日界竖线与日期刻度）；volumeTiers 与 bars 一一对齐。
-   * 缺省即普通级别（成交量用涨跌色）。
+   * 五日级别（客户端视图级别 '5d'）：x 轴跨 5 个交易日拼接。dayStarts = 除显示
+   * 窗口首日外每个交易日首根 bar 的 UTC 秒（日界竖线与日期刻度）。成交量档位色
+   * 由 `vol` 指标经 dispatch 的 barAux 通道自带，图表侧不参与。
+   * 缺省即普通级别。
    */
-  fiveDay?: { dayStarts: readonly number[]; volumeTiers: readonly FiveDayTier[] } | undefined
+  fiveDay?: { dayStarts: readonly number[] } | undefined
   /**
    * 五日级别的滚轮换档（-1 = 少显示一个交易日，+1 = 多显示一个）。给了即表示当前
    * 处于五日级别：库的滚轮缩放让位给换档——键在**级别**而不是数据是否到位，否则
@@ -162,6 +154,15 @@ export function toBar(kline: Kline): TvBar {
 }
 
 /**
+ * 副图指标的 pane 序号：pane 0 归蜡烛 + 主图叠加，副图从 pane 1 起按激活顺序
+ * 排列。图表不再有内置成交量 pane，所以第一个副图指标（含 `vol`）就是 pane 1；
+ * 取消勾选后剩余副图整体前移。序列创建与 legend 定位共用这一处序号来源。
+ */
+export function subIndicatorPaneIndex(groupIndex: number): number {
+  return 1 + groupIndex
+}
+
+/**
  * 右轴价格格式（2026-09-02 相对涨跌幅轴）：镜像序列的数值仍是**价位**，仅
  * 标签经本 formatter 换算为相对参考价的百分比——两轴刻度行逐行对齐的关键。
  * 参考价从 refPriceRef 惰性读取（滚动/缩放时经 applyOptions 换新对象强制重绘）。
@@ -175,29 +176,6 @@ function mirrorPercentFormat(refPriceRef: { current: number | null }): PriceForm
     // minimumWidth 偏窄、抖动回归，且没有任何测试能发现。
     formatter: (price: BarPrice): string => percentLabel(Number(price), refPriceRef.current),
   }
-}
-
-export function toVolume(kline: Kline, colorMode: ColorMode = 'red-up'): TvVolume {
-  const up = kline.close >= kline.open
-  const palette = getColorPalette(colorMode)
-  return {
-    time: Math.floor(kline.openTime / 1000) as UTCTimestamp,
-    value: kline.volume,
-    color: up ? palette.upAlpha(0.55) : palette.downAlpha(0.55),
-  }
-}
-
-/**
- * 成交量数据（含主题与级别口径）：普通级别 = 涨跌色（红涨绿跌设置驱动）；
- * 五日级别 = 量比分档色（主题驱动，红涨绿跌设置不参与）。
- */
-function resolveVolumes(props: TvChartProps, dark: boolean): readonly TvVolume[] {
-  const fiveDay = props.fiveDay
-  if (fiveDay === undefined) return props.volumes
-  return props.volumes.map((volume, index) => ({
-    ...volume,
-    color: fiveDayVolumeColor(fiveDay.volumeTiers[index] ?? 'noPrior', dark),
-  }))
 }
 
 const pad2 = (n: number): string => String(n).padStart(2, '0')
@@ -334,7 +312,7 @@ export function getChartThemeOptions(dark: boolean) {
 }
 
 function TvChartImpl(props: TvChartProps): React.JSX.Element {
-  const { bars, volumes, dataKey, mainOverlays, subIndicators, readoutIndex } = props
+  const { bars, dataKey, mainOverlays, subIndicators, readoutIndex } = props
 
   const dark = useDarkTheme()
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -343,7 +321,6 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
   const markerPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
   /** 当前图上标记的元数据（命中检测用；与 markerPlugin 的 markers 同步重建）。 */
   const markerMetaRef = useRef<MarkerMeta[]>([])
-  const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
   /** 右轴镜像序列（透明）：top/bottom 钉范围，close 供轴上百分比徽标。 */
   const mirrorTopRef = useRef<ISeriesApi<'Line'> | null>(null)
   const mirrorBottomRef = useRef<ISeriesApi<'Line'> | null>(null)
@@ -421,13 +398,6 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     })
     candleRef.current = candles
 
-    const volume = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }, 1)
-    volumeRef.current = volume
-
     // 右轴镜像序列（主图 pane）：三根透明 LineSeries 把右轴数值范围钉在与左轴
     // 完全相同的价位集合上（最高/最低包络对齐蜡烛+主图指标的 autoscale 范围，
     // 收盘序列负责轴上当前价百分比徽标）。百分比只出现在标签 formatter 里——
@@ -486,7 +456,6 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       markerPluginRef.current?.detach()
       markerPluginRef.current = null
       markerMetaRef.current = []
-      volumeRef.current = null
       mirrorTopRef.current = null
       mirrorBottomRef.current = null
       mirrorCloseRef.current = null
@@ -503,8 +472,8 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     chart.applyOptions(themeOpts)
   }, [dark])
 
-  // 涨跌配色/主题/级别热切换：蜡烛换色 + 成交量整表重着色（五日级别下量比档位色
-  // 随主题走，与红涨绿跌设置无关；普通级别下仍是涨跌色）。
+  // 涨跌配色热切换：蜡烛换色（成交量由 `vol` 指标按自己的语义色渲染，不随
+  // 红涨绿跌设置走，图表侧不再整表重着色）。
   useEffect(() => {
     const palette = getColorPalette(props.colorMode)
     candleRef.current?.applyOptions({
@@ -515,21 +484,16 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
       wickUpColor: palette.upColor,
       wickDownColor: palette.downColor,
     })
-    if (volumeRef.current && props.volumes.length > 0) {
-      volumeRef.current.setData(resolveVolumes(props, dark) as TvVolume[])
-    }
-  }, [props.colorMode, props.volumes, dark, props.fiveDay])
+  }, [props.colorMode])
 
-  // ---- 蜡烛/成交量：dataKey 变化全量重置，否则尾部增量 ----
-  const prevRef = useRef<{ key: string; bars: readonly TvBar[]; volumes: readonly TvVolume[] } | null>(null)
+  // ---- 蜡烛：dataKey 变化全量重置，否则尾部增量 ----
+  const prevRef = useRef<{ key: string; bars: readonly TvBar[] } | null>(null)
   useEffect(() => {
     const candles = candleRef.current
-    const volume = volumeRef.current
     const chart = chartRef.current
-    if (candles === null || volume === null || chart === null) return
+    if (candles === null || chart === null) return
     const prev = prevRef.current
-    const resolved = resolveVolumes(props, dark)
-    prevRef.current = { key: dataKey, bars, volumes }
+    prevRef.current = { key: dataKey, bars }
 
     const last = bars[bars.length - 1]
     const up = last !== undefined ? last.close >= last.open : true
@@ -542,7 +506,6 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
 
     if (prev === null || prev.key !== dataKey || bars.length < prev.bars.length || firstTimeDiffers(prev.bars, bars)) {
       candles.setData(bars as TvBar[])
-      volume.setData(resolved as TvVolume[])
       if (viewportResetStrategy(props.fiveDay !== undefined) === 'fit-window') {
         // 五日级别：默认铺满整个 5 日窗口（5 段拼接 + 4 条日界可见）。主题设了
         // fixLeftEdge/fixRightEdge，此时库的 minBarSpacing 下限正好等于「全部点铺满」，
@@ -557,9 +520,8 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     }
     for (let index = Math.max(prev.bars.length - 1, 0); index < bars.length; index++) {
       candles.update(bars[index] as TvBar)
-      volume.update(resolved[index] as TvVolume)
     }
-  }, [bars, volumes, dataKey, props.colorMode, dark, props.fiveDay])
+  }, [bars, dataKey, props.colorMode, props.fiveDay])
 
   // ---- 五日级别日界竖线：日界时刻 → 容器 x 坐标（滚动/缩放/换数据都要重算） ----
   const [dayMarks, setDayMarks] = useState<number[]>([])
@@ -725,7 +687,7 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
     if (chart === null) return
     const timeAxis = bars.map(bar => bar.time)
     syncIndicators(chart, mainRefs.current, mainOverlays, timeAxis, false, 0, dark)
-    syncIndicators(chart, subRefs.current, subIndicators, timeAxis, true, 2, dark)
+    syncIndicators(chart, subRefs.current, subIndicators, timeAxis, true, subIndicatorPaneIndex(0), dark)
     applyStretch(chart)
   }, [mainOverlays, subIndicators, bars, props.colorMode, dark])
 
@@ -911,7 +873,6 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
   })()
 
   const monoFont = AXIS_FONT_FAMILY
-  const volumeReadout = readoutIndex !== null ? volumes[readoutIndex] : undefined
 
   return (
     <div
@@ -964,15 +925,10 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
           }}
         />
       ))}
-      {/* pane 1 legend：成交量读数（值按富途式蓝色着色） */}
-      {paneTops[1] !== undefined && volumeReadout !== undefined && (
-        <div style={{ position: 'absolute', left: 8, top: paneTops[1] + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, color: 'var(--dsw-futu-text-secondary, #5f6672)', fontWeight: 600 }}>
-          VOL: <span style={{ color: '#2563eb' }}>{fmtCompact(volumeReadout.value, props.numLocale ?? 'zh')}</span>
-        </div>
-      )}
-      {/* pane 2+ legend：副图指标读数（分量按输出色着色，组名打头） */}
+      {/* pane 1+ legend：副图指标读数（分量按输出色着色，组名打头；pane 序号与
+          序列创建同源——第一个副图指标即 pane 1，无成交量特例读数块） */}
       {subIndicators.map((group, groupIndex) => {
-        const top = paneTops[2 + groupIndex]
+        const top = paneTops[subIndicatorPaneIndex(groupIndex)]
         if (top === undefined || readoutIndex === null) return null
         return (
           <div key={group.key} style={{ position: 'absolute', left: 8, top: top + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, display: 'flex', gap: 8 }}>
@@ -1038,7 +994,7 @@ function hitTestMarker(
   return info
 }
 
-/** 主图叠加（pane 0）与副图（pane 2+，重建式）两套 diff 策略。 */
+/** 主图叠加（pane 0）与副图（pane 1+，重建式）两套 diff 策略。 */
 function syncIndicators(
   chart: IChartApi,
   refs: Map<string, Map<string, ISeriesApi<SeriesType>>>,
@@ -1091,6 +1047,25 @@ function outputDigits(output: IndicatorOutput): number {
 }
 
 /**
+ * `IndicatorOutput.priceFormat` 的结构化视图：只声明本文件真正读取的这一个可选字段，
+ * 不复制 IndicatorOutput 本体。indicators 包该字段与客户端非同步落地，用结构化视图
+ * 读它既能立刻编译，也在字段落地后自动对齐（同一类型，无本地副本）。
+ */
+type PriceFormatField = { priceFormat?: 'price' | 'volume' | undefined }
+
+/**
+ * 输出 → lightweight-charts priceFormat：`priceFormat: 'volume'` 的输出（成交量类指标）
+ * 取库的紧凑量格式（亿/万、K/M/B），成交量 pane 纵轴不再显示成 `12000000.00`；其余
+ * 输出维持 `{ type:'price', precision, minMove }`（precision/minMove 同源于 outputDigits，
+ * 与十字线/轴标签分辨率一致）。缺省即 'price'，存量输出逐字不变。
+ */
+export function outputPriceFormat(output: IndicatorOutput): { type: 'price'; precision: number; minMove: number } | { type: 'volume' } {
+  if ((output as PriceFormatField).priceFormat === 'volume') return { type: 'volume' as const }
+  const digits = outputDigits(output)
+  return { type: 'price' as const, precision: digits, minMove: 1 / 10 ** digits }
+}
+
+/**
  * 已存在序列的颜色重放：颜色只在 createSeries 建序列时读过一次，复用路径（主图
  * 叠加 recreateAll=false）不重建序列，主题热切换后必须显式 applyOptions 才能重着色。
  * 只在解析色与序列当前色不同时才写——无 themeColor 的输出解析结果恒等于 output.color，
@@ -1115,9 +1090,9 @@ function applySeriesColor(series: ISeriesApi<SeriesType>, output: IndicatorOutpu
 function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: number, dark: boolean): ISeriesApi<SeriesType> {
   // 主图叠加（pane 0）与蜡烛同住左轴价格刻度；副图 pane 保持各自默认右轴。
   const priceScaleId = paneIndex === 0 ? { priceScaleId: 'left' as const } : {}
-  // 序列 priceFormat 与缺省（precision 2 / minMove 0.01）一致，显式传入以支持
-  // 自定义指标按 output.precision 提高十字线/轴标签分辨率。
-  const priceFormat = { type: 'price' as const, precision: outputDigits(output), minMove: 1 / 10 ** outputDigits(output) }
+  // 序列 priceFormat 由 output.priceFormat 决定：成交量类输出走库的紧凑量格式，
+  // 其余显式传入按 output.precision 提高十字线/轴标签分辨率（见 outputPriceFormat）。
+  const priceFormat = outputPriceFormat(output)
   // 线/柱主色按当前主题解析（themeColor 缺省回落 output.color）；area 的填充
   // 渐变（topColor/bottomColor）沿用 output.color 的既有语义，不参与主题取色。
   const color = resolveOutputColor(output, dark)
@@ -1199,7 +1174,7 @@ function firstTimeDiffers(prev: readonly TvBar[], next: readonly TvBar[]): boole
 
 /**
  * Memo boundary: QuoteStage 的秒级时钟、面板开关、轮询 setState 都会重渲染父树，
- * 但只有图表真正消费的 props（bars/volumes/readoutIndex/指标/标记/色彩模式）变化时
+ * 但只有图表真正消费的 props（bars/readoutIndex/指标/标记/色彩模式）变化时
  * 才需要重建 lightweight-charts 视图。其余重渲染在此短路。
  */
 export const TvChart = memo(TvChartImpl)

@@ -20,7 +20,9 @@ Status: implemented
 
 - **图表引擎 = TradingView lightweight-charts v5**（`chart.addSeries(SeriesDef,
   opts, paneIndex)` 原生多 pane）。封装在 `TvChart.tsx`：pane 0 蜡烛 + 主图叠加
-  指标，pane 1 成交量，pane 2+ 每个副图指标独占（`setStretchFactor` 主 4 副 1）；
+  指标，pane 1+ 每个副图指标独占（`setStretchFactor` 主 4 副 1）；图表不再有内置
+  成交量 pane——成交量是普通副图指标 `vol`，取消勾选即整块消失（见
+  [volume-indicator-and-bar-aux-channel](2026-10-14-volume-indicator-and-bar-aux-channel.md)）；
   十字线经 `subscribeCrosshairMove` 的 `logical` 回调父级刷 OHLC 读数；时间轴
   formatter 复用 `fmtAxis` 本地时区口径；`autoSize` 挂容器自适应。
 - **指标系统 = 注册表 + 实例**（`indicators/registry.ts`）：definition 携带
@@ -83,14 +85,16 @@ Status: implemented
      日）；接线按**级别**给（`onFiveDayWheel`，与数据是否到位无关），不是按数据到位
      与否——否则换级别后 1m 在途那一瞬滚轮会退回缩放。档位是 QuoteStage 的组件态
      （会话内记住，重挂载回默认档 1），换档即截断序列并走同一条重置路径，于是每档
-     都自动铺满整幅。成交量色由 `fiveDayVolumeColor(档位, 深色)` 给出，
-     **不受红涨绿跌设置影响**（读的是量比不是涨跌）：亮色 r<1 `#d9a01f`、1≤r<2
-     `#ee7f72`、2≤r<3 `#c62828`、r≥3 `#1c1c1e`，中性灰 `#a8adb8`；深色对应
-     `#e8c552` / `#f0958b` / `#e5484d` / `#f2f4f8`、中性灰 `#6b7280`。深色主题的取舍：
-     深色底上字面黑不可辨认，最高档改用近白承载同一语义（「最极端量比」），四档与
-     中性灰在两套主题下互不同色；图表下方图例色块与柱色同源，不会出现图例与图形不一致。
-      同一组档位色与量比口径另由全级别通用的预置指标 `vol-tier` 逐档镜像（`packages/indicators/src/presets.ts`，
-      色值以本表为唯一事实来源，见 [volume-tier-indicator-generalization](2026-10-14-volume-tier-indicator-generalization.md)）。
+     都自动铺满整幅。成交量柱的档位色不再由图表层施加：这一级别算出的档位序列经逐根通道
+     `barAux` 注入成交量指标 `vol`，柱色由它的档位色输出给出，**不受红涨绿跌设置影响**（读的是
+     量比不是涨跌）：亮色 r<1 `#d9a01f`、1≤r<2 `#ee7f72`、2≤r<3 `#c62828`、r≥3 `#1c1c1e`，
+    中性灰 `#a8adb8`；深色对应 `#e8c552` / `#f0958b` / `#e5484d` / `#f2f4f8`、中性灰
+    `#6b7280`（`fiveDayVolumeColor` 读的仍是本表，用于图表下方图例色块）。深色主题的取舍：
+    深色底上字面黑不可辨认，最高档改用近白承载同一语义（「最极端量比」），四档与
+    中性灰在两套主题下互不同色；图例色块与柱色同源，不会出现图例与图形不一致。
+     同一组档位色与量比口径另由全级别通用的预置指标 `vol-tier` 逐档镜像（`packages/indicators/src/presets.ts`，
+     色值以本表为唯一事实来源，见 [volume-tier-indicator-generalization](2026-10-14-volume-tier-indicator-generalization.md)）；
+     成交量指标 `vol` 消费的档位通道见 [volume-indicator-and-bar-aux-channel](2026-10-14-volume-indicator-and-bar-aux-channel.md)。
   4. **节奏与记忆**：该级别重取 60s（一次约 1200-1950 根，30s 全量重取等于把上游配额
      翻倍），盘中最新一根仍由既有 ticker 5s 合并推进；级别记忆读回按「市场是否属于
      五日级别可能可得族」接受 `'5d'`，路由明确不可得时由守卫回落到 `1d` 并改写记忆

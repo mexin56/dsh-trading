@@ -33,3 +33,7 @@ client-ui-trading vitest 53 文件 450 用例全绿。
 - pane 几何相关后续改动（分隔线拖拽、stretch、pane 增删）务必把「容器高 =
   Σpane 高 + Σ分隔条 + 时间轴高」恒等式记全，反推量只能来自扣除时间轴后
   的差值。
+- **pane 序号后续变化**：内置成交量 pane 已删除，副图 pane 从 1 起编号
+  （`subIndicatorPaneIndex`）；本 note 里的 `pane 1 = 成交量` 是当时的下标事实，
+  `paneTops` 测量逻辑与「pane 越靠后下漂越多」的结论本身未变（与 pane 数量无关）。
+  见 [volume-indicator-and-bar-aux-channel](../architecture/2026-10-14-volume-indicator-and-bar-aux-channel.md)。

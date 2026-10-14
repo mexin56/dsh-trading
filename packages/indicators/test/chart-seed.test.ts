@@ -1,7 +1,7 @@
 /**
  * 默认勾选补种单测（真实文件 + 真实账本，零 mock）：一次性语义（首次种入、重复调用
  * 返回空）、用户删除后不复活、名册已有该 id 时不覆盖用户参数、账本已记不重复、
- * 参数取 definition 的 schema 默认、账本文件形状、跨实例并发只种一次。
+ * 参数取 definition 的 schema 默认、多条默认勾选一次种完、账本文件形状、跨实例并发只种一次。
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -52,24 +52,24 @@ describe('默认勾选补种', () => {
     const seeded = await seedDefaultChartActivations(store, ledger)
 
     // Then 只有声明 defaultActive 的预置指标被种入，参数取 definition 默认值
-    expect(seeded).toEqual(['vol-tier'])
-    expect(await store.list()).toEqual([{ id: 'vol-tier', params: { n: 4 } }])
-    // Then 账本记下补种过的 id
-    expect(await ledger.list()).toEqual(['vol-tier'])
+    expect(seeded).toEqual(['vol', 'vol-tier'])
+    expect(await store.list()).toEqual([{ id: 'vol', params: {} }, { id: 'vol-tier', params: { n: 4 } }])
+    // Then 账本记下补种过的 id（顺序 = 预置名册顺序：成交量在量比分档量能之前）
+    expect(await ledger.list()).toEqual(['vol', 'vol-tier'])
   })
 
   it('用户再次启动宿主时，补种不再发生且名册保持原样', async () => {
     // Given 已经补种过一次的工作区
     const { store, ledger } = await workspace()
-    expect(await seedDefaultChartActivations(store, ledger)).toEqual(['vol-tier'])
+    expect(await seedDefaultChartActivations(store, ledger)).toEqual(['vol', 'vol-tier'])
 
     // When 再补种一次
     const second = await seedDefaultChartActivations(store, ledger)
 
     // Then 返回空且名册不变（幂等）
     expect(second).toEqual([])
-    expect(await store.list()).toEqual([{ id: 'vol-tier', params: { n: 4 } }])
-    expect(await ledger.list()).toEqual(['vol-tier'])
+    expect(await store.list()).toEqual([{ id: 'vol', params: {} }, { id: 'vol-tier', params: { n: 4 } }])
+    expect(await ledger.list()).toEqual(['vol', 'vol-tier'])
   })
 
   it('用户在图上删掉默认勾选的指标后，重启宿主不会把它复活', async () => {
@@ -77,13 +77,14 @@ describe('默认勾选补种', () => {
     const { store, ledger } = await workspace()
     await seedDefaultChartActivations(store, ledger)
 
-    // When 用户手动删掉它
+    // When 用户手动把两条默认勾选的指标都删掉
+    expect(await store.deactivate('vol')).toBe(true)
     expect(await store.deactivate('vol-tier')).toBe(true)
 
     // Then 再次补种返回空、名册保持空（账本已记，删除是用户意图）
     expect(await seedDefaultChartActivations(store, ledger)).toEqual([])
     expect(await store.list()).toEqual([])
-    expect(await ledger.list()).toEqual(['vol-tier'])
+    expect(await ledger.list()).toEqual(['vol', 'vol-tier'])
   })
 
   it('用户自己先把该指标挂上图时，补种不覆盖其参数但记账，删除后同样不复活', async () => {
@@ -94,15 +95,15 @@ describe('默认勾选补种', () => {
     // When 宿主补种一次
     const seeded = await seedDefaultChartActivations(store, ledger)
 
-    // Then 用户参数原样保留（不重复激活），但已记账
-    expect(seeded).toEqual(['vol-tier'])
-    expect(await store.list()).toEqual([{ id: 'vol-tier', params: { n: 9 } }])
-    expect(await ledger.list()).toEqual(['vol-tier'])
+    // Then 用户参数原样保留（不重复激活），但已记账（名册顺序 = 用户先挂的先在，补种的追加在后）
+    expect(seeded).toEqual(['vol', 'vol-tier'])
+    expect(await store.list()).toEqual([{ id: 'vol-tier', params: { n: 9 } }, { id: 'vol', params: {} }])
+    expect(await ledger.list()).toEqual(['vol', 'vol-tier'])
 
-    // Then 用户随后删掉它，重启也不复活
+    // Then 用户随后删掉它，重启也不复活（另一条未删的默认勾选指标仍在名册里）
     expect(await store.deactivate('vol-tier')).toBe(true)
     expect(await seedDefaultChartActivations(store, ledger)).toEqual([])
-    expect(await store.list()).toEqual([])
+    expect(await store.list()).toEqual([{ id: 'vol', params: {} }])
   })
 
   it('用户查看账本文件时，它是 { seeded: [...] } 形状且与 chart.json 同级', async () => {
@@ -113,7 +114,7 @@ describe('默认勾选补种', () => {
     await seedDefaultChartActivations(store, ledger)
 
     // Then 账本落盘形状冻结为 { seeded: [...] }（独立文件，不进 chart.json 整表覆盖）
-    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol-tier'] })
+    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol', 'vol-tier'] })
     expect(path.basename(seedPath)).toBe('chart-seed.json')
   })
 
@@ -153,6 +154,37 @@ describe('默认勾选补种', () => {
     expect(await seedDefaultActivations(store, [definition], ledger)).toEqual([])
   })
 
+  it('用户的名册里同时有两条默认勾选定义时，两条都按各自默认参数被种入、账本记两条', async () => {
+    // Given 两条默认勾选定义（一条带参数默认 7、一条无参数）
+    const { store, ledger } = await workspace()
+    const first: IndicatorDefinition = {
+      id: 'demo-first',
+      pane: 'sub',
+      title: '演示一',
+      params: [{ key: 'n', label: '周期', default: 7, min: 1, max: 9 }],
+      defaultActive: true,
+      compute: () => [],
+    }
+    const second: IndicatorDefinition = {
+      id: 'demo-second',
+      pane: 'sub',
+      title: '演示二',
+      params: [],
+      defaultActive: true,
+      compute: () => [],
+    }
+
+    // When 补种一次
+    const seeded = await seedDefaultActivations(store, [first, second], ledger)
+
+    // Then 两条都种入、各按自己的 schema 默认参数落地（顺序 = 名册顺序）
+    expect(seeded).toEqual(['demo-first', 'demo-second'])
+    expect(await store.list()).toEqual([{ id: 'demo-first', params: { n: 7 } }, { id: 'demo-second', params: {} }])
+    // Then 账本记两条，重复调用不再补种
+    expect(await ledger.list()).toEqual(['demo-first', 'demo-second'])
+    expect(await seedDefaultActivations(store, [first, second], ledger)).toEqual([])
+  })
+
   it('用户传入重复的同一条默认勾选定义时，它只被种一次、账本也只记一条', async () => {
     // Given 同一个定义在名册里出现两次
     const { store, ledger } = await workspace()
@@ -183,8 +215,8 @@ describe('默认勾选补种', () => {
     const seeded = await seedDefaultChartActivations(store, ledger)
 
     // Then 坏文件只降级为「没记过」（不抛错），补种照常发生且账本被重写为正确形状
-    expect(seeded).toEqual(['vol-tier'])
-    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol-tier'] })
+    expect(seeded).toEqual(['vol', 'vol-tier'])
+    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol', 'vol-tier'] })
   })
 
   it('用户账本里混入脏条目时，只认合法 id 且重复 id 不重复补种', async () => {
@@ -195,10 +227,10 @@ describe('默认勾选补种', () => {
     // When 补种一次
     const seeded = await seedDefaultChartActivations(store, ledger)
 
-    // Then 已记过的 id 不再补种、名册保持空，读取只回合法 id
-    expect(seeded).toEqual([])
-    expect(await store.list()).toEqual([])
-    expect(await ledger.list()).toEqual(['vol-tier'])
+    // Then 已记过的 id 不再补种、未记过的 vol 照常种入，读取只回合法 id
+    expect(seeded).toEqual(['vol'])
+    expect(await store.list()).toEqual([{ id: 'vol', params: {} }])
+    expect(await ledger.list()).toEqual(['vol-tier', 'vol'])
   })
 
   it('用户同时开两个宿主实例（桌面端与 CLI）时，同一个指标只被种一次', async () => {
@@ -214,8 +246,9 @@ describe('默认勾选补种', () => {
     ])
 
     // Then 只有一侧真正记账，名册与账本都只有一份
-    expect(results.flat()).toEqual(['vol-tier'])
-    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol-tier'] })
-    expect(await createFileChartActivationStore(chartPath).list()).toEqual([{ id: 'vol-tier', params: { n: 4 } }])
+    expect(results.flat()).toEqual(['vol', 'vol-tier'])
+    expect(await ledgerOnDisk(seedPath)).toEqual({ seeded: ['vol', 'vol-tier'] })
+    expect(await createFileChartActivationStore(chartPath).list())
+      .toEqual([{ id: 'vol', params: {} }, { id: 'vol-tier', params: { n: 4 } }])
   })
 })

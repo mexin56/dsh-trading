@@ -6,7 +6,7 @@
  * 「取 holdRatio 口径」「无数据则整体隐藏」「换标的丢弃在途应答」；渲染层在 jsdom
  * 里挂不起图表（lightweight-charts 需 canvas），纯函数是唯一能钉住行为的落点。
  */
-import type { AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance } from '@dshtrading/indicators'
+import type { AuxBarSeriesMap, AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance } from '@dshtrading/indicators'
 import { isDefinitionAvailableOn } from '@dshtrading/indicators'
 import type { SouthboundHoldingHistory } from '@dshtrading/api'
 import type { ActiveBuyHistory } from './api.ts'
@@ -112,6 +112,23 @@ export function auxSeriesReady(definition: Pick<IndicatorDefinition, 'aux'>, ser
   const keys = definition.aux ?? []
   if (keys.length === 0) return true
   return keys.every(key => (series[key]?.length ?? 0) > 0)
+}
+
+/**
+ * 该 definition 的逐根序列是否齐备（barAux 通道）：声明非空，且每个声明键的数组长度
+ * 都严格等于 bars 根数。与 auxSeriesReady 的语义差异是有意的——aux「取不到就整体隐藏
+ * 实例」，barAux「取不到就回落 compute，实例照常渲染」：档位色缺失只该退化成没有档位
+ * 色的柱，没有理由把整个副图藏掉。长度不符一律按未就绪处理（不截断、不补齐）：逐根
+ * 通道按下标对齐，错位着色比不着色更坏。
+ */
+export function barAuxSeriesReady(
+  definition: Pick<IndicatorDefinition, 'barAux'>,
+  series: AuxBarSeriesMap,
+  barCount: number,
+): boolean {
+  const keys = definition.barAux ?? []
+  if (keys.length === 0 || barCount === 0) return false
+  return keys.every(key => series[key]?.length === barCount)
 }
 
 /** 在途取数句柄：只有自己的请求键仍是当前键时 isCurrent() 为真。 */

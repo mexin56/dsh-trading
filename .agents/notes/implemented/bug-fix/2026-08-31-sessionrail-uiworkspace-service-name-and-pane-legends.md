@@ -77,3 +77,8 @@ Status: implemented
   一律走 `uiWorkspace.startSession`（宿主升代时先查该服务归属）。
 - pane legend 定位依赖 getHeight 累加，为宿主无关的纯前端方案；若未来
   lightweight-charts 提供 pane DOM 入口可替换掉反推分隔条厚度的启发式。
+- **pane 结构后续变化**：图表已不再有内置成交量 pane——pane 1 起全部是副图指标
+  （`subIndicatorPaneIndex(groupIndex) = 1 + groupIndex`），pane 1 的 `VOL:` 专用 legend
+  随成交量搬进指标系统一起删除，副图读数统一按「组名 + 分量」渲染。本 note 里
+  「pane 1 = 成交量、pane 2 + i = 副图指标」是当时的下标事实。见
+  [volume-indicator-and-bar-aux-channel](../architecture/2026-10-14-volume-indicator-and-bar-aux-channel.md)。

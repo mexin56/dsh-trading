@@ -19,7 +19,7 @@ Status: implemented
 **口径**（`vol-tier` 的 `description` 与代码同源）：
 
 - 量比 = 本周期成交量 ÷ 前 N 个周期成交量均值（**不含本周期**，等价 `REF(MA(volume, N), 1)`；实现是 `sma(volumes, N)[i-1]`，即对移动均值右移一位）。参数 `n` 默认 4，范围 2..250。
-- **柱高 = 本周期成交量，档位只决定颜色**——与五日级别的实际渲染一致（五日路径的柱高一直是 `kline.volume`，`tier` 只替换 `color`；见 `TvChart.resolveVolumes`）。因此五条输出携带的是同一批柱高，只是按档位分到五条序列上，颜色由每条序列各自的 `themeColor` 决定。
+- **柱高 = 本周期成交量，档位只决定颜色**——与五日级别的实际渲染一致（五日路径的柱高一直是 `kline.volume`，档位只决定颜色）。因此五条输出携带的是同一批柱高，只是按档位分到五条序列上，颜色由每条序列各自的 `themeColor` 决定。
 - 阈值 1/2/3 分四档：量比 < 1、1 ≤ 量比 < 2、2 ≤ 量比 < 3、量比 ≥ 3；**比值恰好等于阈值时落较高一档**（与五日图例的区间写法一致）。
 - 中性灰档 `无前值` 表达「不可判」，判定顺序为：① 本周期量非有限（脏数据）→ 灰；② 前值窗口不可用（前 N 个周期之内）或前值均值非有限（窗口含脏值）→ 灰；③ 前值均值 ≤ 0 且**本周期有量** → 量比取 `POSITIVE_INFINITY`，经档位判定落**最高档** `量比≥3`；④ 前值均值 ≤ 0 且**本周期量为 0** → 灰；⑤ 其余算 `本周期量 ÷ 前值均值`（溢出的极端值照样发散、落最高档）。③④ 两条与「行情·5日」现行分支逐字同口径（`five-day-series.ts:220-225`：前值全零时本分钟也为 0 才是 `noPrior` 中性灰，有量则取 `Number.POSITIVE_INFINITY` 落 `gte3`）。**本周期量为 0 且前值均值 > 0** 的普通情形仍是量比 0 → `量比<1` 档。发散的比值只用于定档，**不落进 `values`**（柱高是成交量），因此输出里不会出现 `Infinity`。
 - 五条输出 key 即档位名（图例名），顺序 `无前值 / 量比<1 / 量比1-2 / 量比2-3 / 量比≥3`，均为 `histogram`；每根柱**只落在其中一条**，`values.length` 严格等于 `bars.length`，warm-up 与不适用位置一律 `undefined`，绝不输出 `NaN`/`Infinity`。
@@ -28,7 +28,7 @@ Status: implemented
 **契约两个新字段**（`packages/indicators/src/types.ts`，均为可选，存量零迁移）：
 
 - `IndicatorOutput.themeColor?: { light: string; dark: string }`：消费方按当前宿主主题取色，缺席回落 `color`。`color` 仍是必需字段并填同语义亮色值，旧消费方不会出现「无色可用」。类型名 `IndicatorThemeColor` 自 `index.ts` 导出，渲染侧可直接引用。
-- `IndicatorDefinition.defaultActive?: boolean`（缺省 false）：true = 该指标要在用户图上默认激活一次；只有预置定义声明，`vol-tier` 声明为 true。该字段是宿主初始化行为的事实，不改变 definition 的纯数据性质。
+- `IndicatorDefinition.defaultActive?: boolean`（缺省 false）：true = 该指标要在用户图上默认激活一次；只有预置定义声明，`vol-tier` 与 `vol` 声明为 true。该字段是宿主初始化行为的事实，不改变 definition 的纯数据性质。
 
 **一次性补种**（`packages/indicators/src/chart-seed.ts`）：
 
@@ -37,7 +37,7 @@ Status: implemented
 - 账本是独立文件 `$DSH_HOME/indicators/chart-seed.json`，形状 `{ "seeded": ["vol-tier"] }`；整个补种（读账本 → 读名册 → 激活 → 记账）在一次跨进程排他锁内完成（`@dshtrading/dsh-home` 的 `transactStore`），桌面端与 CLI 同时启动只种一次。
 - 调用点两处：`packages/indicators/src/plugin.ts` 的 `apply()`（正常部署）与 `packages/bot-api/src/index.ts` 的服务缺席兜底创建点（老部署自建 store 时）。两处都是**异步发起、不 await、失败只记日志**——补种失败不该让宿主起不来，用户手动勾选仍然可用。
 
-**工具面连带事实**：预置从 8 条增至 9 条，`<market>_get_indicators` 的默认集随之变化（crypto/us 6 → 7 个 id、hk 7 → 8 个 id；crypto/hk 的 `tail=` 行数 22 → 27），`packages/indicators/test/tool.test.ts` 中这三处计数夹具同批更新（只改数字与注释，不放松断言）。
+**工具面连带事实**：预置现为 10 条，`<market>_get_indicators` 的默认集随之变化（crypto/us 8 个 id、hk 9 个 id；crypto/hk 的 `tail=` 行数 29）——每新增一条预置都会推动这组数字。`packages/indicators/test/tool.test.ts` 的计数夹具与 `packages/indicators/test/chart-seed.test.ts` 的默认勾选 id 集合夹具在同一变更里同步（只改数字与 id 集合，不放松断言）。
 
 ## Alternatives considered
 
@@ -51,6 +51,7 @@ Status: implemented
 ## Consequences
 
 - 用户可见：任意市场、任意级别挂上 `量比分档量能` 即得与五日图例逐档同色的量比档位副图；新工作区与已有工作区在宿主升级后的第一次启动各补种一次（含把五日之外级别的默认勾选补齐），用户删掉之后不再复活。换主题时颜色由消费方按 `themeColor` 重取（渲染侧实现见 task-2 的范围）。
+- **后续变化（同一变更集）**：成交量柱本身随之搬进指标系统，成为可取消的预置指标 `vol`（图表层不再有内置成交量 pane，pane 1+ 全是副图指标）；五日级别的档位序列改由逐根通道 `barAux` 注入 `vol` 出档位色柱，`vol-tier` 的语义与实现不变。补种因此同时命中两条默认勾选预置，顺序是 `['vol', 'vol-tier']`（`vol` 的 definition 排在 `vol-tier` 之前）。详见 [volume-indicator-and-bar-aux-channel](2026-10-14-volume-indicator-and-bar-aux-channel.md)。
 - 档位色只有镜像、没有共享：`presets.ts` 与 `five-day-series.ts` 两处字面量必须同步改，单测冻结了字面量以逼出「只改了一处」的情形；彻底收口需要把色表下沉到 indicators 包（本次未做，避免动 UI 包）。
 - 前值无量分支是**口径对齐点**：本指标与五日级别共用一套档位语义，`five-day-series.ts:220-225` 一变，这里必须跟着变（反之亦然）；两处都各自冻结了一条用例（五日侧在 `client-ui-trading` 的量比分档用例里，本指标侧在 `packages/indicators/test/volume-tier.test.ts` 的「前值全为零但本周期有量」用例里），跨包不能互相 import，靠注释互相指路。
 - 账本坏 JSON / 坏形按**空账本**降级（与同目录 `chart.json` 的读盘口径一致，错误记日志不抛）：此时会再补种一次——这是与「用户删除不复活」相反方向的一次放宽，只影响账本文件损坏的工作区，恢复后账本被重写为正确形状。

@@ -16,7 +16,7 @@ import {
   createOrderIntentTracker, submitGuiCancel, submitGuiOrder,
   type GuiApprovalContextProps, type OrderIntentTracker,
 } from './gui-approval.ts'
-import { TvChart, toBar, toVolume } from './TvChart.tsx'
+import { TvChart, toBar } from './TvChart.tsx'
 import { FundamentalsStage } from './FundamentalsStage.tsx'
 import { DerivativesPane } from './DerivativesPane.tsx'
 import { DerivativesStage } from './DerivativesStage.tsx'
@@ -53,6 +53,7 @@ import {
   chartIntervals, clampFiveDayDays, fiveDayCapability, fiveDayDayStarts, fiveDayDisplayRange,
   fiveDayVolumeColor, rememberableInterval, toFiveDayBars, type FiveDayTier,
 } from './five-day-series.ts'
+import { fiveDayVolumeTierBarAux } from './volume-tier-bar-aux.ts'
 import { MARKET_TAB_KEY } from './market-vocab.ts'
 import { SCOPE_MARKETS, normalizeMarketScope, selectApplicableInstances, supportedIntervals } from './indicator-scope.ts'
 import type { SelectionState } from './store.ts'
@@ -702,16 +703,30 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     return klines.slice(range.start + offset, range.end + offset)
   }, [klines, fiveDayBars, fiveDayDays])
 
-  /** 图表侧五日视图：只给显示窗口内的日界与档位色，数组与 seriesKlines 逐根对齐。 */
-  const fiveDayProps = useMemo(() => {
-    if (fiveDayBars === null || fiveDayBars.length === 0) return undefined
+  /**
+   * 图表实际消费的五日窗口：档位色（barAux）与日界同源同窗口，数组与 seriesKlines
+   * 逐根对齐。成交量档位由 `vol` 指标经逐根通道自带，图表侧只收日界。
+   */
+  const fiveDayWindow = useMemo(() => {
+    if (fiveDayBars === null || fiveDayBars.length === 0) return null
     const range = fiveDayDisplayRange(fiveDayBars, fiveDayDays)
-    const windowed = fiveDayBars.slice(range.start, range.end)
-    return {
-      dayStarts: fiveDayDayStarts(windowed).map(ms => Math.floor(ms / 1000)),
-      volumeTiers: windowed.map(bar => bar.tier),
-    }
+    return fiveDayBars.slice(range.start, range.end)
   }, [fiveDayBars, fiveDayDays])
+
+  /** 图表侧五日视图：只给显示窗口内的日界（秒），数组与 seriesKlines 逐根对齐。 */
+  const fiveDayProps = useMemo(
+    () => (fiveDayWindow === null ? undefined : { dayStarts: fiveDayDayStarts(fiveDayWindow).map(ms => Math.floor(ms / 1000)) }),
+    [fiveDayWindow],
+  )
+
+  /**
+   * 调度侧逐根通道：五日窗口的档位编码成与 seriesKlines 等长的序列注入 `vol`。只在
+   * 五日级别构造（其余级别 fiveDayBars 为 null → 不传 barAux，走 compute）。
+   */
+  const fiveDayBarAux = useMemo(
+    () => (fiveDayWindow === null ? undefined : fiveDayVolumeTierBarAux(fiveDayWindow.map(bar => bar.tier))),
+    [fiveDayWindow],
+  )
 
   /**
    * 滚轮换档的接线只在真正的五日级别路由下成立（不可得的路由已被守卫回落为日K）。
@@ -784,6 +799,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
       market,
       symbol,
       aux: auxSeries,
+      ...(fiveDayBarAux !== undefined ? { barAux: fiveDayBarAux } : {}),
       liveKeys: auxState.liveKeys,
       deps: {
         getDefinition: id => indicators.get(id),
@@ -791,13 +807,12 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
         instanceKey: instance => indicators.instanceKey(instance),
       },
     })
-  }, [seriesKlines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys])
+  }, [seriesKlines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys, fiveDayBarAux])
 
   const mainOverlays = useMemo(() => indicatorGroups.filter(group => group.pane === 'main'), [indicatorGroups])
   const subIndicators = useMemo(() => indicatorGroups.filter(group => group.pane === 'sub'), [indicatorGroups])
 
   const bars = useMemo(() => seriesKlines?.map(toBar) ?? [], [seriesKlines])
-  const volumes = useMemo(() => seriesKlines?.map(k => toVolume(k, colorMode)) ?? [], [seriesKlines, colorMode])
 
   const readoutIndex = hoverIndex ?? (seriesKlines !== null && seriesKlines.length > 0 ? seriesKlines.length - 1 : null)
   const readoutCandle = seriesKlines !== null && readoutIndex !== null ? seriesKlines[readoutIndex] : undefined
@@ -1210,7 +1225,6 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
             {klines !== null && bars.length > 0 && (
               <TvChart
                 bars={bars}
-                volumes={volumes}
                 dataKey={`${market}:${symbol}:${chartInterval}`}
                 intraday={INTRADAY_INTERVALS.has(chartInterval)}
                 {...(fiveDayProps !== undefined ? { fiveDay: fiveDayProps } : {})}
@@ -1229,7 +1243,6 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
                 onMarkerHover={setMarkerHover}
                 markerTexts={markerTexts}
                 liveText={t('indicator.live')}
-                numLocale={numLocale}
                 onBarContextMenu={openKdasMenu}
               />
             )}

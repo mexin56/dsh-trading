@@ -7,8 +7,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { IndicatorDefinition, IndicatorInstance, Kline } from '@dshtrading/indicators'
-import { createIndicatorRegistry, isInstanceApplicableOn, presetDefinitions } from '@dshtrading/indicators'
-import type { AuxSeriesMap } from '@dshtrading/indicators'
+import { FIVE_DAY_VOLUME_TIER_AUX_KEY, createIndicatorRegistry, isInstanceApplicableOn, presetDefinitions } from '@dshtrading/indicators'
+import type { AuxBarSeriesMap, AuxSeriesMap } from '@dshtrading/indicators'
 import { HK_CONNECT_HOLDING_KEY } from '../src/client/aux-series.ts'
 import { defaultScopeEntries } from '../src/client/indicator-defaults.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from '../src/client/indicator-dispatch.ts'
@@ -122,8 +122,7 @@ describe('指标调度（副图门控与定义白名单）', () => {
   })
 })
 
-describe('港股通持股比例的默认适用范围', () => {
-  /** 预置定义（默认范围的唯一一个家，客户端只读取不另存一份表）。 */
+describe('港股通持股比例的默认适用范围', () => {  /** 预置定义（默认范围的唯一一个家，客户端只读取不另存一份表）。 */
   const holdingDefinition = presetDefinitions().find(definition => definition.id === HOLDING_ID)
   const maDefinition = presetDefinitions().find(definition => definition.id === 'ma')
 
@@ -164,5 +163,126 @@ describe('港股通持股比例的默认适用范围', () => {
 
     // Then definition 不被调用方改动（写入路径之间不共享可变引用）
     expect(holdingDefinition.defaultApplyScope).toEqual({ hk: { enabled: true, intervals: ['1d', '1w', '1M'] } })
+  })
+})
+
+/**
+ * 逐根序列通道的探针定义（真实 definition 对象，注入真实注册表）：barAux 声明冻结键，
+ * compute 与 computeBarAux 的输出刻意可区分（1 与 5），用来钉住调度实际走了哪条入口——
+ * 不靠调用计数，靠**值**。
+ */
+const PROBE_ID = 'volume-tier-probe'
+
+function probeDefinition(): IndicatorDefinition {
+  return {
+    id: PROBE_ID,
+    pane: 'sub',
+    title: '五日成交量档位',
+    params: [],
+    barAux: [FIVE_DAY_VOLUME_TIER_AUX_KEY],
+    compute: () => [{ key: 'VOL', kind: 'histogram', color: '#888888', values: [1, 1, 1] }],
+    computeBarAux: (_bars, _params, barAux) => [{
+      key: 'VOL',
+      kind: 'histogram',
+      color: '#888888',
+      values: (barAux[FIVE_DAY_VOLUME_TIER_AUX_KEY] ?? []).map(code => code ?? -1),
+    }],
+  }
+}
+
+const barAuxRegistry = createIndicatorRegistry()
+barAuxRegistry.register(probeDefinition())
+
+const barAuxDeps = {
+  getDefinition: (id: string): IndicatorDefinition | undefined => barAuxRegistry.get(id),
+  clampParams: (definition: IndicatorDefinition, params: Record<string, number>): Record<string, number> => barAuxRegistry.clampParams(definition, params),
+  instanceKey: (instance: IndicatorInstance): string => barAuxRegistry.instanceKey(instance),
+}
+
+const probeInstance: IndicatorInstance = { id: PROBE_ID, params: {} }
+
+/** 逐根序列齐备（长度 = 3 根 bar）与两种未就绪形态（短 / 长）。 */
+const READY_BAR_AUX: AuxBarSeriesMap = { [FIVE_DAY_VOLUME_TIER_AUX_KEY]: [0, 2, 4] }
+
+function dispatchProbe(barAux?: AuxBarSeriesMap) {
+  return dispatchIndicatorGroups({
+    klines: dailyBars(),
+    instances: [probeInstance],
+    market: 'us',
+    symbol: 'AAPL',
+    aux: {},
+    ...(barAux !== undefined ? { barAux } : {}),
+    deps: barAuxDeps,
+  })
+}
+
+describe('逐根序列通道（barAux）的调度选择', () => {
+  it('用户看五日图且档位序列与图表序列等长时，成交量指标走 computeBarAux 并逐根取档位编码', () => {
+    // Given 三日图表序列 + 等长的三日档位编码
+
+    // When 调度渲染组
+    const groups = dispatchProbe(READY_BAR_AUX)
+
+    // Then 副图照常出现，值就是注入的编码（若误走 compute 会是全 1）
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.pane).toBe('sub')
+    expect(groups[0]?.title).toBe('五日成交量档位')
+    expect(groups[0]?.outputs).toEqual([expect.objectContaining({ key: 'VOL', values: [0, 2, 4] })])
+  })
+
+  it('用户不在五日级别时，逐根序列缺席也照常渲染——回落 compute 而不是隐藏实例', () => {
+    // Given 未传 barAux（非五日级别）+ 空表形态的 barAux，两种「没有逐根数据」
+    // When 分别调度渲染组
+    const withoutBarAux = dispatchProbe()
+    const withEmptyMap = dispatchProbe({})
+
+    // Then 两次都出组（与 aux 的「缺失即隐藏」相反），走的是 compute 路径
+    for (const groups of [withoutBarAux, withEmptyMap]) {
+      expect(groups).toHaveLength(1)
+      expect(groups[0]?.outputs).toEqual([expect.objectContaining({ key: 'VOL', values: [1, 1, 1] })])
+    }
+  })
+
+  it('用户刚切到五日级别、档位序列尚未算出（声明了键但数组为空）时，同样回落 compute', () => {
+    // Given 声明键存在但值为空数组（切级别瞬间的中间态）
+    // When 调度渲染组
+    const groups = dispatchProbe({ [FIVE_DAY_VOLUME_TIER_AUX_KEY]: [] })
+
+    // Then 不把「没有档位」当成 0 档画成中性色，而是回落 compute
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.outputs).toEqual([expect.objectContaining({ key: 'VOL', values: [1, 1, 1] })])
+  })
+
+  it('用户在级别切换/换档的中间帧拿到长度不符的档位序列时，按未就绪回落 compute（不错位着色）', () => {
+    // Given 比图表序列短一根与长一根的两种档位序列
+    // When 分别调度渲染组
+    const tooShort = dispatchProbe({ [FIVE_DAY_VOLUME_TIER_AUX_KEY]: [0, 2] })
+    const tooLong = dispatchProbe({ [FIVE_DAY_VOLUME_TIER_AUX_KEY]: [0, 2, 4, 1] })
+
+    // Then 两种都不进逐根通道：下标对齐不猜，宁可无色
+    for (const groups of [tooShort, tooLong]) {
+      expect(groups).toHaveLength(1)
+      expect(groups[0]?.outputs).toEqual([expect.objectContaining({ key: 'VOL', values: [1, 1, 1] })])
+    }
+  })
+
+  it('用户挂载未声明 barAux 的指标时，注入的逐根序列不影响其 compute 路径（零回归）', () => {
+    // Given 声明 aux 的港股通指标（不声明 barAux）与齐备的逐根序列
+    // When 调度渲染组
+    const groups = dispatchIndicatorGroups({
+      klines: dailyBars(),
+      instances: [holdingInstance],
+      market: 'hk',
+      symbol: '00700.HK',
+      aux: HOLDING_SERIES,
+      barAux: READY_BAR_AUX,
+      deps,
+    })
+
+    // Then 仍只走 computeAux，输出与不传逐根序列时一致
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.outputs).toEqual([
+      expect.objectContaining({ key: 'HK_CONNECT_HOLDING', values: [11.9, 12.5, 12.5] }),
+    ])
   })
 })

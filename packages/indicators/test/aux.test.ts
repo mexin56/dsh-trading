@@ -1,10 +1,11 @@
 /**
  * 外部序列对齐单测（契约 §3）：日 K 一字对齐、周 K 前向填充取区间最新值、
  * 早于首条数据填 undefined、空输入语义与长度严格性、不用未来数据。
+ * 并冻结逐根通道的词汇：通道键字面量、档位编码表下标与档位编码类型一致。
  */
 import { describe, expect, it } from 'vitest'
-import type { AuxPoint, Kline } from '../src/index.ts'
-import { alignAuxToBars } from '../src/index.ts'
+import type { AuxPoint, FiveDayVolumeTierCode, Kline } from '../src/index.ts'
+import { FIVE_DAY_VOLUME_TIER_AUX_KEY, FIVE_DAY_VOLUME_TIER_CODES, alignAuxToBars } from '../src/index.ts'
 
 const DAY = 86_400_000
 
@@ -108,5 +109,29 @@ describe('alignAuxToBars', () => {
     // Then: 倒序结果为正序的镜像，不因扫描方向错配
     expect(backward).toEqual([...forward].reverse())
     expect(backward).toEqual([11.4, 11.1])
+  })
+})
+
+describe('逐根序列通道词汇', () => {
+  it('用户读五日档位通道键时，它是冻结的通道名字面量', () => {
+    // Given 逐根通道的键常量
+    // When 读它的值
+    // Then 字面量冻结（宿主与指标两侧按同一个字符串握手，改名即断链）
+    expect(FIVE_DAY_VOLUME_TIER_AUX_KEY).toBe('five-day-volume-tiers')
+  })
+
+  it('用户读档位编码表时，下标即编码值且与档位编码类型的取值域一一对应', () => {
+    // Given 编码表与「0..4 每个下标都是合法编码」的编译期清单
+    const everyCode: readonly FiveDayVolumeTierCode[] = [0, 1, 2, 3, 4]
+    // When 对照编码表
+    // Then 下标即编码值：0 无前值，1..4 为量比四档
+    expect(FIVE_DAY_VOLUME_TIER_CODES[0]).toBe('noPrior')
+    expect(FIVE_DAY_VOLUME_TIER_CODES[1]).toBe('lt1')
+    expect(FIVE_DAY_VOLUME_TIER_CODES[2]).toBe('lt2')
+    expect(FIVE_DAY_VOLUME_TIER_CODES[3]).toBe('lt3')
+    expect(FIVE_DAY_VOLUME_TIER_CODES[4]).toBe('gte3')
+    // Then 编码表长度 = 编码类型取值域长度（多一档或少一档都会被这里拦住）
+    expect([...FIVE_DAY_VOLUME_TIER_CODES]).toHaveLength(everyCode.length)
+    expect(FIVE_DAY_VOLUME_TIER_CODES).toHaveLength(5)
   })
 })

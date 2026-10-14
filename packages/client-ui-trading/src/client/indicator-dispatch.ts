@@ -7,9 +7,9 @@
  * 图表（lightweight-charts 需 canvas），纯函数是能钉住这两条行为的落点，
  * 同时让 QuoteStage 只留接线。
  */
-import type { AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorOutput } from '@dshtrading/indicators'
+import type { AuxBarSeriesMap, AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorOutput } from '@dshtrading/indicators'
 import { effectiveInstanceParams, isDefinitionAvailableOn } from '@dshtrading/indicators'
-import { auxSeriesReady } from './aux-series.ts'
+import { auxSeriesReady, barAuxSeriesReady } from './aux-series.ts'
 import type { Kline } from './types.ts'
 
 /** 调度输出：TvChart 的渲染输入 + 读数行/词条带要的身份字段。 */
@@ -30,9 +30,10 @@ export interface IndicatorDispatchDeps {
 }
 
 /**
- * 构建渲染组。未声明 aux 的实例维持原路径（compute）；声明了 aux 的实例只走
- * computeAux，且外部序列缺失/为空时整体跳过——旧宿主（未接线）拿到的也是「无
- * 副图」，不会画出一条贴底的假线。
+ * 构建渲染组。未声明 aux/barAux 的实例维持原路径（compute）；声明了 aux 的实例只走
+ * computeAux，且外部序列缺失/为空时整体跳过——旧宿主（未接线）拿到的也是「无副图」，
+ * 不会画出一条贴底的假线；声明了 barAux 的实例在逐根序列齐备时走 computeBarAux，
+ * 否则回落 compute（不隐藏实例，见 aux-series 的 barAuxSeriesReady）。
  */
 export function dispatchIndicatorGroups(input: {
   klines: readonly Kline[]
@@ -40,10 +41,12 @@ export function dispatchIndicatorGroups(input: {
   market?: string | undefined
   symbol?: string | undefined
   aux: AuxSeriesMap
+  barAux?: AuxBarSeriesMap
   liveKeys?: readonly string[]
   deps: IndicatorDispatchDeps
 }): DispatchedIndicatorGroup[] {
   const { klines, instances, market, symbol, aux, deps } = input
+  const barAux = input.barAux ?? {}
   const groups: DispatchedIndicatorGroup[] = []
   for (const instance of instances) {
     const definition = deps.getDefinition(instance.id)
@@ -66,6 +69,19 @@ export function dispatchIndicatorGroups(input: {
         key: deps.instanceKey(instance),
         outputs: definition.computeAux(klines, params, aux),
         ...(declared.some(key => input.liveKeys?.includes(key)) ? { live: true as const } : {}),
+      })
+      continue
+    }
+    // 逐根序列通道（barAux）：档位色这类与 bars 逐根对齐的宿主注入数据。与上面 aux 的
+    // 门控**故意不同**——数据未就绪时回落 compute 而不是隐藏实例：着色缺失只该退化为
+    // 无色柱，不该让整个副图 pane 消失。长度不符同样按未就绪处理（下标对齐不猜）。
+    if ((definition.barAux ?? []).length > 0 && definition.computeBarAux !== undefined && barAuxSeriesReady(definition, barAux, klines.length)) {
+      groups.push({
+        id: instance.id,
+        title: definition.title,
+        pane: definition.pane,
+        key: deps.instanceKey(instance),
+        outputs: definition.computeBarAux(klines, params, barAux),
       })
       continue
     }

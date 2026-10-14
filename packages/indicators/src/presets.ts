@@ -1,11 +1,11 @@
 /**
- * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有全级别通用的
- * 「量比分档量能」、仅港股的「港股通持股比例」与仅 A 股的「主动买盘」两条外部序列
- * 指标）。全部是 definition 数据 + math.ts 纯函数的组合，无渲染逻辑；由指标插件
- * （client-ui-indicators）注册进 tradingIndicators 服务。
+ * 预置指标（仿富途：主图 MA/EMA/BOLL，副图 MACD/RSI/KDJ；副图另有成交「量」、
+ * 全级别通用的「量比分档量能」、仅港股的「港股通持股比例」与仅 A 股的「主动买盘」
+ * 三条外部序列/逐根序列指标）。全部是 definition 数据 + math.ts 纯函数的组合，无
+ * 渲染逻辑；由指标插件（client-ui-indicators）注册进 tradingIndicators 服务。
  */
 import type { IndicatorDefinition, IndicatorThemeColor, Kline } from './types.ts'
-import { alignAuxToBars, type AuxPoint } from './aux.ts'
+import { alignAuxToBars, FIVE_DAY_VOLUME_TIER_AUX_KEY, type AuxPoint } from './aux.ts'
 import { bollinger, ema, kdj, macd, rsi, sma } from './math.ts'
 
 /** MA 线配色（富途系配色 + 扩展周期轮换调色板）。 */
@@ -183,7 +183,17 @@ function volumeRatios(bars: readonly Kline[], period: number): Array<number | un
   })
 }
 
-/** 九个预置 definition（纯数据，注册时机归消费方）。 */
+/**
+ * 成交量柱的两条语义色（红涨绿跌缺省档 red-up 的 up/down，不透明度 0.55）：
+ * 镜像 `packages/client-ui-trading/src/client/color-mode.ts` 的
+ * `PALETTES['red-up'].upAlpha(0.55)` / `downAlpha(0.55)`（本包不能反向依赖 UI 包）。
+ * 成交量柱有意的口径：只按涨跌语义配色，**不读**红涨绿跌设置——与五日档位色同款，
+ * 换绿涨红跌不会把成交量柱的涨跌语义翻过来。
+ */
+const VOLUME_UP_COLOR = 'rgba(230, 69, 69, 0.55)'
+const VOLUME_DOWN_COLOR = 'rgba(43, 164, 113, 0.55)'
+
+/** 十个预置 definition（纯数据，注册时机归消费方）。 */
 export function presetDefinitions(): IndicatorDefinition[] {
   return [
     {
@@ -298,6 +308,65 @@ export function presetDefinitions(): IndicatorDefinition[] {
           { key: 'D', kind: 'line', color: '#4a90e2', values: d },
           { key: 'J', kind: 'line', color: '#c05fd8', values: j },
         ]
+      },
+    },
+    {
+      // 成交量（副图）：原来由图表层内置成 pane 1 特例的成交量柱搬进指标系统——它现在是
+      // 一条可取消勾选的预置指标，取消后整个副图消失（客户端按实例存在与否建 pane）。
+      // 柱高 = 本周期成交量；方向判据 = 收盘 ≥ 开盘记上涨（等号归上涨，二分覆盖完整），
+      // 颜色是固定的上涨/下跌语义色，不读红涨绿跌设置；纵轴用成交量紧凑格式
+      // （每条输出声明 priceFormat: 'volume'），不是价格两位小数。
+      //   barAux：宿主在当前级别算得出五日同分钟档位序列时优先走 computeBarAux（改用档位
+      // 色），算不出（非五日级别 / 该标的没有档位数据源）回落 compute —— 增强通道缺失
+      // 绝不隐藏实例，这正是它与 aux 的分界。
+      //   defaultActive：宿主启动时补种一次，见 chart-seed.ts。
+      id: 'vol',
+      pane: 'sub',
+      title: '成交量',
+      params: [],
+      description: '柱高是本周期成交量；上涨（收盘 ≥ 开盘，等号归上涨）用红色、下跌用绿色，与 K 线方向判据同口径。'
+        + '颜色是固定的涨跌语义色，不随红涨绿跌配色设置翻转。'
+        + '当前级别能取到五日同分钟档位序列时（五日级别），柱色改用档位色（「行情·5日」的五档口径，见量比分档量能）；'
+        + '取不到时回落涨跌色照常出柱。全市场、全 K 线级别通用。',
+      defaultActive: true,
+      barAux: [FIVE_DAY_VOLUME_TIER_AUX_KEY],
+      compute(bars) {
+        return [
+          {
+            key: '上涨量',
+            kind: 'histogram' as const,
+            color: VOLUME_UP_COLOR,
+            // 非有限成交量（脏数据）不出柱：绝不把 NaN/Infinity 交给渲染层。
+            values: bars.map(bar => (Number.isFinite(bar.volume) && bar.close >= bar.open ? bar.volume : undefined)),
+            priceFormat: 'volume' as const,
+          },
+          {
+            key: '下跌量',
+            kind: 'histogram' as const,
+            color: VOLUME_DOWN_COLOR,
+            values: bars.map(bar => (Number.isFinite(bar.volume) && bar.close < bar.open ? bar.volume : undefined)),
+            priceFormat: 'volume' as const,
+          },
+        ]
+      },
+      computeBarAux(bars, _params, barAux) {
+        // 逐根档位编码 → 档位名：编码即 VOLUME_TIERS 的下标（0 无前值 / 1 量比<1 /
+        // 2 量比1-2 / 3 量比2-3 / 4 量比≥3，与 FIVE_DAY_VOLUME_TIER_CODES 同序）。
+        // 越界（含小数、负数、超范围）与 undefined 都不等于任何合法下标 ⇒ 该根不出柱。
+        const tiers = barAux[FIVE_DAY_VOLUME_TIER_AUX_KEY]
+        return VOLUME_TIERS.map((tier, tierIndex) => ({
+          key: tier,
+          kind: 'histogram' as const,
+          // color 是必需字段：填同语义的亮色值，消费方优先读 themeColor（与 vol-tier 同一张色表）。
+          color: VOLUME_TIER_THEME_COLORS[tier].light,
+          themeColor: VOLUME_TIER_THEME_COLORS[tier],
+          // 柱高 = 本周期成交量，档位只决定颜色：每根至多落一条。
+          values: bars.map((bar, index) => (
+            tiers?.[index] === tierIndex && Number.isFinite(bar.volume) ? bar.volume : undefined
+          )),
+          // 与 compute 同口径：柱高是成交量，纵轴用成交量紧凑格式。
+          priceFormat: 'volume' as const,
+        }))
       },
     },
     {

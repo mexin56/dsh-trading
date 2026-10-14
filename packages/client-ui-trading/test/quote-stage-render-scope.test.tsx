@@ -20,7 +20,6 @@ vi.mock('../src/client/TvChart.tsx', async () => {
   return {
     TvChart: React.memo(function MockTvChart() { counters.chart += 1; return null }),
     toBar: (k: unknown) => k,
-    toVolume: (k: unknown) => k,
   }
 })
 

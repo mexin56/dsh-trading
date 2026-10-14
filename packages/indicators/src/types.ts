@@ -11,8 +11,13 @@
  * 外部序列注入缝（2026-10-13 港股通持股比例）：指标可用 aux 声明需要宿主预取的
  * 外部日频序列键，宿主按需 prefetch 后走 computeAux 入口（见 aux.ts）。未声明
  * aux 的存量 definition 完全不受影响。
+ *
+ * 逐根序列注入缝（2026-10-14 五日同分钟档位色）：指标可用 barAux 声明需要宿主
+ * 逐根注入的序列键，宿主把整条序列算好后走 computeBarAux 入口（见 aux.ts）。与
+ * aux 的差别是**缺失语义**：aux 取不到就整体隐藏实例，barAux 缺失则回落 compute，
+ * 实例照常显示。未声明 barAux 的存量 definition 完全不受影响。
  */
-import type { AuxSeriesKey, AuxSeriesMap } from './aux.ts'
+import type { AuxBarSeriesKey, AuxBarSeriesMap, AuxSeriesKey, AuxSeriesMap } from './aux.ts'
 import type { Series } from './math.ts'
 
 /** K 线（与宿主行情数据结构对齐的最小面）。 */
@@ -57,6 +62,8 @@ export interface IndicatorOutput {
   themeColor?: IndicatorThemeColor
   /** 与 K 线逐条对齐；undefined = warm-up，不画。 */
   values: Series
+  /** 纵轴/十字线数值格式：'volume' = 成交量紧凑格式（亿/万、K/M/B），缺省 'price'。 */
+  priceFormat?: 'price' | 'volume'
   /** histogram 专用：按符号红涨绿跌着色（MACD 柱）。 */
   histogramBySign?: boolean
   /** area 专用：顶部渐变色 */
@@ -92,6 +99,10 @@ export interface IndicatorDefinition {
    * 与 compute 二选一：声明 aux 时宿主只认 computeAux。
    */
   computeAux?(bars: readonly Kline[], params: Readonly<Record<string, number>>, aux: AuxSeriesMap): IndicatorOutput[]
+  /** 需要的逐根序列键（可选）。与 aux 的差别：barAux 缺失时**回落 compute**，不隐藏实例。 */
+  barAux?: readonly AuxBarSeriesKey[]
+  /** 逐根序列计算入口（可选，与 barAux 成对）：声明的键都齐备时宿主优先走它。 */
+  computeBarAux?(bars: readonly Kline[], params: Readonly<Record<string, number>>, barAux: AuxBarSeriesMap): IndicatorOutput[]
   /**
    * 可用市场 slug 白名单（可选；如 ['hk']，slug 词汇同 IndicatorApplyScope）。
    * 缺席 = 所有市场可用（存量 definition 零迁移）。

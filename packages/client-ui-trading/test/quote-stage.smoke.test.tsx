@@ -22,7 +22,6 @@ import type { DerivativesData, DerivativesHistory } from '../src/client/types.ts
 vi.mock('../src/client/TvChart.tsx', () => ({
   TvChart: () => null,
   toBar: (k: unknown) => k,
-  toVolume: (k: unknown) => k,
 }))
 
 import { presetDefinitions } from '@dshtrading/indicators'

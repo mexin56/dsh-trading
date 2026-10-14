@@ -36,15 +36,15 @@ function indicatorsParamDescription(tool: { parameters: unknown }): string {
 }
 
 describe('crypto_get_indicators 工厂', () => {
-  it('默认全指标：7 个 id、27 条序列（crypto 市场不含港股通持股比例），MA5 latest 手算=397，取数参数透传', async () => {
+  it('默认全指标：8 个 id、29 条序列（crypto 市场不含港股通持股比例），MA5 latest 手算=397，取数参数透传', async () => {
     const { tool, getKlines } = makeTool()
     const text = await tool.execute({ symbol: 'BTCUSDT', interval: '1d' }) as string
-    expect(text).toContain('7 indicator(s)')
+    expect(text).toContain('8 indicator(s)')
     expect(text).toContain('provider=fake')
     expect(text).toContain('MA5 latest=397')
     // 港股通持股比例 markets: ['hk']：crypto 市场既不该列出，也不该留下空标题。
     expect(text).not.toContain('港股通持股比例')
-    expect((text.match(/tail=\[/g) || []).length).toBe(27)
+    expect((text.match(/tail=\[/g) || []).length).toBe(29)
     expect(getKlines).toHaveBeenCalledWith('BTCUSDT', '1d', 300)
   })
 
@@ -87,8 +87,8 @@ describe('crypto_get_indicators 市场过滤与 aux 指标', () => {
     const { tool } = makeTool({ market: 'us' })
     // When 先取默认集，再显式请求该仅港股可用的 id
     const text = await tool.execute({ symbol: 'AAPL', interval: '1d' }) as string
-    // Then 默认集只列 7 个美股可用预置，显式请求被拒绝且错误里给出该市场的可用预置清单
-    expect(text).toContain('7 indicator(s)')
+    // Then 默认集只列 8 个美股可用预置，显式请求被拒绝且错误里给出该市场的可用预置清单
+    expect(text).toContain('8 indicator(s)')
     expect(text).not.toContain('港股通持股比例')
     await expect(tool.execute({ symbol: 'AAPL', interval: '1d', indicators: 'hk-connect-holding' }))
       .rejects.toThrowError(/not available on market us/)
@@ -131,14 +131,14 @@ describe('crypto_get_indicators 市场过滤与 aux 指标', () => {
     const text = await tool.execute({ symbol: '00700.HK', interval: '1d' }) as string
     const explicit = await tool.execute({ symbol: '00700.HK', interval: '1d', indicators: 'hk-connect-holding' }) as string
     // Then 两处都是可读说明行，且没有 "title ():" 形式的空段落，其他预置照常出序列
-    expect(text).toContain('8 indicator(s)')
+    expect(text).toContain('9 indicator(s)')
     expect(text).toContain('港股通持股比例: 需要宿主行情副图数据（本工具面不可用）')
     expect(explicit).toContain('港股通持股比例: 需要宿主行情副图数据（本工具面不可用）')
     expect(text).not.toContain('港股通持股比例 (')
     expect(explicit).not.toContain('港股通持股比例 (')
     expect(text).toContain('MA5 latest=397')
     expect(text).toContain('MACD')
-    expect((text.match(/tail=\[/g) || []).length).toBe(27)
+    expect((text.match(/tail=\[/g) || []).length).toBe(29)
   })
 
   it('用户在任何市场查指标时，未声明 markets 的存量预置都照常列出（零回归）', async () => {
