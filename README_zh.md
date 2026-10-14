@@ -1,10 +1,14 @@
-# dsh-trading — 面向加密货币、美股、A 股与港股的 AI 交易终端
+# dsh-trading — 全市场开源 AI 交易终端与多智能体量化投研平台
+
+> **当前状态与交接**：见 [docs/current-state.md](docs/current-state.md)（已验收项、必须知道的 fail-closed 不变量、未完成与硬停、验证命令、文档地图）。
 
 [English](README.md) | **简体中文**
 
-**DSH Trading（dsh-trading）** 是基于 DeepSeek Harness（DSH）的 AI 交易终端，覆盖加密货币、美股、A 股和港股。在一个模块化工作区内整合市场行情、技术分析、AI 辅助投研与人工审批下单。订单默认 dry-run 模拟，实盘交易必须显式开启并经过审批。
+**dsh-trading** 是基于 [DeepSeek Harness (DSH)](https://github.com/deepseek-ai) 和 [Cordis](https://github.com/cordisjs) 微内核架构构建的开源、Agent 原生全市场 AI 交易终端与量化投研系统。在一个模块化工作区内全面覆盖**加密货币**（Binance、OKX、Bybit、CCXT）、**美股**（Alpaca、盈透证券 IBKR、Yahoo Finance）、**A 股**（MiniQMT、东方财富、腾讯财经、HiThink、AkShare、Tushare）、**港股**（长桥、富途、老虎）以及**国内商品期货**。
 
-[快速开始](#快速开始) · [核心功能](#核心功能) · [支持市场](#一个终端全市场覆盖) · [常见问题](#常见问题) · [文档导航](#文档)
+系统深度整合 TradingView Lightweight Charts v5 图表引擎、多角色协作的 AI 投研团队（大师、标的分析研究员、交易员、风险审查员）、内置量化策略回测引擎与零信任双轨人工审批闸门，让深层次 AI 推理真正服务于有纪律的交易执行。
+
+[快速开始](#快速开始) · [核心功能](#核心功能) · [方案对比](#为什么选择-dsh-trading) · [支持市场与连接器](#一个终端全市场覆盖) · [Agent 原生架构](#什么是-agent-原生) · [常见问题](#常见问题) · [文档导航](#文档)
 
 ![dsh-trading —— 你的下一个交易终端，也可以是你的 AI Agent](docs/banners/banner-zh.jpg)
 
@@ -14,19 +18,28 @@
 <div align="center">
 
 [![DSH 基线](https://img.shields.io/badge/DSH%20Baseline-0.2.0--rc.2-blue.svg)](https://github.com/deepseek-ai)
-[![市场](https://img.shields.io/badge/Markets-Crypto%20%7C%20US%20%7C%20CN%20%7C%20HK-green.svg)](#一个终端全市场覆盖)
-[![连接器](https://img.shields.io/badge/Connectors-19%2B-orange.svg)](docs/guides/connectors-guide.md)
-[![许可](https://img.shields.io/badge/License-PolyForm%20NC%201.0.0-lightgrey.svg)](LICENSE)
+[![覆盖市场](https://img.shields.io/badge/Markets-Crypto%20%7C%20US%20%7C%20CN%20%7C%20HK%20%7C%20Futures-green.svg)](#一个终端全市场覆盖)
+[![连接器](https://img.shields.io/badge/Connectors-19%2B%20Exchanges%20%26%20Brokers-orange.svg)](docs/guides/connectors-guide.md)
+[![架构](https://img.shields.io/badge/Architecture-Cordis%20Microkernel-purple.svg)](https://github.com/cordisjs)
+[![图表引擎](https://img.shields.io/badge/Charting-Lightweight%20Charts%20v5-blueviolet.svg)](https://tradingview.github.io/lightweight-charts/)
+[![交易安全](https://img.shields.io/badge/Execution-Dry--Run%20Default%20%7C%20Human%20Gate-red.svg)](#安全与隐私纪律是焊死的高于一切)
+[![开源许可](https://img.shields.io/badge/License-PolyForm%20NC%201.0.0-lightgrey.svg)](LICENSE)
 
 </div>
 
+---
+
 ## 核心功能
 
-- **跨市场投研：** 在同一自选列表关注加密货币与股票，通过已配置的数据源获取行情、新闻、公告和基本面。
-- **技术分析：** K 线图表、MA / EMA / MACD / RSI 等技术指标、盘口与加密衍生品数据。
-- **AI 交易助手：** 研究员、交易员与风控角色协作；报出标的，Agent 就用原生工具自取行情、新闻、公告与基本面，辅助分析和交易计划制定。
-- **策略回测：** 结合内置策略范式与 `strategy_backtest` 评估历史交易信号；历史表现不代表未来收益。
-- **受控交易执行：** 默认 dry-run，支持通过适用连接器接入模拟盘，实盘订单须人工审批。
+- **全市场跨品种自选与统一数据平面：** 同一自选列表与联动工作区内同时跟踪加密合约/现货、美股、A 股、港股和国内商品期货，聚合 Level 1/Level 2 实时行情、多周期 K 线、盘口深度与公告资讯。
+- **C 位 TradingView 图表与衍生品驾驶舱：** 搭载 Lightweight Charts v5，支持 5 分钟到周线多周期无缝切换，提供 MA / EMA / BOLL / MACD / RSI / KDJ / 超级趋势 / TD9 等 15+ 常用技术指标、逐笔成交、多空人数比、持仓量（OI）及资金费率监控。
+- **Agent 原生多智能体协同（基于 DeepSeek Harness）：** 角色化 Agent 团队（全能大师 `master`、标的分析研究员 `instrument-researcher`、交易员 `trader`、风控审查员 `risk-reviewer`）自主调度原生行情与财务工具，进行报表穿透、交易计划起草与极限压力测试。
+- **机构级投研范式与盘前风控清单：** 随包分发各市场盘前风控检查清单（加密、美股、A 股、港股）、五步法加密标的定性分析框架、全流程公司分析手册与双轨可审计的交易日志。
+- **量化策略回测与自定义指标创作：** 原生集成 `strategy_backtest` 回测引擎与经典量化范式（唐奇安突破、RSI 回归、双均线、布林带回归、200日均线趋势），支持自定义指标编写与图表回显。
+- **零信任双轨实盘审批闸门：** 下单工具默认 100% dry-run 模拟；实盘必须显式开启 `liveTrading: true` 并经过交互式人工确认与 Ed25519 权限授权，无头环境自动 fail-closed，杜绝未受控下单。
+- **100% 本地隐私与凭据安全（BYOK）：** 自带密钥（Bring Your Own Keys）。所有 API 密钥、券商凭证与交易数据仅保存在个人本地机器，不上传云端、无厂商锁定、不转售或缓存行情数据。
+
+---
 
 先问各位一个问题：
 
@@ -43,6 +56,21 @@
 加密货币、美股、A股、港股。一个终端，一个 Agent，19+ 连接器，零供应商锁定——所有密钥都留在你自己的机器上。
 
 ![dsh-trading 终端全景——自选列表、指标图表、盘口与衍生品面板](docs/screenshots/terminal-overview.png)
+
+---
+
+## 为什么选择 dsh-trading？
+
+| 核心维度 | 传统交易终端（TradingView / 券商软件） | 泛用 AI 对话框（ChatGPT / Copilot 侧边栏） | **dsh-trading（Agent 原生交易终端）** |
+|---|---|---|---|
+| **全市场覆盖** | 各市场账户分散割裂，需多软件切换 | 纯文本聊天，无实时行情与标的联动 | **单个自选与 Dock 整合加密、美股、A股、港股与商品期货** |
+| **实时深度与衍生品** | 昂贵的逐项订阅或高壁垒数据孤岛 | 无法获取真实盘口，甚至产生价格幻觉 | **实时 L2 盘口、逐笔成交、加密持仓量（OI）、资金费率与多空比** |
+| **AI 深度整合** | 无 AI 或仅外挂简单静态预警 | 贴在图表旁边的对话框，需手动截图粘贴 | **终端即 Agent 的身体：Agent 自主调用数据工具与代码运行分析** |
+| **多智能体分工** | 无 | 单一 Prompt、单模型单打独斗 | **角色化团队分工：大师统筹 + 研究员穿透 + 交易员起草 + 风控一票否决** |
+| **专业投研范式** | 依赖交易员个人脑力经验，无标准化清单 | 泛泛的网络搜索摘要，缺乏风控逻辑 | **随包分发各市场盘前风控清单、五步法定性分析与双轨交易日志** |
+| **策略与回测** | 封闭脚本语言（如 Pine Script）或单机脚本 | 无法基于真实全市场盘口运行代码 | **工作区内置 `strategy_backtest` 引擎，支持指标创作与历史验证** |
+| **交易安全与防踏空** | 手动操作或黑盒全自动策略，缺乏双轨控制 | 无法受控下单或直接调用未经验证的接口 | **双轨闸门：默认 dry-run，实盘必须人工审批确认，Ed25519 权限防线** |
+| **隐私与密钥安全** | 凭证存储在第三方云端服务器 | 对话上下文与敏感持仓信息上传云端 | **100% BYOK 本地存储，零数据再分发，完全私有化运行** |
 
 ---
 
@@ -68,6 +96,8 @@ dsh-trading 把关系颠倒过来：**Agent 是终端的一等公民，终端是
 
 base 安装器按实际启用的市场生成四种角色，支持只安装部分市场；部署默认新会话进入「大师」（用户可在设置里改选默认预设）。未修改的托管旧市场预设移到同级 `.legacy-backup` 备份 root；无管理戳、修改过或含额外文件的目录原样保留，不删除用户预设数据。
 
+---
+
 ## 终端本身，先得是个正经软件
 
 终端不像样，Agent 再聪明也是纸上谈兵。
@@ -82,35 +112,44 @@ base 安装器按实际启用的市场生成四种角色，支持只安装部分
 - **插件管理。** 「插件」设置区新增管理标签页：npm 包名或 git 仓库地址安装、下次启动生效的启用开关、按各包声明的 DSH 最低版本门禁的更新校验与安装、冲突回滚，以及失败后交给 Agent 的修复会话。写入仅限本机 loopback 且经官方 CLI 执行；桌面版自带 `dsh` 垫片，无需全局安装即可用。
 - **按模型声明能力。** 每个自定义 `llm-pi-ai` provider 卡片内就地声明每模型的图片输入与推理档位（含每档实际发送的线上值），或把 provider 归档下线路由而不动已存密钥。
 
+---
+
 ## 一个终端，全市场覆盖
 
-| 市场 | 连接器 |
-|---|---|
-| **加密货币** | Binance、OKX（模拟/实盘）、Bybit、CCXT（聚合 100+ 交易所） |
-| **美股** | Yahoo Finance、Alpaca（模拟/实盘）、FMP、Finnhub、Polygon.io、盈透 IBKR |
-| **A 股** | 腾讯财经、东方财富、Tushare Pro、AkShare、MiniQMT 券商网关 |
-| **港股** | 腾讯港股、长桥 Longbridge、富途 OpenD、老虎 OpenAPI |
+dsh-trading 已打通 19+ 数据源、交易所及券商连接器：
+
+| 市场 | 连接器与数据提供方 | 数据覆盖与行情能力 | 交易与认证方式 |
+|---|---|---|---|
+| **加密货币** | **Binance（币安）**、**OKX（欧易）**、**Bybit**、**CCXT（100+ 交易所聚合）** | 现货与永续合约 Level 1/Level 2 行情、K 线、盘口深度、持仓量、资金费率、多空人数比 | REST & WebSocket，本地 BYOK 密钥；OKX 支持张币自动折算（ctVal）与模拟/实盘 |
+| **美股** | **Alpaca**、**盈透证券（IBKR）**、**Yahoo Finance**、**FMP**、**Finnhub**、**Polygon.io** | 实时报价、历史行情、财务报表、现金流量表、SEC 原始披露、分析师评级 | 官方经纪商 REST/WS 交易网关，BYOK 凭证；Yahoo Finance 免密钥公共接口 |
+| **A 股** | **MiniQMT 券商网关**、**腾讯财经**、**东方财富**、**HiThink（同花顺/富遥）**、**Tushare Pro**、**AkShare** | 实时 L1 行情、集合竞价、日 K 线、板块资金流向、估值基本面指标 | 本地 MiniQMT 客户端实盘交易；公共 REST 接口免密获取基础行情与资讯 |
+| **港股** | **长桥 Longbridge OpenAPI**、**富途 OpenD**、**老虎证券 Tiger OpenAPI**、**腾讯港股** | 实时港股行情、Level 2 盘口深度、窝轮牛熊证衍生品数据 | 持牌券商 OpenAPI / 本地网关执行；腾讯港股公共行情 |
+| **国内商品期货** | **HiThink（同花顺/富遥期货）** | 日 K 线、分时点位、主力合约切换、商品与股指期货行情数据平面 | 机构级 REST API（纯数据平面，无执行面） |
 
 **数据平面热插拔。** 数据源不合口味？换。「设置 → 交易」里把任意市场路由到任意已装提供方：行情面板保存即生效，Agent 会话下轮对话自动跟上——不重启，不翻配置文件。
 
 ![提供方路由——按市场选择数据/交易所，BYOK 凭证槽位](docs/screenshots/provider-routing.png)
 
-## 安全与隐私：纪律是焊死的，不是劝出来的
+---
+
+## 安全与隐私：纪律是焊死的，高于一切
 
 交易的公式，从来都是：**专研 + 等待 + 果断 + 耐心 = 活得久。**
 
 工具替不了你等待，也替不了你耐心。但它能守住中间那道闸：
 
-1. **默认 dry-run。** 所有下单/撤单工具默认只做模拟，除非你显式打开 `liveTrading: true`。
-2. **每笔实盘订单都有人审。** DSH 审批层拦截实盘路由；无头环境 fail-closed。
-3. **BYOK。** API 密钥只存在于你的环境变量或本地配置，不打包、不转发、不上传。
-4. **数据零再分发。** 行情数据按各提供方 ToS 为你个人拉取，不缓存转售、不对外共享。
+1. **默认 dry-run 模拟。** 所有下单/撤单工具默认只做仿真模拟，除非你显式打开 `liveTrading: true`。
+2. **每笔实盘订单都需人工交互审批。** DSH 审批层拦截实盘路由；无头会话自动 fail-closed。
+3. **100% BYOK 本地凭据。** API 密钥只存在于你的环境变量或本地配置，不打包、不转发、不上传任何第三方。
+4. **数据零再分发。** 行情数据按各提供方 Terms of Service 为你个人实时拉取，不缓存转售、不对外共享。
 
 没有你的签字，一分钱不会动。
 
+---
+
 ## 快速开始
 
-### 安装
+### 1. 安装
 
 trading 走独立 DSH home（`~/.dsh-trading`），与主 dsh web home（`~/.dsh`）互不污染；全部 dsh-trading 包的数据路径都经 `$DSH_HOME` 解析。
 
@@ -118,15 +157,15 @@ trading 走独立 DSH home（`~/.dsh-trading`），与主 dsh web home（`~/.dsh
 # 安装到独立 DSH profile（按需选择市场）
 export DSH_HOME=~/.dsh-trading
 dsh plugin --profile trading-web add @dshtrading/base @dshtrading/crypto @dshtrading/us
-# …或全市场一次装齐
+
+# 或全市场一次装齐
 dsh plugin --profile trading-web add @dshtrading/base @dshtrading/crypto @dshtrading/us @dshtrading/cn @dshtrading/hk
 
-# 给该 profile 接上浏览器 UI（一次即可）：往 profile 清单的 dsh 核心层之后
-# 插入宿主内置 web 宿主层
+# 给该 profile 接上浏览器 UI（一次即可）：在清单核心层后插入 web 宿主层
 node -e "const f=(process.env.DSH_HOME||require('os').homedir()+'/.dsh')+'/profiles/trading-web/package.json',fs=require('fs'),m=JSON.parse(fs.readFileSync(f,'utf8'));m.dsh.profile.bundles.includes('@deepseek-ai/dsh-web-app')||m.dsh.profile.bundles.splice(1,0,'@deepseek-ai/dsh-web-app');fs.writeFileSync(f,JSON.stringify(m,null,2)+'\n')"
 ```
 
-### 运行
+### 2. 运行
 
 ```sh
 # 从本仓 checkout 运行：先装一次 wrapper，再启动
@@ -137,25 +176,27 @@ dsh-trading --profile trading-web        # 缺省监听 8888 端口
 DSH_HOME=~/.dsh-trading dsh --profile trading-web --port 8888
 ```
 
-内置四个 profile，按用途选择（`trading-bot` 属自动交易平面，源码在私有卫星仓）：
+内置四个 profile，按用途选择：
 
-| profile | 界面 | 组合 |
+| Profile | 界面形态 | 包含组件与 Bundle |
 |---|---|---|
 | `trading-web` | 浏览器 GUI（推荐） | dsh-base + dsh-web-app + base + gui + bot-api + crypto + us + cn + hk + futures + global |
-| `trading-dev` | 无头，单市场 | dsh-base + dsh-headless + base + crypto |
-| `trading-all` | 无头，全市场 | dsh-base + dsh-headless + base + all + cn + crypto + hk + us |
-| `trading-bot` | bot 面：Agent 宿主 + `/dshtrading/api`，仅回环 | dsh-base + base + bot + bot-api + crypto（源码见私有卫星仓 [dsh-trading-bot](https://github.com/zhu1090093659/dsh-trading-bot)，下文详述） |
+| `trading-dev` | 无头环境，单市场 | dsh-base + dsh-headless + base + crypto |
+| `trading-all` | 无头环境，全市场 | dsh-base + dsh-headless + base + all + cn + crypto + hk + us |
+| `trading-bot` | 机器人平面：Agent 宿主 + `/dshtrading/api`（仅回环） | dsh-base + base + bot + bot-api + crypto（源码见私有卫星仓 [dsh-trading-bot](https://github.com/zhu1090093659/dsh-trading-bot)） |
 
-打开终端打印的 URL：左边自选，中间图表，右边是你的 Agent。新建会话 → 选市场预设 → 先问它「你看到了什么」。
+打开终端输出的 URL：左边自选，中间图表，右边是你的 Agent。新建会话 → 选择对应市场预设 → 问它：「你看到了什么？」
 
-### 本地开发
+### 3. 本地构建与开发
 
 ```sh
 pnpm install && pnpm build && pnpm test   # Node 见 engines（^22.19.0 || >=24.0.0），pnpm 11
-./scripts/refresh-trading-web-profile.sh  # 重建 profile 里的 file: 包副本
+./scripts/refresh-profile.sh              # 重建 profile 里的 file: 包副本（缺省 trading-web）
 ```
 
 完整的运行、profile 与刷新契约见 [docs/ops/running.md](docs/ops/running.md)。
+
+---
 
 ## 架构一瞥
 
@@ -169,44 +210,61 @@ pnpm install && pnpm build && pnpm test   # Node 见 engines（^22.19.0 || >=24.
 └── @dshtrading/hk        ← 腾讯港股 / 长桥 / 富途 / 老虎 + Skills + 预设
 ```
 
-六条铁律给生态上锁：bundle 补丁只允许 insert-only · 知识进 Skill 而非硬编码 · 下单双轨闸门 · 共享代码须 ≥2 个市场需要才能上 base · 数据零再分发 · GUI 外壳可替换、数据契约不可破坏。
+六条铁律给生态上锁：
+1. bundle 补丁只允许 **insert-only**。
+2. 领域知识进 **可复用 Skill**，而非硬编码提示词。
+3. **双轨闸门** 保护每一笔订单。
+4. 共享代码须 **≥2 个市场** 需要才能上 base。
+5. **数据零再分发**，严格恪守提供方 ToS。
+6. GUI 外壳可替换、底层数据契约不可破坏。
 
-### 已交付但默认不启用
+### 实盘授权平面（已交付，默认禁用）
 
-下面这条是**仓库里今天就有**的东西。**它不改变上面的默认值**：下单仍然 dry-run，实盘仍然要显式 `liveTrading: true` 加人工审批，不配置就不跑。
+- **实盘授权平面**：实盘开关不在 agent 可写路径上。只有人工签署的密码学授权（Ed25519）能打开实盘路由，agent 侧永远读不到签署材料。它在本仓（`packages/authority`），与公开 GUI 的行情桥（`packages/bot-api`）同源。
+- **自动交易卫星仓边界**：自动交易平面本身（后台守护进程、带额度与风控闸门的交易核心、网页驾驶舱、iOS 观测端与部署单元）不在本公开仓，位于私有卫星仓 [dsh-trading-bot](https://github.com/zhu1090093659/dsh-trading-bot)，主仓保留独立构建所需的接口缝隙。
 
-- **实盘授权平面** —— 实盘开关不在 agent 可写路径上：只有人工签署的授权（Ed25519）能打开实盘，agent 侧永远读不到签署材料。它在本仓（`packages/authority`），与公开 GUI 的行情桥（`packages/bot-api`）同源。
+---
 
-自动交易平面本身（bot surface、带 mandate 与风控闸门的交易核心、网页驾驶舱、iOS 观测端与 deploy 单元）**不在本公开仓**：实现在私有卫星仓 [dsh-trading-bot](https://github.com/zhu1090093659/dsh-trading-bot)，本仓只保留让它能独立构建的接缝。任何 venue 侧保护性订单都尚未交付；在那之前 `halt` 按设计降级为 `reduce_only`。
-
-> 口径说明：下面 FAQ 里"不是无人值守的实盘交易机器人"这句话**仍然成立**。对外叙事只在 shadow → paper → 小额 live 三档验收完成、且有人在环时，才与实现同批修改。
 ## 数据源与条款
 
-| 市场 | 默认数据源 | 边界 |
+| 市场 | 默认数据源 | 边界与合规要求 |
 |---|---|---|
-| 美股 | Yahoo Finance / Alpaca | Yahoo 公共端点（个人使用边界）；Alpaca 官方模拟/实盘 API |
-| A 股 | 腾讯财经 / 东方财富 / HiThink (同花顺/问财平台) | 公共端点；HiThink REST API 获取估值基本面与竞价；实盘经本地 MiniQMT 券商网关 |
-| 港股 | 腾讯港股 / 长桥 | 公共端点；持牌券商 OpenAPI/网关执行 |
-| 加密 | Binance / OKX | 官方 API；OKX 支持自带密钥的模拟盘 |
-| 加密基本面 | CoinCap | 公共 REST，仅个人使用——不再分发、不批量抓取 |
+| **美股** | Yahoo Finance / Alpaca | Yahoo 公共端点（个人使用边界）；Alpaca 官方模拟/实盘 API |
+| **A 股** | 腾讯财经 / 东方财富 / HiThink (同花顺/富遥) | 公共端点；HiThink REST API 获取估值基本面与竞价；实盘经本地 MiniQMT 券商网关 |
+| **期货 (国内)** | HiThink (同花顺/富遥期货) | HiThink REST API 获取日 K / 分时点位 / 主力合约；纯数据平面，无执行面 |
+| **港股** | 腾讯港股 / 长桥 | 公共端点；持牌券商 OpenAPI/网关执行 |
+| **加密货币** | Binance / OKX | 官方 API；OKX 支持自带密钥的模拟盘 |
+| **加密基本面** | CoinCap | 公共 REST，仅个人使用——不再分发、不批量抓取 |
+
+---
 
 ## 常见问题
 
-### dsh-trading 是自动交易机器人吗？
+### dsh-trading 是自动量化交易机器人吗？
 
-它是 AI 辅助交易终端，不是无人值守的实盘交易机器人。下单工具默认 dry-run；实盘必须开启 `liveTrading: true` 并交互审批，无头会话拒绝执行。dry-run 模拟与交易所、券商提供的模拟盘不是同一回事。
+它是 **AI 辅助交易终端**，不是无人值守的黑盒实盘机器人。下单工具默认 dry-run 仿真模拟；实盘必须显式开启 `liveTrading: true` 并经过人工交互审批，无头环境自动拒绝执行。dry-run 模拟与交易所、券商提供的模拟盘（Paper Trading）不是同一概念。
+
+### 支持哪些大模型（LLM）？
+
+dsh-trading 依托 DeepSeek Harness (DSH)，原生支持 **DeepSeek (V3 / R1)**、Anthropic Claude、OpenAI GPT-4o，以及任意兼容 OpenAI 规范的本地/私有模型（如 Ollama、vLLM）。你可以在设置中为不同模型配置图片输入支持、推理档位与 Token 消耗限额。
 
 ### 支持哪些交易所、券商和行情 API？
 
-加密货币连接器包括 Binance（币安）、OKX（欧易）、Bybit 和 CCXT；美股包括 Yahoo Finance、Alpaca 和盈透证券 IBKR；A 股包括腾讯财经、东方财富和 MiniQMT；港股包括长桥、富途和老虎。各连接器的行情覆盖、交易能力、凭证及本地网关要求不同，详见[连接器接入与配置指南](docs/guides/connectors-guide.md)。
+加密货币包括 Binance（币安）、OKX（欧易）、Bybit 与 CCXT（聚合 100+ 交易所）；美股包括 Alpaca、盈透证券（Interactive Brokers）、Yahoo Finance、FMP、Finnhub、Polygon；A 股包括 MiniQMT 券商网关、东方财富、腾讯财经、HiThink、Tushare Pro、AkShare；港股包括长桥 Longbridge、富途 OpenD、老虎证券 Tiger；国内商品期货包括同花顺/富遥期货。详见[连接器接入与配置指南](docs/guides/connectors-guide.md)。
 
 ### 使用前必须配置 API Key 吗？
 
-部分公共行情源无需密钥。需要认证的数据服务、券商或交易所账户，以及选用的 AI 提供方，可能需要单独配置凭证并付费。密钥由用户自行提供（BYOK），使用仍受提供方条款和账户权限约束。
+部分公开行情源（如腾讯财经、东方财富、Yahoo Finance 等）无需密钥即可直接使用。若需获取高精度实时流、接入券商/交易所账户或调用云端 AI 模型，需要配置相应凭证。项目严格遵循 **BYOK** 原则，所有密钥保留在本地。
+
+### 支持策略回测与自定义指标吗？
+
+支持。终端提供 `strategy_backtest` 回测引擎，内置了唐奇安突破、RSI 极值回归、EMA 双均线、布林带回归等多类经典策略范式，同时支持用户通过技术指标创作能力（indicator-authoring）自定义 SuperTrend、TD9 等指标并绘制于图表上。
 
 ### dsh-trading 可以免费商用吗？
 
-不可以。项目采用 [PolyForm Noncommercial 1.0.0](LICENSE) 许可，非商业用途免费，商业用途须事先取得书面授权。本软件不构成投资建议，也不保证交易收益。
+不可以。项目采用 [PolyForm Noncommercial 1.0.0](LICENSE) 许可，非商业用途免费；商业用途须事先取得书面授权。本软件不构成投资建议，也不保证交易收益。
+
+---
 
 ## 文档
 
@@ -249,3 +307,9 @@ pnpm install && pnpm build && pnpm test   # Node 见 engines（^22.19.0 || >=24.
 ## 许可证
 
 本项目采用 [PolyForm Noncommercial 1.0.0](LICENSE) 许可：个人学习、研究、兴趣项目等非商业用途免费使用；**任何商业用途须事先取得项目所有者的书面授权**，请通过 [chunlinzhu666@gmail.com](mailto:chunlinzhu666@gmail.com) 或 GitHub Issue 洽谈商用许可。
+
+---
+
+### 搜索关键词与标签索引
+
+`AI量化交易` · `DeepSeek炒股` · `AI交易终端` · `DeepSeek量化` · `多智能体量化` · `TradingView开源终端` · `Lightweight Charts` · `A股量化接口` · `MiniQMT量化` · `美股量化交易` · `Alpaca交易` · `盈透证券量化` · `港股量化` · `富途量化` · `长桥量化` · `加密货币量化` · `Binance量化` · `OKX量化` · `CCXT量化` · `策略回测` · `技术分析指标` · `风控闸门`
