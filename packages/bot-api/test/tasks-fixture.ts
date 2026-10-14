@@ -60,6 +60,11 @@ export interface TasksGatewayFixture {
   setRunning(sessionId: string, running: boolean): void
   setListError(error: Error | undefined): void
   setFollowError(sessionId: string, error: Error): void
+  /**
+   * 让 `session/create` 在会话落定前失败（每次调用重读 provider，便于模拟
+   * 「宿主启动窗口开着 → 建会话被拒 / 窗口关闭 → 恢复」这一时序）。
+   */
+  setCreateError(provider: () => Error | undefined): void
 }
 
 function errorWithCode(message: string, code: string): Error {
@@ -75,6 +80,7 @@ export function createTasksGateway(options: { now?: () => number } = {}): TasksG
   const promptRequestIds: string[] = []
   const followErrors = new Map<string, Error>()
   let listError: Error | undefined
+  let createError: (() => Error | undefined) | undefined
   let autoSequence = 0
 
   const sessionOf = (sessionId: string): FixtureSession | undefined => sessions.get(sessionId)
@@ -122,6 +128,10 @@ export function createTasksGateway(options: { now?: () => number } = {}): TasksG
       if (request.namespace === 'agentPresets') return { presets: [{ id: 'master' }, { id: 'preset-a' }] }
       if (request.namespace !== 'session') return {}
       if (request.method === 'create') {
+        // 宿主 workspace 域启动窗口内 session/create 会因名册取不到实体而失败
+        // （没有会话被建出来）；provider 每次重读，便于模拟窗口开/关的时序。
+        const failure = createError?.()
+        if (failure !== undefined) throw failure
         const requestedId = typeof payload.sessionId === 'string' && payload.sessionId !== ''
           ? payload.sessionId
           : 'session-fixture-' + String((autoSequence += 1))
@@ -212,6 +222,7 @@ export function createTasksGateway(options: { now?: () => number } = {}): TasksG
     },
     setListError: error => { listError = error },
     setFollowError: (sessionId, error) => { followErrors.set(sessionId, error) },
+    setCreateError: provider => { createError = provider },
   }
 }
 

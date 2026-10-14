@@ -9,11 +9,19 @@
 import { TasksLedger, TaskActionError, type AppliedAction } from './ledger.ts'
 import {
   type TaskPermission,
+  type TaskRecord,
   type TaskSkipReason,
   type TasksActionEnvelope,
   type TasksSnapshot,
 } from '@dshtrading/api'
-import { TasksRunner, SessionLaunchError, type AgentRegistryLike, type SessionCommandDispatcher, type SessionGateway } from './runner.ts'
+import {
+  TasksRunner,
+  SessionLaunchError,
+  isServiceUnavailable,
+  type AgentRegistryLike,
+  type SessionCommandDispatcher,
+  type SessionGateway,
+} from './runner.ts'
 
 /** 宿主工作区名册面（meta + runner 校验共用）。宿主 Workspace 实体的显示名
  *  在 title（创建时默认 basename(path)，必填）；name 留给别名面兜底。 */
@@ -62,6 +70,26 @@ const POLL_MS = 5_000
 /** 失联执行收敛窗口缺省：1 小时（保守——宁可晚收敛，也不误杀慢启动的真实执行）。 */
 export const DEFAULT_STALE_EXECUTION_MS = 60 * 60_000
 
+/**
+ * 同一触发点的最大尝试次数（含首试）。触发点在有会话落定前不被消费，可补偿
+ * 失败由后续 tick 自然重试；实测宿主 workspace 域启动窗口上界 33s（2026-10-14），
+ * 30s 调度 tick 下 3 次尝试覆盖约 60–90s（每次尝试内还有 runner 的 5 × 2s 内联
+ * 名册重试），并明确封顶——不做无界补跑。
+ */
+export const MAX_CATCHUP_ATTEMPTS = 3
+
+/** 一个未消费触发点的补偿状态（会话落定前不真正消费触发点）。 */
+interface CatchupState {
+  /** 正在补偿的触发点（原 nextRunAt）。 */
+  triggerPoint: number
+  /** 该触发点已开始的尝试次数。 */
+  attempts: number
+  /** 最近一次尝试的执行 id（判断启动是否仍在途）。 */
+  executionId: string
+  /** 最近一次可补偿失败的分类；上界收手时作为结构化跳过原因落盘。 */
+  reason?: TaskSkipReason
+}
+
 /** TaskActionError 码 → 结构化跳过原因（非跳过类错误返回 undefined）。 */
 function skipReasonFor(code: string): TaskSkipReason | undefined {
   if (code === 'TASKS_PERMISSION_PENDING') return 'permission-pending'
@@ -84,6 +112,12 @@ export class TradingTasksService {
   private readonly staleExecutionMs: number
   /** 正在启动中的执行 id（同一执行不重复启动，重启也不盲发）。 */
   private readonly launching = new Set<string>()
+  /**
+   * 未消费触发点的补偿状态（按 taskId）。宿主停机补跑时，起跑失败（名册不可知/
+   * 网关未就绪）不能静默消费触发点——触发点保持到期、由后续 tick 重试，直到
+   * 会话落定或尝试次数到上界。
+   */
+  private readonly catchups = new Map<string, CatchupState>()
   private timers: Array<ReturnType<typeof setInterval>> = []
   private tickInFlight = false
   private pollInFlight = false
@@ -131,6 +165,7 @@ export class TradingTasksService {
   dispose(): void {
     this.disposed = true
     this.stop()
+    this.catchups.clear()
     this.ledger.dispose()
   }
 
@@ -144,12 +179,18 @@ export class TradingTasksService {
   async meta(): Promise<TasksMeta> {
     const snapshot = this.ledger.snapshot()
     const directory = this.options.workspaces?.()
-    const workspaces = directory === undefined
-      ? []
-      : directory.list().map(item => {
+    let workspaces: Array<{ id: string; name?: string }> = []
+    if (directory !== undefined) {
+      try {
+        workspaces = directory.list().map(item => {
           const name = item.name ?? item.title
           return { id: item.id, ...(name === undefined ? {} : { name }) }
         })
+      } catch {
+        // 名册不可知（宿主 workspace 域启动窗口内 list() 抛错）→ 降级为空表：
+        // 下拉暂时为空，不把元数据面（乃至整个面板）打成 500。
+      }
+    }
     const gateway = this.options.gateway()
     const agentPresets: Array<{ id: string }> = []
     if (gateway !== undefined) {
@@ -168,6 +209,9 @@ export class TradingTasksService {
   /** 应用一个动作信封（幂等）；run 动作返回后异步起跑。 */
   apply(envelope: TasksActionEnvelope): AppliedAction['snapshot'] {
     const applied = this.ledger.apply(envelope)
+    // 任务被删除：把它的补偿状态一并清掉（否则旧触发点的重试状态会挂在一个
+    // 已不存在的任务上，直到宿主重启）。
+    if (envelope.action.kind === 'delete') this.catchups.delete(envelope.action.taskId)
     if (applied.openedRun !== undefined) {
       void this.launchTask(applied.openedRun.taskId, applied.openedRun.executionId)
     }
@@ -182,8 +226,12 @@ export class TradingTasksService {
    * 不盲发：同一执行只启动一次（并发调用经 launching 去重），已结算或已绑定
    * 会话的执行直接跳过；启动身份由执行 id 派生（runner 侧），所以即便真的重复
    * 触及 SDK 也只会采纳同一会话、同 requestId 的 prompt 也只受理一次。
+   *
+   * 触发点的消费延后到落定：挂上会话、或判定为不可补偿失败，才推进排期；可补偿
+   * 失败（名册不可知 / 网关目标服务未就绪）把触发点留给后续 tick 自然重试，
+   * 尝试次数由 tick 的 MAX_CATCHUP_ATTEMPTS 封顶。
    */
-  private async launchTask(taskId: string, executionId: string): Promise<void> {
+  private async launchTask(taskId: string, executionId: string, catchup?: { triggerPoint: number; attempts: number }): Promise<void> {
     if (this.launching.has(executionId)) return
     const existing = this.ledger.execution(taskId, executionId)
     if (existing === undefined || existing.endedAt !== undefined || existing.sessionId !== undefined) return
@@ -201,18 +249,65 @@ export class TradingTasksService {
     try {
       const sessionId = await this.runner.launch(runnerTask, executionId)
       this.ledger.attachSession(taskId, executionId, sessionId)
+      if (catchup !== undefined) this.consumeTriggerPoint(taskId, catchup.triggerPoint, undefined, this.options.now?.() ?? Date.now())
     } catch (error) {
       if (error instanceof SessionLaunchError) {
         // 会话已建但启动中途失败：绑上会话再结算，观察面能对上号。
         this.ledger.attachSession(taskId, executionId, error.sessionId)
       }
       this.ledger.settleRun(taskId, executionId, 'failed', errorMessage(error))
+      if (catchup !== undefined) this.recordCatchupFailure(taskId, executionId, catchup, task, error)
     } finally {
       this.launching.delete(executionId)
     }
   }
 
-  /** 调度 tick：到期任务推进触发点并起跑；拒绝（并发/权限门）即跳过该触发点。 */
+  /**
+   * 起跑失败后的补偿记账：
+   * - 不可补偿（名册权威否定、预设/权限面缺失等）→ 立即消费触发点：失败留在
+   *   执行历史里，排期照常前进，语义与修复前一致。
+   * - 可补偿（名册不可知 / 网关 service-unavailable）→ 只记下分类原因，触发点
+   *   保持到期留在 catchups 里，由后续 tick 重试；上界由 tick 收口。
+   */
+  private recordCatchupFailure(
+    taskId: string,
+    executionId: string,
+    catchup: { triggerPoint: number; attempts: number },
+    task: TaskRecord,
+    error: unknown,
+  ): void {
+    const reason = this.retryableLaunchFailure(task, error)
+    if (reason === undefined) {
+      this.consumeTriggerPoint(taskId, catchup.triggerPoint, undefined, this.options.now?.() ?? Date.now())
+      return
+    }
+    const entry = this.catchups.get(taskId)
+    if (entry !== undefined && entry.executionId === executionId) this.catchups.set(taskId, { ...entry, reason })
+  }
+
+  /** 可补偿的起跑失败分类：返回该落的跳过原因；不可补偿返回 undefined。 */
+  private retryableLaunchFailure(task: TaskRecord, error: unknown): TaskSkipReason | undefined {
+    // 会话落定前的失败是裸错误；落定途中失败的根因在 SessionLaunchError.cause。
+    const cause = error instanceof SessionLaunchError ? (error as { cause?: unknown }).cause : error
+    if (isServiceUnavailable(cause)) return 'gateway-unavailable'
+    if (task.workspaceId !== undefined && this.runner.workspaceRosterUnavailable()) return 'registry-unavailable'
+    return undefined
+  }
+
+  /** 消费一个触发点：推进排期、清掉补偿状态（带原因时同时落结构化跳过记录）。 */
+  private consumeTriggerPoint(taskId: string, triggerPoint: number, reason: TaskSkipReason | undefined, now: number): void {
+    this.catchups.delete(taskId)
+    this.ledger.advanceSchedule(taskId, triggerPoint, now)
+    if (reason !== undefined) this.ledger.recordScheduleSkip(taskId, triggerPoint, reason, now)
+  }
+
+  /**
+   * 调度 tick：到期任务起跑；拒绝（并发/权限门/容量）即跳过该触发点并留结构化原因。
+   *
+   * 起跑失败不再静默消费触发点：触发点在有会话落定前保持到期，可补偿失败由
+   * 后续 tick 自然重试（同一触发点，次数封顶）。错过触发点不逐条补跑的语义不变
+   * ——消费时才从当前时刻取下一个匹配。
+   */
   private async tick(): Promise<void> {
     if (this.disposed || this.tickInFlight) return
     this.tickInFlight = true
@@ -221,19 +316,31 @@ export class TradingTasksService {
       for (const due of this.ledger.dueTasks(now)) {
         const task = this.ledger.task(due.taskId)
         if (task === undefined) continue
-        // 先推进再尝试：错过不补跑，被跳过（并发执行/权限待确认）的触发点不滞留。
-        this.ledger.advanceSchedule(due.taskId, due.nextRunAt, this.options.now?.() ?? Date.now())
+        let carried = this.catchups.get(due.taskId)
+        if (carried !== undefined && carried.triggerPoint !== due.nextRunAt) {
+          // 触发点不同（用户改过排期）：旧补偿状态作废，从首试重新计数。
+          this.catchups.delete(due.taskId)
+          carried = undefined
+        }
+        if (carried !== undefined) {
+          // 同一触发点的补偿未落定：启动在途就等它落定，不重复开跑、不消费触发点。
+          if (this.launching.has(carried.executionId)) continue
+          // 尝试次数到上界：消费触发点并落上次失败的结构化原因（不无限补跑、不滞留）。
+          if (carried.attempts >= MAX_CATCHUP_ATTEMPTS) {
+            this.consumeTriggerPoint(due.taskId, due.nextRunAt, carried.reason, now)
+            continue
+          }
+        }
+        const attempts = (carried?.attempts ?? 0) + 1
         try {
           const opened = this.ledger.openRun(due.taskId, 'cron')
-          void this.launchTask(opened.taskId, opened.executionId)
+          this.catchups.set(due.taskId, { triggerPoint: due.nextRunAt, attempts, executionId: opened.executionId })
+          void this.launchTask(opened.taskId, opened.executionId, { triggerPoint: due.nextRunAt, attempts })
         } catch (error) {
           if (!(error instanceof TaskActionError)) throw error
           // 权限待确认 / 容量满 / 已有执行在跑：跳过该触发点（cron 不补跑的策略
           // 不变），但跳过必须留结构化原因——否则「到点没跑」在快照上无从解释。
-          const reason = skipReasonFor(error.code)
-          if (reason !== undefined) {
-            this.ledger.recordScheduleSkip(due.taskId, due.nextRunAt, reason, this.options.now?.() ?? Date.now())
-          }
+          this.consumeTriggerPoint(due.taskId, due.nextRunAt, skipReasonFor(error.code), now)
         }
       }
       this.ledger.updateScheduler({ lastTickAt: this.options.now?.() ?? Date.now(), error: undefined })

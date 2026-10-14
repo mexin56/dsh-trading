@@ -695,6 +695,8 @@ export type MarketLocaleKey =
   | 'tasks.skip.permission-pending'
   | 'tasks.skip.capacity'
   | 'tasks.skip.already-running'
+  | 'tasks.skip.registry-unavailable'
+  | 'tasks.skip.gateway-unavailable'
   | 'tasks.exec.succeeded'
   | 'tasks.exec.failed'
   | 'tasks.exec.cancelled'

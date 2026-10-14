@@ -100,8 +100,21 @@ export function retainRecentExecutions(executions: readonly ExecutionRecord[]): 
   return [...settled.slice(Math.max(settled.length - keepSettled, 0)), ...open]
 }
 
-/** 定时触发点被跳过的结构化原因（cron 跳过不补跑，但要说明为什么）。 */
-export const TASK_SKIP_REASONS = ['permission-pending', 'capacity', 'already-running'] as const
+/**
+ * 定时触发点被跳过的结构化原因（cron 跳过不补跑，但要说明为什么）。
+ *
+ * `registry-unavailable` / `gateway-unavailable` 是补偿用尽原因（2026-10-14
+ * 停机补跑修复）：宿主开机窗口内（workspace 域 `rebuildEntities()` 未跑完、
+ * 名册 `list()` 抛错）或网关目标服务未激活完时，起跑失败不消费触发点，由后续
+ * tick 有界重试；重试用尽才消费触发点并以此二值说明「这个触发点为什么最终没跑」。
+ */
+export const TASK_SKIP_REASONS = [
+  'permission-pending',
+  'capacity',
+  'already-running',
+  'registry-unavailable',
+  'gateway-unavailable',
+] as const
 
 /** 单个跳过原因。 */
 export type TaskSkipReason = (typeof TASK_SKIP_REASONS)[number]
@@ -131,7 +144,10 @@ export interface ScheduleRule {
   nextRunAt: number | undefined
   /** 最近一次定时触发点的时刻（ms epoch）。 */
   lastTriggeredAt: number | undefined
-  /** 最近一次被跳过的触发点（权限门/容量/已有执行）；正常起跑不覆盖历史记录。 */
+  /**
+   * 最近一次被跳过的触发点（权限门/容量/已有执行/补偿用尽）；正常起跑不覆盖
+   * 历史记录。补偿用尽的触发点已推进排期，不滞留。
+   */
   lastSkip?: ScheduleSkipRecord
 }
 

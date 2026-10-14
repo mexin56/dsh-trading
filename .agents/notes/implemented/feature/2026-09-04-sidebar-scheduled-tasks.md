@@ -43,3 +43,17 @@ Status: implemented
 > 6. **失联执行的可配置收敛与读取留痕**：`TradingTasksServiceOptions.staleExecutionMs`（缺省 1 小时）只作用于「会话空闲 + 完整历史扫描确认无 turn/end」的执行，收敛为 `cancelled` 并写明原因；宿主 `AgentStatus` 只有 idle/running，等待审批期间 status 保持 running，因此**仍在运行/待审批的执行不会因年龄被当成功或取消**，也从不重发 prompt。侦查读取异常在 `ExecutionRecord.note` 上留原因（只在内容变化时落盘），不再静默永久 pending。
 >
 > 验证：`packages/bot-api` 194 用例全绿（新增 18：账本加固 7 + 执行面 11，真实 tmp 账本与契约核对网关 fixture、零通用 mock/零真实等待），`packages/api` 15 用例全绿（新增 2 纯函数判据）；两包 `tsc --noEmit` 0 错；`node scripts/test-audit.mjs --check` 无新增测试债。
+
+> **2026-10-14 原地修复（宿主停机补跑窗口：名册不可知被当成权威否定 + 触发点被静默消费）**
+>
+> **宿主启动窗口证据**：宿主 workspace 域的 `list()` 在域异步 init 窗口内必抛 `workspace registry order references missing workspace '<order[0]>'`——`rebuildEntities()` 在 init 末尾才跑，窗口内 `entities` 为空而 durable order 已加载，按 order 逐条取实体即抛。2026-10-14 独立实例复现实测窗口上界 **33s**：开机后 +3s 的第一次 tick 补跑失败（error 正是该文案，报出的 id 是当前 `global.workspaceIds[0]`），+33s 的第二次 tick 同一任务起跑成功。窗口内 tick 由 `start()` 的 `void this.tick()` 立刻触发，于是停机后每个到点任务都落在窗口里：账本 25 条 cron 执行失败全为此文案，同时段准点执行 60 条全成功。
+>
+> **名册三态（`TasksRunner`）**：`probeWorkspace(workspaceId)` 区分 `present` / `absent`（名册可用但不含该 id → 仍 fail-closed，`workspace not found: <id>` 文案与语义不变）/ `unknown`（resolver 缺席或 `list()` 抛错）。不可知判据是「抛错」本身——窗口内那条错误不带 `service-unavailable` 码（`isServiceUnavailable` 只覆盖网关侧目标服务未激活的口径）；按 runner 既有的 5 × 2s 有界重试，仍不可知即**放行**，交给网关/宿主兜底。内联重试只是次要手段：实测窗口可比它长，主保障是服务层不消费触发点、由后续 tick 重试。`workspaceRosterUnavailable()` 提供单次观察，供服务层做失败分类。
+>
+> **触发点补偿（`TradingTasksService`）**：会话落定前不消费触发点——`catchups` 按 taskId 记 { 触发点, 尝试次数, 执行 id, 失败分类 }。可补偿失败（名册不可知 → `registry-unavailable`；网关 `service-unavailable`，含 `SessionLaunchError.cause` → `gateway-unavailable`）把触发点留给后续 tick 自然重试，`MAX_CATCHUP_ATTEMPTS = 3`（含首试）封顶；用尽时消费触发点并落结构化 `lastSkip`。不可补偿失败（名册权威否定、预设/权限面缺失）与既有 openRun 拒绝（权限门/容量/已有执行）语义不变：消费触发点、留原因。`meta()` 的名册探针同样容错：不可知降级为空表，不再把元数据面打成 500。
+>
+> **新不变量**：错过触发点不逐条补跑不变（消费时才从当前时刻取下一个匹配，宿主跨多个触发点仍只跑一次）；被跳过的触发点不滞留；**触发点在有会话落定前保持到期**——补偿窗口内快照的 `nextRunAt` 就是这个尚未跑完的到期时刻；尝试计数在内存里，宿主重启即重置（重启本身就是一次恢复，旧触发点仍到期）；用户改动排期时旧补偿状态作废、从首试重新计数；任务被删除即清掉其补偿状态。
+>
+> 验证：`packages/bot-api` 265 用例全绿（新增 11：名册三态 4 + 触发点补偿 7，假时钟驱动、契约网关/名册 fixture、零通用 mock/零真实等待）；`packages/api` 15 用例全绿；两包 `tsc --noEmit` 0 错；`node scripts/test-audit.mjs --check` 无新增测试债；`node scripts/i18n-audit.mjs --check` OK（1057 zh 键，含新增两种原因的面板映射与 zh/en 文案）。
+>
+> 已知边界（未做动态验证）：网关 promise 永不落定（`session/create` 悬挂）时启动在途标志不清，该触发点会一直保持未消费——与「执行记录本身长期 open」同源，轮询的失联收敛（`staleExecutionMs`）只结算账本记录，不等价于启动落定。

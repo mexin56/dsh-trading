@@ -36,12 +36,12 @@ describe('定时任务协议判据', () => {
     expect(countOpenExecutions([])).toBe(0)
   })
 
-  it('用户 跳过原因词表只接受权限门、容量与已有执行三种取值', () => {
+  it('用户 跳过原因词表只接受权限门、容量、已有执行与两种补偿用尽原因', () => {
     // Given 一份声明式词表
     // When 逐个校验已知与未知取值
     const known = TASK_SKIP_REASONS.filter(reason => isTaskSkipReason(reason))
     // Then 词表内全接受，词表外（含非字符串）一律拒绝
-    expect(known).toEqual(['permission-pending', 'capacity', 'already-running'])
+    expect(known).toEqual(['permission-pending', 'capacity', 'already-running', 'registry-unavailable', 'gateway-unavailable'])
     expect(isTaskSkipReason('bogus')).toBe(false)
     expect(isTaskSkipReason(undefined)).toBe(false)
     expect(isTaskSkipReason(3)).toBe(false)

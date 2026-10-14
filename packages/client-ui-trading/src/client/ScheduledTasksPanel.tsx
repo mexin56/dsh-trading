@@ -30,6 +30,8 @@ const SKIP_REASON_KEY = {
   'permission-pending': 'tasks.skip.permission-pending',
   capacity: 'tasks.skip.capacity',
   'already-running': 'tasks.skip.already-running',
+  'registry-unavailable': 'tasks.skip.registry-unavailable',
+  'gateway-unavailable': 'tasks.skip.gateway-unavailable',
 } as const satisfies Record<string, MarketLocaleKey>
 import { fetchTasksMeta, fetchTasksSnapshot, postTaskAction, type TasksMeta } from './tasks-api.ts'
 import css from './session-rail.module.css'

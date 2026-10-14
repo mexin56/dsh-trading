@@ -44,6 +44,9 @@ export interface WorkspaceRegistryLike {
   list(): readonly { id: string }[]
 }
 
+/** 钉住工作区在名册中的三态：在册 / 权威否定 / 不可知（见 probeWorkspace）。 */
+export type WorkspaceRosterState = 'present' | 'absent' | 'unknown'
+
 /** 启动后的失败：仍携带会话 id，账本据此把执行挂到该会话上观察收尾。 */
 export class SessionLaunchError extends Error {
   constructor(readonly sessionId: string, cause: unknown) {
@@ -73,7 +76,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** 网关目标服务未激活完的错误码（启动时序竞态要重试而不是判死）。 */
-function isServiceUnavailable(error: unknown): boolean {
+export function isServiceUnavailable(error: unknown): boolean {
   const code = (error as { code?: unknown }).code
   return code === 'service-unavailable' || code === 'gateway/service-unavailable'
 }
@@ -174,6 +177,53 @@ export class TasksRunner {
   }
 
   /**
+   * 钉住工作区的名册三态探针（`present` 在册 / `absent` 权威否定 / `unknown` 不可知）。
+   *
+   * 宿主 workspace 域的启动窗口内 `list()` 会抛错（`rebuildEntities()` 在域异步
+   * init 末尾才跑：窗口内 entities 为空而 durable order 已加载，按 order 逐条取
+   * 实体即抛 `workspace registry order references missing workspace '<id>'`）。
+   * 那是**名册不可知**，不是名册权威否定——把前者当否定会让宿主停机后的补跑
+   * 必然失败（2026-10-14 实测窗口上界 33s）。
+   *
+   * 不可知判据取「抛错」本身而不是错误码：窗口内那条错误不带 `service-unavailable`
+   * 码（`isServiceUnavailable` 保留给网关侧目标服务未激活的口径），拿它当判据会
+   * 漏掉全部启动窗口。重试节奏复用 runner 既有的 5 × 2s；内联重试只是次要手段
+   * ——窗口可能比它长，主保障是服务层在会话落定前不消费触发点、由后续 tick 重试。
+   * 老宿主面（resolver 缺席）同样走完重试：服务可能随插件加载晚出现，重试是唯一
+   * 能观察到它的方式；用尽后由调用方放行起跑，交给网关/宿主兜底。
+   */
+  async probeWorkspace(workspaceId: string): Promise<WorkspaceRosterState> {
+    for (let attempt = 1; ; attempt += 1) {
+      const registry = this.workspaces()
+      if (registry !== undefined) {
+        try {
+          return registry.list().some(item => item.id === workspaceId) ? 'present' : 'absent'
+        } catch {
+          // 名册此刻不可知：继续退避重试。
+        }
+      }
+      if (attempt >= SERVICE_UNAVAILABLE_ATTEMPTS) return 'unknown'
+      await delay(SERVICE_UNAVAILABLE_BACKOFF_MS)
+    }
+  }
+
+  /**
+   * 名册此刻是否不可知（单次观察，不重试）：起跑失败后的可补偿分类用。
+   * 失败之后立刻看一眼，仍不可知即判这次失败落在宿主启动窗口里——服务层据此
+   * 让触发点留给后续 tick 重试，而不是把它当一次失败消费掉。
+   */
+  workspaceRosterUnavailable(): boolean {
+    const registry = this.workspaces()
+    if (registry === undefined) return true
+    try {
+      registry.list()
+      return false
+    } catch {
+      return true
+    }
+  }
+
+  /**
    * 启动一次执行：校验钉住三元组，按执行 id 派生会话/请求身份建会话，重命名，
    * 应用权限，queue 发 prompt。返回会话 id。身份派生使重复调用幂等。
    */
@@ -181,10 +231,11 @@ export class TasksRunner {
     const gateway = this.session()
     const workspaceId = task.workspaceId
     if (workspaceId !== undefined) {
-      const registry = this.workspaces()
-      // 名册服务缺席（老宿主）跳过校验（建会话时由网关兜底）；在册但找不到则 fail-closed。
-      if (registry !== undefined && !registry.list().some(item => item.id === workspaceId)) {
-        throw new Error('workspace not found: ' + workspaceId)
+      const roster = await this.probeWorkspace(workspaceId)
+      // 权威否定 → fail-closed（文案与语义不变）；不可知 → 放行交给网关/宿主兜底。
+      if (roster === 'absent') throw new Error('workspace not found: ' + workspaceId)
+      if (roster === 'unknown') {
+        console.warn('[trading-tasks] workspace roster is unavailable; launching without roster validation:', workspaceId)
       }
     }
     if (task.agentPreset !== undefined) {
