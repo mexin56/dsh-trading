@@ -45,7 +45,7 @@ Status: implemented
 - **补齐六条直连分支**（gateio/kucoin/kraken/coinbase/bitfinex/htx）：落选（本卡边界）——
   各所端点、符号与周期映射需要自己的真实证据，另开卡；本次先把能发的面收窄到已实现部分。
 - **把 `Config.defaultExchange` 改成封闭 enum**：落选——它推翻
-  [provider 词汇开放化 note](../../architecture/2026-08-30-provider-vocabulary-open.md) 的既有决策
+  [provider 词汇开放化 note](../architecture/2026-08-30-provider-vocabulary-open.md) 的既有决策
   （schema 接受任意 slug、未知 slug 打 warn + fail-soft）；本次拒绝发生在调用点并给出结构化
   错误码，不把配置校验升级成加载失败。
 - **给 `ProviderMeta` 加独立 `configField` 字段另起一行渲染**：落选（本卡边界）——那是面板

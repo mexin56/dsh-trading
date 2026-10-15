@@ -800,7 +800,7 @@ export class TencentRestClient {
   /**
    * 当日累计主动买盘快照（api 可选契约 getActiveBuySnapshot，2026-10-13）：与 getTicker
    * 同一行报价的外盘/内盘字段（cn 布局 6/7/8/30/47/48，见 parseCnActiveBuySnapshot 注释），
-   * 零额外请求。**hk 结构性不支持**——r_hk 行的 7/8 位恒为 0（2026-10-13 实测
+   * 每次调用仍独立发起一次报价请求，不复用 getTicker 的应答。**hk 结构性不支持**——r_hk 行的 7/8 位恒为 0（2026-10-13 实测
    * spikes/impl-active-buy/r2-raw-hk00700.gbk），直接按 TRADING_NOT_IMPLEMENTED 上报；
    * 服务层 hk 实例上该方法本身缺席（能力自然缺席，消费方按「方法是否存在」判降级）。
    */
