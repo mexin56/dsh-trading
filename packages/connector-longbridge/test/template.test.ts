@@ -36,13 +36,19 @@ function stubFetch(routes: Array<{ match: string; body: unknown; status?: number
 }
 
 describe('LongbridgeRestClient 符号与周期映射', () => {
-  it('港股代码转长桥代码与规范形', () => {
+  it('用户给裸港股代码或带 .HK 形态时都补零为 5 位规范形', () => {
+    // Given 用户给 '700'、'00700.HK'、'9988' 三种写法
+    // When 转长桥代码
+    // Then 都补零到 5 位并带 .HK，symbol 与 canonical 同形
     expect(toLongbridgeSymbol('700')).toEqual({ symbol: '00700.HK', canonical: '00700.HK' })
     expect(toLongbridgeSymbol('00700.HK')).toEqual({ symbol: '00700.HK', canonical: '00700.HK' })
     expect(toLongbridgeSymbol('9988')).toEqual({ symbol: '09988.HK', canonical: '09988.HK' })
   })
 
-  it('支持的 interval 词汇与 Longbridge period 映射', () => {
+  it('用户读周期词汇表与 Longbridge period 时受支持档位在表内且映射到位', () => {
+    // Given 本包导出的周期词汇表与 period 映射函数
+    // When 查 5m/1h 是否在表内并逐档映射 5m/1h/1d/1w
+    // Then 在表内且依次映射为 5m/60m/day/week
     expect(INTERVAL_VOCABULARY).toContain('5m')
     expect(INTERVAL_VOCABULARY).toContain('1h')
     expect(toLongbridgePeriod('5m')).toBe('5m')
@@ -162,7 +168,10 @@ describe('LongbridgeRestClient.getKlines', () => {
 })
 
 describe('LongbridgeRestClient.getTicker', () => {
-  it('拉取并解析港股实时行情', async () => {
+  it('用户取港股实时行情时按 /v1/quote/realtime 解析并带出规范形符号', async () => {
+    // Given 注入式 fetch 返回 /v1/quote/realtime 一行（last_done 为字符串）
+    // When 取该标的实时行情
+    // Then 请求带 symbol=00700.HK，price/volume/timestamp 按契约取回
     const { impl, urls } = stubFetch([
       {
         match: '/v1/quote/realtime',
@@ -193,7 +202,10 @@ describe('LongbridgeRestClient.getTicker', () => {
 })
 
 describe('LongbridgeRestClient 签名算法与交易接口', () => {
-  it('生成符合 LongPort 官方规范的 HMAC-SHA256 签名头', () => {
+  it('用户发起交易时生成的签名头符合 LongPort 规范的形状', () => {
+    // Given 固定 appSecret、方法、路径与三个签名头
+    // When 生成签名
+    // Then 形状为 HMAC-SHA256 SignedHeaders=authorization;x-api-key;x-timestamp, Signature=<64 位十六进制>
     const sig = generateLongbridgeSignature(
       'secret123',
       'POST',
@@ -208,7 +220,10 @@ describe('LongbridgeRestClient 签名算法与交易接口', () => {
     expect(sig).toMatch(/^HMAC-SHA256 SignedHeaders=authorization;x-api-key;x-timestamp, Signature=[0-9a-f]{64}$/)
   })
 
-  it('真实拉取可用资金与总资产', async () => {
+  it('用户查资产时按 /v1/asset/account 解析为可用资金与总资产', async () => {
+    // Given 注入式 fetch 返回 /v1/asset/account 的资金列表
+    // When 查资产
+    // Then 打到该端点并把可用资金与总资产按契约字段取回
     const { impl, urls } = stubFetch([
       {
         match: '/v1/asset/account',
@@ -242,7 +257,10 @@ describe('LongbridgeRestClient 签名算法与交易接口', () => {
     })
   })
 
-  it('真实提交港股委托订单', async () => {
+  it('用户提交港股委托时按 /v1/trade/order 取回订单号与字段', async () => {
+    // Given 注入式 fetch 返回 /v1/trade/order 的成功回执
+    // When 提交港股委托
+    // Then 打到交易端点，订单号与符号取回且 dryRun 为 false
     const { impl, urls } = stubFetch([
       {
         match: '/v1/trade/order',
@@ -272,7 +290,10 @@ describe('LongbridgeRestClient 签名算法与交易接口', () => {
     expect(order.dryRun).toBe(false)
   })
 
-  it('真实撤销 Longbridge 订单', async () => {
+  it('用户撤单时按订单号打 /v1/trade/order 并得到 canceled', async () => {
+    // Given 注入式 fetch 返回撤单成功回执
+    // When 撤销 lb-ord-999
+    // Then 请求带 order_id=lb-ord-999，结果为 canceled
     const { impl, urls } = stubFetch([
       {
         match: '/v1/trade/order',
@@ -290,7 +311,10 @@ describe('LongbridgeRestClient 签名算法与交易接口', () => {
     expect(res).toEqual({ orderId: 'lb-ord-999', status: 'canceled' })
   })
 
-  it('无凭证时发起交易抛出 TRADING_AUTH_FAILED', async () => {
+  it('用户未配置凭证时查资产抛出 TRADING_AUTH_FAILED', async () => {
+    // Given 一个未配置任何凭证的客户端
+    // When 查资产
+    // Then 抛错并指明 appKey 与 accessToken 必需
     const client = new LongbridgeRestClient({})
     await expect(client.getBalance()).rejects.toThrowError(/appKey and accessToken are required/)
   })

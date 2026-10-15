@@ -35,12 +35,18 @@ function stubFetch(routes: Array<{ match: string; body: unknown; status?: number
 }
 
 describe('PolygonRestClient 符号与周期映射', () => {
-  it('代码归一化', () => {
+  it('用户给大小写与空格混杂的美股代码时归一化为大写', () => {
+    // Given 用户给 'aapl' 与 ' TSLA ' 两种写法
+    // When 归一化符号
+    // Then 一律 trim + 大写
     expect(normalizeUsSymbol('aapl')).toBe('AAPL')
     expect(normalizeUsSymbol(' TSLA ')).toBe('TSLA')
   })
 
-  it('支持的 interval 词汇与 Polygon timespan 映射', () => {
+  it('用户读周期词汇表与 Polygon timespan 时受支持档位在表内且映射到位', () => {
+    // Given 本包导出的周期词汇表与 timespan 映射函数
+    // When 查 5m/1h 是否在表内并逐档映射 1m/5m/1h/1d
+    // Then 在表内且依次为 minute×1、minute×5、hour×1、day×1
     expect(INTERVAL_VOCABULARY).toContain('5m')
     expect(INTERVAL_VOCABULARY).toContain('1h')
     expect(toPolygonTimespan('1m')).toEqual({ multiplier: 1, timespan: 'minute' })
@@ -101,7 +107,10 @@ describe('PolygonRestClient 符号与周期映射', () => {
 })
 
 describe('PolygonRestClient.getTicker', () => {
-  it('拉取前日/最新快照', async () => {
+  it('用户取报价时按 /prev 上一交易日聚合解析，不是最新快照', async () => {
+    // Given 注入式 fetch 返回 /v2/aggs/ticker/AAPL/prev 一行
+    // When 取该标的报价
+    // Then 打该端点带 apiKey，price/volume/timestamp 全部来自该聚合行
     const { impl, urls } = stubFetch([
       {
         match: '/v2/aggs/ticker/AAPL/prev',
@@ -162,7 +171,10 @@ describe('PolygonRestClient.getTicker', () => {
 })
 
 describe('PolygonRestClient.getKlines', () => {
-  it('拉取 5m 分钟 K 线', async () => {
+  it('用户取 5m 分钟线时打 range/5/minute 并归一为 K 线', async () => {
+    // Given 注入式 fetch 返回 /v2/aggs/ticker/AAPL/range/5/minute
+    // When 取 5m 分钟线
+    // Then 打到该端点，OHLCV 与响应逐字段一致
     const { impl, urls } = stubFetch([
       {
         match: '/v2/aggs/ticker/AAPL/range/5/minute',

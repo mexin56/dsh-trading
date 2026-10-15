@@ -28,12 +28,18 @@ function stubFetch(routes: Array<{ match: string; body: unknown; status?: number
 }
 
 describe('FmpRestClient 符号与周期映射', () => {
-  it('美股代码归一化', () => {
+  it('用户给大小写与空格混杂的美股代码时归一化为大写', () => {
+    // Given 用户给 'aapl' 与 ' TSLA ' 两种写法
+    // When 归一化符号
+    // Then 一律 trim + 大写
     expect(normalizeUsSymbol('aapl')).toBe('AAPL')
     expect(normalizeUsSymbol(' TSLA ')).toBe('TSLA')
   })
 
-  it('支持的 interval 词汇与 FMP 周期映射', () => {
+  it('用户读周期词汇表与 FMP 周期词时受支持档位在表内且映射到位', () => {
+    // Given 本包导出的周期词汇表与映射函数
+    // When 查 5m/1h 是否在表内并逐档映射
+    // Then 5m/1h 在表内，5m→5min、1h→1hour、4h→4hour
     expect(INTERVAL_VOCABULARY).toContain('5m')
     expect(INTERVAL_VOCABULARY).toContain('1h')
     expect(toFmpInterval('5m')).toBe('5min')
@@ -74,7 +80,10 @@ describe('FmpRestClient 符号与周期映射', () => {
 })
 
 describe('FmpRestClient.getTicker', () => {
-  it('拉取并解析美股 Quote', async () => {
+  it('用户取美股报价时按 /quote 解析并把秒级时间戳转毫秒', async () => {
+    // Given 注入式 fetch 返回 /quote/AAPL 一行，timestamp 是秒
+    // When 取该标的报价
+    // Then 请求带 apikey，price/volume 原样、timestamp 转成毫秒
     const { impl, urls } = stubFetch([
       {
         match: '/quote/AAPL',
@@ -103,7 +112,10 @@ describe('FmpRestClient.getTicker', () => {
 })
 
 describe('FmpRestClient.getKlines', () => {
-  it('拉取日内 5m 分钟 K 线', async () => {
+  it('用户取 5m 分钟线时打 /historical-chart 并归一为 K 线', async () => {
+    // Given 注入式 fetch 返回 /historical-chart/5min/AAPL 一行
+    // When 取 5m 分钟线
+    // Then 打到该端点，OHLCV 与响应逐字段一致
     const { impl, urls } = stubFetch([
       {
         match: '/historical-chart/5min/AAPL',
@@ -147,7 +159,10 @@ describe('FmpRestClient.getKlines', () => {
 })
 
 describe('FmpRestClient.getProfile', () => {
-  it('获取公司基本面 Profile', async () => {
+  it('用户查公司资料时按 /profile 取回首行', async () => {
+    // Given 注入式 fetch 返回 /profile/AAPL 一行
+    // When 查该公司资料
+    // Then 打到该端点且 companyName 取回
     const { impl, urls } = stubFetch([
       {
         match: '/profile/AAPL',
