@@ -30,9 +30,9 @@
 | `env` | `'demo'` | 运行环境标签（`src/index.ts:53`）。它**只进订单意图台账的作用域**（`src/index.ts:122-126` 的 `environment: options.config.env`），**不改变请求地址**——见「已知边界」 |
 | `dryRun` | `true` | 强制模拟：为 true 时即使请求 `dryRun:false` 也只回本地模拟回执（`src/index.ts:144`） |
 | `liveTrading` | `false` | 实盘请求的**非权威镜像**；真实放行需 `@dshtrading/authority` 平面的人工签署授权（`liveTradingEnabled()`，`src/index.ts:137`、`182`） |
-| `appKeyRef` | `'LONGBRIDGE_APP_KEY'` | App Key 的**环境变量名**（BYOK，`src/index.ts:56`） |
-| `appSecretRef` | `'LONGBRIDGE_APP_SECRET'` | App Secret 的环境变量名，用于 HMAC-SHA256 签名（`src/index.ts:57`、`src/rest.ts:149-159`） |
-| `accessTokenRef` | `'LONGBRIDGE_ACCESS_TOKEN'` | Access Token 的环境变量名，进 `authorization` 头（`src/index.ts:58`、`src/rest.ts:142-144`） |
+| `appKeyRef` | `'LONGBRIDGE_APP_KEY'` | App Key 的**环境变量名**（BYOK，`src/index.ts:56`），进 `x-api-key` 头；设置中心 `dshtrading.credentials.longbridge.appKey` 优先级更高 |
+| `appSecretRef` | `'LONGBRIDGE_APP_SECRET'` | App Secret 的环境变量名，用于 HMAC-SHA256 签名（`src/index.ts:57`、`src/rest.ts:149-159`）；设置中心同名键优先 |
+| `accessTokenRef` | `'LONGBRIDGE_ACCESS_TOKEN'` | Access Token 的环境变量名，进 `authorization` 头（`src/index.ts:58`、`src/rest.ts:142-144`）；设置中心同名键优先 |
 
 交易安全三件套在本包的落点：
 
@@ -44,7 +44,9 @@
 - **base 审批闸门**：`hk_place_order` / `hk_cancel_order` 命中
   `LIVE_ACTION_GATE_PATTERN`（`packages/base/src/index.ts:63`），无人在场时 ask 降级为 deny
   （`packages/base/src/index.ts:20-24`）。
-- **凭证只进 ref**：三条 ref 在 `apply` 里经 `process.env[...]` 解析（`src/index.ts:213-215`），
+- **凭证解析面**：设置中心 `dshtrading.credentials.longbridge`（router `getCredential`）优先、
+  `process.env[<ref>]` 兜底，由 `resolveCredentials` 统一解析（`src/index.ts:213-221`）；数据面行与
+  preset 行**都**走它（`src/dataplane.ts:29-31`），所以设置页填的 key 在 GUI 行情面同样生效。
   值只交给 rest 客户端，不落日志、不进台账身份（`src/index.ts:120-121`）。
 
 ## 接线
@@ -62,11 +64,13 @@
   `liveTrading: false`（第 74-77 行）。该行的 `apply` 直接构造行情与交易两个服务
   （`src/index.ts:216-217`），不经注册表。
 - **provider 词汇**：`packages/router/src/index.ts:80`（`PROVIDER_VOCABULARY` 的 `'longbridge'`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:46`
-  （`PROVIDER_LABELS`：`type: 'commercial'`、`env: 'LONGBRIDGE_APP_KEY'`、`markets: ['hk','us']`）
-  与 `packages/client-ui-settings/src/client/locales.ts:253`（中文 `Longbridge (长桥)`）/
-  第 397 行（英文 `Longbridge`）。凭据表单字段为 `appKey` / `appSecret` / `accessToken`
-  （`trading-settings-controller.ts:141-143`，后两者 `secret: true`）。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `longbridge` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:68`：`type: 'commercial'`、
+  `env: 'LONGBRIDGE_APP_KEY'`、`markets: ['hk','us']`）与
+  `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.longbridge'` 条目
+  （zh `Longbridge (长桥)` / en `Longbridge`）。凭据卡片字段为 `appKey` / `appSecret` /
+  `accessToken`（`trading-settings-controller.ts:163-165`，后两者 `secret: true`），
+  由本包的 `resolveCredentials` 消费（settings 优先、env 兜底，两条挂载路径都读）。
 - **bundle 依赖**：`packages/hk/package.json:33` 的 `@dshtrading/connector-longbridge: workspace:*`。
 - **激活条件**：`routeAllows()` 要求 `enabled` 且
   `tradingMarketRouter.activeProvider('hk') === 'longbridge'`（`src/index.ts:202-207`）。

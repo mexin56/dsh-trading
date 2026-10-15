@@ -1,6 +1,6 @@
-﻿import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { LongbridgeMarketDataService, TRADING_HK_MARKET_DATA_KEY, Config } from './index.js'
+import { LongbridgeMarketDataService, TRADING_HK_MARKET_DATA_KEY, Config, resolveCredentials } from './index.js'
 
 export const inject: string[] = []
 
@@ -26,9 +26,9 @@ const MARKET = 'hk'
 
 export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
-  const appKey = process.env[config.appKeyRef]
-  const appSecret = process.env[config.appSecretRef]
-  const accessToken = process.env[config.accessTokenRef]
+  // 凭证与 preset 行同源（resolveCredentials：settings 优先、env 兜底）——本行是 hk
+  // bundle 挂载的行情注册面，面板填的 key 必须在这里也生效，否则 GUI 行情读不到它。
+  const { appKey, appSecret, accessToken } = resolveCredentials(ctx, config)
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
     new LongbridgeMarketDataService(ctx, { appKey, appSecret, accessToken })

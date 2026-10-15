@@ -90,6 +90,7 @@ export type SettingsLocaleKey =
   | 'field.action.show'
   | 'provider.docsLink'
   | 'provider.envPrefix'
+  | 'provider.configFieldPrefix'
   | 'provider.binance'
   | 'provider.okx'
   | 'provider.bybit'
@@ -113,43 +114,26 @@ export type SettingsLocaleKey =
   | 'provider.jin10'
   | 'provider.xysz'
   | 'field.label.apiKey'
-  | 'field.label.apiSecret'
   | 'field.label.secretKey'
   | 'field.label.passphrase'
   | 'field.label.token'
   | 'field.label.mcpToken'
-  | 'field.label.qmtUrl'
-  | 'field.label.futuHost'
-  | 'field.label.futuPort'
-  | 'field.label.ibkrUrl'
   | 'field.label.appKey'
   | 'field.label.appSecret'
   | 'field.label.accessToken'
-  | 'field.label.tigerId'
   | 'field.label.tigerPrivateKey'
-  | 'field.placeholder.binanceKey'
-  | 'field.placeholder.binanceSecret'
   | 'field.placeholder.okxKey'
   | 'field.placeholder.okxSecret'
   | 'field.placeholder.okxPassphrase'
-  | 'field.placeholder.bybitKey'
-  | 'field.placeholder.bybitSecret'
-  | 'field.placeholder.ccxtKey'
-  | 'field.placeholder.ccxtSecret'
   | 'field.placeholder.alpacaKey'
   | 'field.placeholder.alpacaSecret'
   | 'field.placeholder.fmpKey'
   | 'field.placeholder.finnhubKey'
   | 'field.placeholder.polygonKey'
   | 'field.placeholder.tushareToken'
-  | 'field.placeholder.qmtUrl'
-  | 'field.placeholder.futuHost'
-  | 'field.placeholder.futuPort'
-  | 'field.placeholder.ibkrUrl'
   | 'field.placeholder.longbridgeAppKey'
   | 'field.placeholder.longbridgeAppSecret'
   | 'field.placeholder.longbridgeAccessToken'
-  | 'field.placeholder.tigerId'
   | 'field.placeholder.tigerPrivateKey'
 
 export const zh: Record<SettingsLocaleKey, string> = {
@@ -232,11 +216,12 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'field.action.hide': '隐藏',
       'field.action.show': '显示',
       'provider.docsLink': '官方指引与文档',
-      'provider.envPrefix': '环境变量/配置项：',
+      'provider.envPrefix': '环境变量（兜底）：',
+      'provider.configFieldPrefix': '连接器配置项：',
       'provider.binance': 'Binance (币安)',
       'provider.okx': 'OKX (欧易)',
       'provider.bybit': 'Bybit',
-      'provider.ccxt': 'CCXT (Binance/OKX/Bybit 直连)',
+      'provider.ccxt': 'CCXT (9 所直连：Binance/OKX/Bybit/Gate/KuCoin/Kraken/Coinbase/Bitfinex/HTX)',
       'provider.yahoo': 'Yahoo Finance',
       'provider.alpaca': 'Alpaca',
       'provider.fmp': 'FMP (Financial Modeling Prep)',
@@ -256,43 +241,26 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'provider.jin10': '金十数据',
       'provider.xysz': '银河星耀数智 (AmazingData)',
       'field.label.apiKey': 'API Key',
-      'field.label.apiSecret': 'API Secret',
       'field.label.secretKey': 'Secret Key',
       'field.label.passphrase': 'Passphrase',
       'field.label.token': 'Pro Token',
       'field.label.mcpToken': 'MCP Token',
-      'field.label.qmtUrl': 'MiniQMT 服务地址',
-      'field.label.futuHost': 'OpenD IP',
-      'field.label.futuPort': 'OpenD 端口',
-      'field.label.ibkrUrl': 'CP Gateway 地址',
       'field.label.appKey': 'App Key',
       'field.label.appSecret': 'App Secret',
       'field.label.accessToken': 'Access Token',
-      'field.label.tigerId': 'Tiger ID',
       'field.label.tigerPrivateKey': 'RSA 私钥',
-      'field.placeholder.binanceKey': 'BINANCE_API_KEY (留空走免密公共行情)',
-      'field.placeholder.binanceSecret': 'BINANCE_API_SECRET',
       'field.placeholder.okxKey': 'OKX_API_KEY (留空走免密公共行情)',
       'field.placeholder.okxSecret': 'OKX_SECRET_KEY',
       'field.placeholder.okxPassphrase': 'OKX_PASSPHRASE',
-      'field.placeholder.bybitKey': 'BYBIT_API_KEY (留空走免密公共行情)',
-      'field.placeholder.bybitSecret': 'BYBIT_SECRET_KEY',
-      'field.placeholder.ccxtKey': 'CCXT_API_KEY',
-      'field.placeholder.ccxtSecret': 'CCXT_API_SECRET',
       'field.placeholder.alpacaKey': 'ALPACA_API_KEY',
       'field.placeholder.alpacaSecret': 'ALPACA_SECRET_KEY',
       'field.placeholder.fmpKey': 'FMP_API_KEY',
       'field.placeholder.finnhubKey': 'FINNHUB_API_KEY',
       'field.placeholder.polygonKey': 'POLYGON_API_KEY',
       'field.placeholder.tushareToken': 'TUSHARE_TOKEN',
-      'field.placeholder.qmtUrl': 'http://127.0.0.1:5800',
-      'field.placeholder.futuHost': '127.0.0.1',
-      'field.placeholder.futuPort': '11111',
-      'field.placeholder.ibkrUrl': 'https://localhost:5000',
       'field.placeholder.longbridgeAppKey': 'LONGBRIDGE_APP_KEY',
       'field.placeholder.longbridgeAppSecret': 'LONGBRIDGE_APP_SECRET',
       'field.placeholder.longbridgeAccessToken': 'LONGBRIDGE_ACCESS_TOKEN',
-      'field.placeholder.tigerId': 'TIGER_ID',
       'field.placeholder.tigerPrivateKey': 'TIGER_PRIVATE_KEY',
 }
 
@@ -376,11 +344,12 @@ export const en: Record<SettingsLocaleKey, string> = {
       'field.action.hide': 'Hide',
       'field.action.show': 'Show',
       'provider.docsLink': 'Official docs & guides',
-      'provider.envPrefix': 'Env var / config field: ',
+      'provider.envPrefix': 'Env var (fallback): ',
+      'provider.configFieldPrefix': 'Connector config field: ',
       'provider.binance': 'Binance',
       'provider.okx': 'OKX',
       'provider.bybit': 'Bybit',
-      'provider.ccxt': 'CCXT (Binance / OKX / Bybit only)',
+      'provider.ccxt': 'CCXT (9 direct venues: Binance / OKX / Bybit / Gate / KuCoin / Kraken / Coinbase / Bitfinex / HTX)',
       'provider.yahoo': 'Yahoo Finance',
       'provider.alpaca': 'Alpaca',
       'provider.fmp': 'FMP (Financial Modeling Prep)',
@@ -400,42 +369,25 @@ export const en: Record<SettingsLocaleKey, string> = {
       'provider.jin10': 'Jin10',
       'provider.xysz': 'China Galaxy XYSZ (AmazingData)',
       'field.label.apiKey': 'API Key',
-      'field.label.apiSecret': 'API Secret',
       'field.label.secretKey': 'Secret Key',
       'field.label.passphrase': 'Passphrase',
       'field.label.token': 'Pro Token',
       'field.label.mcpToken': 'MCP Token',
-      'field.label.qmtUrl': 'MiniQMT endpoint',
-      'field.label.futuHost': 'OpenD IP',
-      'field.label.futuPort': 'OpenD port',
-      'field.label.ibkrUrl': 'CP Gateway URL',
       'field.label.appKey': 'App Key',
       'field.label.appSecret': 'App Secret',
       'field.label.accessToken': 'Access Token',
-      'field.label.tigerId': 'Tiger ID',
       'field.label.tigerPrivateKey': 'RSA private key',
-      'field.placeholder.binanceKey': 'BINANCE_API_KEY (leave empty for public quotes)',
-      'field.placeholder.binanceSecret': 'BINANCE_API_SECRET',
       'field.placeholder.okxKey': 'OKX_API_KEY (leave empty for public quotes)',
       'field.placeholder.okxSecret': 'OKX_SECRET_KEY',
       'field.placeholder.okxPassphrase': 'OKX_PASSPHRASE',
-      'field.placeholder.bybitKey': 'BYBIT_API_KEY (leave empty for public quotes)',
-      'field.placeholder.bybitSecret': 'BYBIT_SECRET_KEY',
-      'field.placeholder.ccxtKey': 'CCXT_API_KEY',
-      'field.placeholder.ccxtSecret': 'CCXT_API_SECRET',
       'field.placeholder.alpacaKey': 'ALPACA_API_KEY',
       'field.placeholder.alpacaSecret': 'ALPACA_SECRET_KEY',
       'field.placeholder.fmpKey': 'FMP_API_KEY',
       'field.placeholder.finnhubKey': 'FINNHUB_API_KEY',
       'field.placeholder.polygonKey': 'POLYGON_API_KEY',
       'field.placeholder.tushareToken': 'TUSHARE_TOKEN',
-      'field.placeholder.qmtUrl': 'http://127.0.0.1:5800',
-      'field.placeholder.futuHost': '127.0.0.1',
-      'field.placeholder.futuPort': '11111',
-      'field.placeholder.ibkrUrl': 'https://localhost:5000',
       'field.placeholder.longbridgeAppKey': 'LONGBRIDGE_APP_KEY',
       'field.placeholder.longbridgeAppSecret': 'LONGBRIDGE_APP_SECRET',
       'field.placeholder.longbridgeAccessToken': 'LONGBRIDGE_ACCESS_TOKEN',
-      'field.placeholder.tigerId': 'TIGER_ID',
       'field.placeholder.tigerPrivateKey': 'TIGER_PRIVATE_KEY',
 }

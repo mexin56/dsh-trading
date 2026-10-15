@@ -34,7 +34,7 @@ HTTP 契约的真实载体是本仓的 Python 桥 `scripts/futu-openapi-bridge.p
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `enabled` | `false` | 总开关（`src/index.ts:56`）。与本组另两个连接器不同，本包**缺省关闭**；接线行与 preset 行都显式 restate `enabled: true` |
-| `gatewayUrl` | `'http://127.0.0.1:11111'` | HTTP 网关地址（`src/index.ts:57`，客户端同一默认见 `src/rest.ts:168`）。**11111 是 OpenD 原生 TCP protobuf 端口，不是 HTTP 面**——插件路径下必须由接线行改成桥的地址（现行 `http://127.0.0.1:11112`），见「上游端点」 |
+| `gatewayUrl` | `'http://127.0.0.1:11111'` | HTTP 网关地址（`src/index.ts:57`，客户端同一默认见 `src/rest.ts:168`）。**这是 OpenD 地址的唯一入口**——设置页自 2026-10-15 起不再收地址字段。**11111 是 OpenD 原生 TCP protobuf 端口，不是 HTTP 面**——插件路径下必须由接线行改成桥的地址（现行 `http://127.0.0.1:11112`），见「上游端点」 |
 | `dryRun` | `true` | 强制模拟：为 true 时即使请求 `dryRun:false` 也只回本地模拟回执（`src/index.ts:286`） |
 | `liveTrading` | `false` | 实盘请求的**非权威镜像**；真实放行需 `@dshtrading/authority` 平面的人工签署授权（`liveTradingEnabled()`，`src/index.ts:279`）。它同时决定 OpenD 的 `trdEnv`：不放行恒 `SIMULATE`（`src/index.ts:237`） |
 | `unlockPwdRef` | `'FUTU_UNLOCK_PWD'` | 交易解锁口令的**环境变量名**（BYOK，`src/index.ts:60`）。只进 ref：值从 `process.env` 读入凭证对象（`src/index.ts:233`），不落日志、不进意图台账身份（`src/index.ts:81`） |
@@ -70,7 +70,7 @@ HTTP 契约的真实载体是本仓的 Python 桥 `scripts/futu-openapi-bridge.p
 - **provider 词汇**：`packages/router/src/index.ts:79`（`PROVIDER_VOCABULARY` 的 `'futu'`）。
 - **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:45`
   （`PROVIDER_LABELS`：`type: 'gateway'`、`env: 'gatewayUrl'`、`markets: ['hk','us']`，即
-  dataplane 的真实注册面）与 `packages/client-ui-settings/src/client/locales.ts:252`（中文
+  dataplane 的真实注册面）与 `packages/client-ui-settings/src/client/locales.ts:237`（中文
   `Futu (富途 OpenD)`）/ 第 396 行（英文 `Futu (OpenD)`）。这里的 `env` 是**配置项名**而非环境
   变量名：`gatewayUrl` 是本包 `Config` 的真字段（`src/index.ts:57`），本包 rest 客户端没有同名
   的 env 兜底（全包唯一的 `process.env` 读取是 `unlockPwdRef`，`src/index.ts:233`）；提示前缀的
@@ -182,12 +182,17 @@ HTTP 契约的唯一载体是本仓桥，缺省端口 11112（`FUTU_BRIDGE_PORT`
 - **`4h` 静默降级到 60m**（`src/rest.ts:89`）：请求 `4h` 得到的是 1 小时 bar，回执无任何标记。
 - **本包无撤单/余额工具**：`cancelOrder` / `getBalance` 只在服务面（`tradingHkTrade`）可达，
   工具面只有 3 个 `hk_*`。经工具调用撤单在本包不可用。
-- **设置页凭据表单字段与 Config 不一致**：面板收集 `host` + `port`
-  （`trading-settings-controller.ts:133-136`），而连接器 Config 只认 `gatewayUrl`
-  （`src/index.ts:57`）。面板填的 host/port 不会变成网关地址。
-- **`FUTU_HOST` 从未被读取（历史名，已从设置页移除）**：该名字只作为设置页的 `env` 提示存在过
-  （`trading-settings-controller.ts:45`），现提示已改为配置项名 `gatewayUrl`；全仓没有任何代码
-  读 `FUTU_HOST`——本包唯一的 `process.env` 读取是 `unlockPwdRef`（`src/index.ts:233`）。
+- **OpenD 地址的配置入口只有连接器 `Config.gatewayUrl` 一处**：设置页原先收集 `host` + `port`
+  写进 `dshtrading.credentials.futu`，而连接器只读 `config.gatewayUrl`（`src/index.ts:57`）——
+  面板填的 host/port 不会变成网关地址。2026-10-15 已从面板撤下这两个字段，提示槽位改指该 Config
+  字段（`PROVIDER_LABELS` 的 `configField: 'gatewayUrl'`）；地址由 hk bundle 的数据面行
+  （`packages/hk/cordis.patch.yml:31-32`）与 preset 行
+  （`packages/hk/assets/preset/hk-trader/agent.cordis.yml:61`）承载，可用值必须指向桥的 HTTP 面
+  （`http://127.0.0.1:11112`）。理由与对照见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
+- **`FUTU_HOST` 从未被读取（历史名，已从设置页移除）**：全仓没有任何代码读 `FUTU_HOST`——
+  本包唯一的 `process.env` 读取是 `unlockPwdRef`（`src/index.ts:233`）；面板提示已从 env 槽改到
+  `configField` 槽的 `gatewayUrl`（两个槽位的措辞由 `provider.envPrefix` /
+  `provider.configFieldPrefix` 分开承载）。
 - **us 面只注册行情、不注册交易**：`src/dataplane.ts:55-58` 的 `MARKET = 'hk'` 决定交易注册面；
   美股下单在符号层即被拒（`src/rest.ts:376`）。
 - **账户 id 不进仓库**：桥与探针证据里的 `accId` 已脱敏为 `<redacted-accId>`。

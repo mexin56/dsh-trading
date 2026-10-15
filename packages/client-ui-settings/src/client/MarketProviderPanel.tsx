@@ -318,7 +318,7 @@ export function MarketProviderPanel({
   const options = useMemo(() => {
     const matched = PROVIDER_LABELS.filter((p) => p.markets.includes(market))
     const known = new Set(matched.map((p) => p.id))
-    const extras: { id: string; label: string; url?: string; env?: string; type?: string }[] = []
+    const extras: { id: string; label: string; url?: string; env?: string; configField?: string; type?: string }[] = []
     for (const slug of [resolved, draft]) {
       if (slug !== undefined && !known.has(slug) && !extras.some((e) => e.id === slug)) {
         extras.push({ id: slug, label: t('custom', { provider: slug }) })
@@ -425,7 +425,7 @@ export function MarketProviderPanel({
                   )}
                 </div>
 
-                {(provider.url || provider.env) && (
+                {(provider.url || provider.env || provider.configField) && (
                   <div className={css.cardMeta}>
                     {provider.url && (
                       <a
@@ -441,6 +441,11 @@ export function MarketProviderPanel({
                     {provider.env && (
                       <div className={css.envBox}>
                         {t('provider.envPrefix')}<code>{provider.env}</code>
+                      </div>
+                    )}
+                    {provider.configField && (
+                      <div className={css.envBox}>
+                        {t('provider.configFieldPrefix')}<code>{provider.configField}</code>
                       </div>
                     )}
                   </div>

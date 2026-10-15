@@ -36,7 +36,7 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
 | `dryRun` | `true` | 强制模拟下单：为 `true` 时即使 `liveTrading=true` 且请求 `dryRun=false`，也只回本地模拟回执 |
 | `liveTrading` | `false` | 实盘开关的**非权威镜像**；真正授权由 `@dshtrading/authority` 的人工签署平面裁定 |
 | `apiKeyRef` | `'BYBIT_API_KEY'` | API Key 的**环境变量名**（BYOK）；`apply` 时 `process.env[apiKeyRef]` 取值 |
-| `secretRef` | `'BYBIT_SECRET_KEY'` | Secret 的环境变量名；值只存进客户端字段，**不参与任何签名**（当前无签名路径） |
+| `secretRef` | `'BYBIT_SECRET_KEY'` | Secret 的环境变量名；值只存进客户端字段，**不参与任何签名**（当前无签名路径）。设置页自 2026-10-15 起也不再挂凭据卡片——填了到不了请求，见「已知边界」第 3 条 |
 
 依据：`src/index.ts:47-53`（schema 与默认值）、`src/index.ts:281-282`（环境变量读取）、
 `src/rest.ts:205-210`（baseUrl 与凭证字段）、`src/rest.ts:215-217`（请求头只有 `Accept`）。
@@ -54,10 +54,13 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
   `Config` 补全，见 `src/dataplane.ts:16`）。
 - **服务键**：`tradingCryptoMarketData`（`src/index.ts:55`）、`tradingCryptoTrade`（`src/index.ts:56`）。
 - **provider 词汇**：`packages/router/src/index.ts:65` 登记 `bybit`。
-- **设置页显示名**：`packages/client-ui-settings/src/client/locales.ts:238`（中文 `Bybit`）与
-  `:382`（英文）；交易所条目 `packages/client-ui-settings/src/client/trading-settings-controller.ts:28`。
-  Secret 占位文案是 `BYBIT_SECRET_KEY`（`locales.ts:279` 中文、第 423 行英文），与「配置」表里
-  `secretRef` 的 schema 默认名同名（`src/index.ts:52`）——设置页文案与连接器读取的环境变量名同源。
+- **设置页显示名与提示**：`PROVIDER_LABELS` 的 `bybit` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:45`：`type: 'public'`、
+  `env: 'BYBIT_API_KEY'`、`markets: ['crypto']`）与 `packages/client-ui-settings/src/client/locales.ts`
+  的 `'provider.bybit'` 条目（zh / en 都是 `Bybit`）。`env` 与「配置」表里 `apiKeyRef` 的 schema
+  默认名同名（`src/index.ts:52`）——设置页文案与连接器读取的环境变量名同源。**凭据卡片已撤**
+  （2026-10-15）：本包只从 env 取值且没有任何签名出站路径，面板填的 key 到不了请求，
+  撤字段的理由与对照见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
 - **profile overrides**：`node scripts/sync-profile-overrides.mjs --all --dsh-home ~/.dsh-trading`
   （注意 `--dsh-home`；宿主会话继承的 `DSH_HOME` 指向别处会找错 profile 集）。
 
@@ -146,8 +149,11 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
 2. **私有账户读面失败关闭**：`getOrder` / `getPositions` 抛 `TRADING_NOT_IMPLEMENTED`
    （语义是「不可用」，不是「订单不存在」或「没有持仓」）；`getBalances` / `listOpenOrders` /
    `listTradeFills` 直接缺席。此前硬编码的 100000 余额与恒空数组已删除，见同一份 Note。
-3. **凭证不参与签名**：`apiKeyRef` / `secretRef` 解析出的值只存进客户端字段
-   （`src/rest.ts:206-207`），全部请求走免密公共端点；本包没有任何签名实现。
+3. **凭证不参与签名（设置页凭据卡片已撤）**：`apiKeyRef` / `secretRef` 解析出的值只存进客户端字段
+   （`src/rest.ts:206-207`），全部请求走免密公共端点；本包没有任何签名实现，`placeOrder` 的
+   `_creds` 形参被忽略（`src/rest.ts:546`）。设置页原先挂的 `apiKey` / `apiSecret` 卡片因此与
+   ccxt / binance 同批撤下（2026-10-15）——面板写的键不落任何请求；`BYBIT_API_KEY` 环境变量仍是
+   连接器自己的取值面。理由与对照见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
 4. **K 线错误静默为空数组**（`src/rest.ts:289-291`），不抛结构化错误。
 5. **地域封锁（实测）**：默认出口对 `api.bybit.com` 全量 403，换出口地区才可达，
    见「状态」段的证据与日期。这是上游按出口国家的拦截，不是本包可控项。

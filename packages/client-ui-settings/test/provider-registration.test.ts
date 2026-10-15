@@ -127,14 +127,16 @@ describe('设置页 provider 登记面与连接器 dataplane 注册面一致', (
     expect(trade.map((row) => `${row.market}/${row.provider}`)).toEqual(['hk/futu'])
   })
 
-  it('用户看到 futu 的凭据提示时它指向 Config 字段 gatewayUrl，而不是不存在的环境变量名', () => {
+  it('用户看到 futu 的配置提示时它指向 Config 字段 gatewayUrl，而不是环境变量名或无人读的 host/port', () => {
     // Given: connector-futu dataplane 的 Config schema（loader 补默认值用的那一份）
     // When: 解析行 config 并读登记表里 futu 的提示字段
-    // Then: 登记表 env == 'gatewayUrl'，且该键真出现在 resolveConfig 结果里
-    // （futu 的 rest 客户端没有 env 兜底，提示写环境变量名就是指向不存在的配置面）
+    // Then: 提示落在 configField 槽（env 槽为空），值是 'gatewayUrl' 且真出现在 resolveConfig 结果里
+    // （futu 的 rest 客户端没有 gatewayUrl 的 env 兜底，全包唯一 process.env 读取是 unlockPwdRef；
+    //   面板原来的 host/port 字段不在这份 schema 里，写进设置字典也无人读——2026-10-15 已撤）
     const futu = PROVIDER_LABELS.find((p) => p.id === 'futu')
     const resolved = resolveConfig(pluginOf(futuDataplane) as never, { enabled: true }) as Record<string, unknown>
-    expect(futu?.env).toBe('gatewayUrl')
+    expect(futu?.env).toBeUndefined()
+    expect(futu?.configField).toBe('gatewayUrl')
     expect(Object.keys(resolved)).toContain('gatewayUrl')
   })
 

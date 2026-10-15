@@ -13,7 +13,7 @@
 | **同花顺/问财平台 (`hithink`)** | 问财开放数据服务 | `HITHINK_FINANCE_API_KEY` | [fuyao.aicubes.cn](https://fuyao.aicubes.cn/) | REST API，支持 A 股历史日K（1d/3d/1w/1M，分钟级上游未开放）、估值快照（PE/PB/PS）、早盘集合竞价强弱、涨跌停池连板数据、期货市场（日K/当日分时/品种与代码表，market=futures）；需配置 Token |
 | **Tushare Pro (`tushare`)** | 商业/量化社区 | `TUSHARE_TOKEN` | [tushare.pro/register](https://tushare.pro/register) | 免费注册送积分，可获取 PE/PB 估值指标与分钟线 |
 | **AkShare (`akshare`)** | 免密公共行情（实现面是东财公开端点） | 无需配置 | [akshare.xyz](https://akshare.xyz) | 包名沿用 AkShare，实际直连东方财富公开端点（`push2`/`push2his`）：A 股报价、5m/15m/30m/1h/1d/1w/1M K 线（1m 上游只回当日，连接器显式拒绝）、行业板块资金流排行；纯数据源，无交易通道 |
-| **迅投 MiniQMT (`qmt`)** | 券商实盘网关 | `QMT_GATEWAY_URL` (默认 `http://127.0.0.1:5800`)<br>`QMT_ACCOUNT_ID` | 联系开户券商申请 (如国金/华泰/中信/银河) | 需在本机运行券商提供的 MiniQMT 客户端与本地 RPC/HTTP 网关桥（见下方契约说明）；支持真实可用资金查询、股票委托申报与撤单 |
+| **迅投 MiniQMT (`qmt`)** | 券商实盘网关 | 连接器 `Config.gatewayUrl`（默认 `http://127.0.0.1:5800`，设置页提示即该字段名）<br>`QMT_ACCOUNT_ID` | 联系开户券商申请 (如国金/华泰/中信/银河) | 需在本机运行券商提供的 MiniQMT 客户端与本地 RPC/HTTP 网关桥（见下方契约说明）；支持真实可用资金查询、股票委托申报与撤单 |
 | **银河星耀数智 (`xysz`)** | 券商行情 SDK（经本地 REST 封装） | `XYSZ_API_URL` (默认 `http://127.0.0.1:8191`) | 联系中国银河证券营业部开通星耀数智权限 | 券商侧 Level-1 行情与资讯数据（AmazingData/tgw Python SDK）。SDK 有状态（调用前须登录），故由本机/局域网的 FastAPI 封装服务 `xysz-api` 持有账号并暴露 REST，连接器只连该服务。支持 1m~1M K 线（A 股全历史自 2013）、五档盘口、沪深北名册（含中文简称）与基本面快照；纯数据源，无交易通道 |
 
 > **MiniQMT 本地网关桥契约说明**：
@@ -34,7 +34,7 @@
 | **Financial Modeling Prep (`fmp`)** | 商业量化 API | `FMP_API_KEY` | [financialmodelingprep.com/developer](https://site.financialmodelingprep.com/developer) | 免费注册每天 250 次请求，支持深度财报与分钟线 |
 | **Finnhub (`finnhub`)** | 商业金融 API | `FINNHUB_API_KEY` | [finnhub.io/register](https://finnhub.io/register) | 免费注册每分钟 60 次调用，支持实时报价与市场新闻 |
 | **Polygon.io (`polygon`)** | 机构级高频 API | `POLYGON_API_KEY` | [polygon.io](https://polygon.io) | 免费 Basic 计划每分钟 5 次请求，提供微秒级 K 线 |
-| **盈透证券 (`ibkr`)** | 机构券商网关 | `IBKR_GATEWAY_URL` (默认 `https://127.0.0.1:5000/v1/api`)<br>`IBKR_ACCOUNT_ID` | [interactivebrokers.com/campus/ibkr-api-page/cpapi/](https://www.interactivebrokers.com/campus/ibkr-api-page/cpapi/) | 需在本机运行 Client Portal Gateway (`localhost:5000`)；支持真实 Ledger 资金拉取、Pre-order Warning 自动确认、委托申报与撤单 |
+| **盈透证券 (`ibkr`)** | 机构券商网关 | 连接器 `Config.gatewayUrl`（默认 `https://127.0.0.1:5000/v1/api`；`IBKR_GATEWAY_URL` 只在插件路径外生效）<br>`IBKR_ACCOUNT_ID` | [interactivebrokers.com/campus/ibkr-api-page/cpapi/](https://www.interactivebrokers.com/campus/ibkr-api-page/cpapi/) | 需在本机运行 Client Portal Gateway (`localhost:5000`)；支持真实 Ledger 资金拉取、Pre-order Warning 自动确认、委托申报与撤单 |
 
 ---
 
@@ -43,9 +43,9 @@
 | 连接器 | 类型 | 认证方式与环境变量 | 官网与申请/下载地址 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **腾讯港股 (`tencent`)** | 免密公共 | 无需配置 | [finance.qq.com](https://finance.qq.com) | 免密开箱即用，支持港股日 K 与分时行情 |
-| **长桥证券 (`longbridge`)** | 现代云端券商 | `LONGBRIDGE_APP_KEY`<br>`LONGBRIDGE_APP_SECRET`<br>`LONGBRIDGE_ACCESS_TOKEN` | [open.longportapp.com](https://open.longportapp.com) | 注册开发者即获港美股实时 L2 行情与交易 OpenAPI；遵循 LongPort 官方规范带 `x-api-signature: HMAC-SHA256 SignedHeaders=authorization;x-api-key;x-timestamp, Signature=...` 头部签名 |
-| **富途牛牛 (`futu`)** | 专业券商网关 | `FUTU_HOST` / `FUTU_PORT` (默认 11111) | [futunn.com/download/open-api](https://www.futunn.com/download/open-api) | 需在本机启动 Futu OpenD 客户端 |
-| **老虎证券 (`tiger`)** | 全球券商 OpenAPI | `TIGER_ID`<br>`TIGER_PRIVATE_KEY` (RSA PEM 格式)<br>`TIGER_ACCOUNT_ID` | [developer.itigerup.com](https://developer.itigerup.com) | 基于标准 RSA-SHA256 签名算法直连 TigerOpen 网关；支持港美股全品种交易与实时资产/委托申报 |
+| **长桥证券 (`longbridge`)** | 现代云端券商 | 设置中心 `dshtrading.credentials.longbridge.*`<br>或 `LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN`（settings 优先、env 兜底） | [open.longportapp.com](https://open.longportapp.com) | 注册开发者即获港美股实时 L2 行情与交易 OpenAPI；遵循 LongPort 官方规范带 `x-api-signature: HMAC-SHA256 SignedHeaders=authorization;x-api-key;x-timestamp, Signature=...` 头部签名 |
+| **富途牛牛 (`futu`)** | 专业券商网关 | 连接器 `Config.gatewayUrl`（默认 `http://127.0.0.1:11111`；插件路径必须指向桥 `http://127.0.0.1:11112`，11111 是 OpenD 的 TCP protobuf 端口） | [futunn.com/download/open-api](https://www.futunn.com/download/open-api) | 需在本机启动 Futu OpenD 客户端 |
+| **老虎证券 (`tiger`)** | 全球券商 OpenAPI | 设置中心 `dshtrading.credentials.tiger.privateKey`（或 `TIGER_PRIVATE_KEY`，RSA PEM 格式）<br>`TIGER_ID` / `TIGER_ACCOUNT_ID` 经连接器 `Config`（`tigerId` / `accountId`） | [developer.itigerup.com](https://developer.itigerup.com) | 基于标准 RSA-SHA256 签名算法直连 TigerOpen 网关；支持港美股全品种交易与实时资产/委托申报 |
 
 ---
 
@@ -53,10 +53,10 @@
 
 | 连接器 | 类型 | 认证方式与环境变量 | 官网与申请/下载地址 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Binance (`binance`)** | 全球主流所 | 行情免密 / 交易 `BINANCE_API_KEY` | [binance.com/en/binance-api](https://www.binance.com/en/binance-api) | 行情开箱即用，交易支持 API Key 认证 |
+| **Binance (`binance`)** | 全球主流所 | 行情免密（签名下单未实现；连接器不读任何凭证，设置页也不挂凭据字段） | [binance.com/en/binance-api](https://www.binance.com/en/binance-api) | 行情开箱即用；签名下单是未实现的后续卡（`crypto_place_order` 的 live 档抛 `TRADING_NOT_IMPLEMENTED`） |
 | **OKX (`okx`)** | 全球衍生品所 | 行情免密 / 交易 `OKX_API_KEY` 等 | [okx.com/docs-v5/zh/](https://www.okx.com/docs-v5/zh/) | 支持 Demo 模拟盘与实盘下单 |
-| **Bybit (`bybit`)** | 衍生品三大所 | 行情免密（账户/交易面未实现） | [bybit.com/en/api-overview](https://www.bybit.com/en/api-overview) | Bybit v5 统一账户，免密行情；**账户与交易面未实现**——读方法缺席或抛 `TRADING_NOT_IMPLEMENTED`，不冒充余额/持仓（凭据 ref 保留给将来的签名实现） |
-| **CCXT (`ccxt`)** | 免密现货直连（三所，非 ccxt 库） | 免密公共端点（本连接器无凭证字段，设置页占位不生效） | [ccxt.com](https://ccxt.com) | 沿用 CCXT 所名词汇的现货直连：ticker 只有 `binance` / `okx` / `bybit` 三条分支，K 线只有 `binance`；盘口、最近成交、衍生品与账户读面均缺席，永续 `-SWAP` 显式拒绝。**不依赖也不打包 `ccxt` 库**，未实现的所名在任何请求前结构化拒绝 |
+| **Bybit (`bybit`)** | 衍生品三大所 | 行情免密（账户/交易面未实现） | [bybit.com/en/api-overview](https://www.bybit.com/en/api-overview) | Bybit v5 统一账户，免密行情；**账户与交易面未实现**——读方法缺席或抛 `TRADING_NOT_IMPLEMENTED`，不冒充余额/持仓（凭据 ref 保留给将来的签名实现；设置页不再挂凭据卡片——面板的 key 到不了请求） |
+| **CCXT (`ccxt`)** | 免密现货直连（三所，非 ccxt 库） | 免密公共端点（本连接器无凭证字段；设置页原先的 `CCXT_API_KEY`/`CCXT_API_SECRET` 占位已于 2026-10-15 撤下） | [ccxt.com](https://ccxt.com) | 沿用 CCXT 所名词汇的现货直连：ticker 只有 `binance` / `okx` / `bybit` 三条分支，K 线只有 `binance`；盘口、最近成交、衍生品与账户读面均缺席，永续 `-SWAP` 显式拒绝。**不依赖也不打包 `ccxt` 库**，未实现的所名在任何请求前结构化拒绝 |
 
 ---
 

@@ -36,8 +36,8 @@
 | `env` | `'demo'` | 运行环境标签（`src/index.ts:53`）。它**只进订单意图台账的作用域**（`src/index.ts:118-122` 的 `environment: options.config.env`），**不改变请求地址**——见「已知边界」 |
 | `dryRun` | `true` | 强制模拟：为 true 时即使请求 `dryRun:false` 也只回本地模拟回执（`src/index.ts:140`） |
 | `liveTrading` | `false` | 实盘请求的**非权威镜像**；真实放行需 `@dshtrading/authority` 平面的人工签署授权（`liveTradingEnabled()`，`src/index.ts:133`、`177`） |
-| `tigerId` | 无默认（可选） | Tiger ID（`src/index.ts:56`）。**缺省时 rest 层用字面量 `'demo'` 占位**（`src/rest.ts:72`），不报错；也可由环境变量 `TIGER_ID` 回落（`src/rest.ts:65`） |
-| `privateKeyRef` | `'TIGER_PRIVATE_KEY'` | RSA 私钥（PEM）的**环境变量名**（BYOK，`src/index.ts:57`），用于 RSA2 签名 |
+| `tigerId` | 无默认（可选） | Tiger ID（`src/index.ts:56`）。**缺省时 rest 层用字面量 `'demo'` 占位**（`src/rest.ts:72`），不报错；也可由环境变量 `TIGER_ID` 回落（`src/rest.ts:65`）。设置页自 2026-10-15 起不再提供该字段——它是非密账户标识，家在 Config |
+| `privateKeyRef` | `'TIGER_PRIVATE_KEY'` | RSA 私钥（PEM）的**环境变量名**（BYOK，`src/index.ts:57`），用于 RSA2 签名；设置中心 `dshtrading.credentials.tiger.privateKey` 优先级更高 |
 | `accountId` | 无默认（可选） | Tiger 账户 ID（`src/index.ts:58`）。缺省时不发 `account` 业务字段（`src/rest.ts:183-188`、`209`、`230`、`276`）；也可由环境变量 `TIGER_ACCOUNT_ID` 回落（`src/rest.ts:67`） |
 
 交易安全三件套在本包的落点：
@@ -50,8 +50,10 @@
 - **base 审批闸门**：`hk_place_order` / `hk_cancel_order` 命中
   `LIVE_ACTION_GATE_PATTERN`（`packages/base/src/index.ts:63`），无人在场时 ask 降级为 deny
   （`packages/base/src/index.ts:20-24`）。
-- **凭证只进 ref**：`privateKeyRef` 在 `apply` 里经 `process.env[...]` 解析（`src/index.ts:220`），
-  值只交给 rest 客户端，不落日志、不进台账身份（`src/index.ts:121`）。
+- **凭证解析面**：RSA 私钥的设置中心键 `dshtrading.credentials.tiger.privateKey`（router
+  `getCredential`）优先、`privateKeyRef` → `process.env` 兜底，由 `resolvePrivateKey` 统一解析
+  （`src/index.ts:220-223`）；数据面行与 preset 行**都**走它（`src/dataplane.ts:32-37`），所以面板
+  填的 PEM 在 GUI 行情面同样生效。值只交给 rest 客户端，不落日志、不进台账身份（`src/index.ts:121`）。
 
 ## 接线
 
@@ -67,12 +69,14 @@
   行 config `enabled: true` / `dryRun: true` / `liveTrading: false`（第 102-105 行）。
   该行的 `apply` 直接构造行情与交易两个服务（`src/index.ts:228-229`），不经注册表。
 - **provider 词汇**：`packages/router/src/index.ts:81`（`PROVIDER_VOCABULARY` 的 `'tiger'`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:47`
-  （`PROVIDER_LABELS`：`type: 'commercial'`、`env: 'TIGER_ID'`、`markets: ['hk']`）
-  与 `packages/client-ui-settings/src/client/locales.ts:254`（中文 `Tiger Trade (老虎证券)`）/
-  第 398 行（英文 `Tiger Trade`）。凭据表单字段为 `tigerId` / `privateKey`
-  （`trading-settings-controller.ts:145-148`）。**`markets` 与本包实现面一致**：本包唯一的
-  `MARKET = 'hk'`（`src/dataplane.ts:25`），唯一挂载处是 `packages/hk/cordis.patch.yml:42-45`。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `tiger` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:69`：`type: 'commercial'`、
+  `env: 'TIGER_ID'`、`markets: ['hk']`）与 `packages/client-ui-settings/src/client/locales.ts`
+  的 `'provider.tiger'` 条目（zh `Tiger Trade (老虎证券)` / en `Tiger Trade`）。凭据卡片字段只剩
+  `privateKey`（`trading-settings-controller.ts:168`，`secret: true`，由本包 `resolvePrivateKey`
+  消费）；`tigerId` 已撤（2026-10-15）——它是非密账户标识，家在 `Config.tigerId`
+  （`src/index.ts:56`，rest 层另有 `TIGER_ID` 回落，`src/rest.ts:65`）。**`markets` 与本包实现面一致**：
+  本包唯一的 `MARKET = 'hk'`（`src/dataplane.ts:25`），唯一挂载处是 `packages/hk/cordis.patch.yml:42-45`。
 - **bundle 依赖**：`packages/hk/package.json:35` 的 `@dshtrading/connector-tiger: workspace:*`。
 - **激活条件**：`routeAllows()` 要求 `enabled` 且
   `tradingMarketRouter.activeProvider('hk') === 'tiger'`（`src/index.ts:209-214`）。
@@ -199,9 +203,9 @@
 - **交易面不进交易注册表**：`src/dataplane.ts` 全文件没有 `tradingTradeRegistry`，注册表里没有
   `(hk, tiger)` 交易条目；读该注册表的消费方看不到本包的交易服务。
 - **设置页市场面靠手工对齐**：`PROVIDER_LABELS` 里 tiger 的 `markets` 是 `['hk']`
-  （`trading-settings-controller.ts:47`），与本包 `MARKET = 'hk'`（`src/dataplane.ts:25`）、
+  （`trading-settings-controller.ts:69`），与本包 `MARKET = 'hk'`（`src/dataplane.ts:25`）、
   `routeAllows(ctx, config, 'hk')`（`src/index.ts:218`）一致；该字段是控制器里的字面量，
-  `trading-settings-controller.ts:39-40` 的注释要求它等于 dataplane 注册面。
+  `trading-settings-controller.ts:56-57` 的注释要求它等于 dataplane 注册面。
 - **4 位 `.HK` 不补零**：`toTigerSymbol` 对含 `.` 的输入只取点前段（`src/rest.ts:29-32`），
   `0700.HK` 与 `00700.HK` 归一结果不同（前者保持 4 位）。
 

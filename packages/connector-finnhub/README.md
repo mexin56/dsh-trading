@@ -31,9 +31,12 @@ Finnhub 商业数据源美股连接器（`us` 市场，BYOK），实现 `@dshtra
 - **provider 词汇**：`packages/router/src/index.ts:71` 的 `PROVIDER_VOCABULARY` 含 `finnhub`；
   本包导出 `ROUTER_PROVIDER = 'finnhub'`（`src/index.ts:164`），`routeAllows` 只在 `us` 市场当前激活
   provider 为 `finnhub` 时激活本实例（`src/index.ts:166-171`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:33`
-  （`{ id: 'finnhub', label: 'provider.finnhub', url: 'https://finnhub.io/register', env: 'FINNHUB_API_KEY', type: 'commercial', markets: ['us'] }`），
-  文案见 `src/client/locales.ts:245`（zh）与 `:391`（en），界面显示 `Finnhub`。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `finnhub` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:50`：
+  `{ id: 'finnhub', label: 'provider.finnhub', url: 'https://finnhub.io/register', env: 'FINNHUB_API_KEY', type: 'commercial', markets: ['us'] }`），
+  文案见 `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.finnhub'` 条目
+  （zh / en 都是 `Finnhub`），界面显示 `Finnhub`。凭据卡片字段 `apiKey`
+  （`trading-settings-controller.ts:154`）由本包的 `getCredential` 读点消费。
 - **服务键**：`tradingUsMarketData`（`src/index.ts:49`）、`tradingUsTrade`（`src/index.ts:50`）。
 
 ## 上游端点
@@ -119,7 +122,7 @@ Finnhub 商业数据源美股连接器（`us` 市场，BYOK），实现 `@dshtra
   （`src/index.ts:177-179`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
 - **key 随查询参数出网**：每次请求把 key 以 `token=<key>` 拼进 URL（`src/rest.ts:82`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源，设置页把该源标为 `type: 'commercial'`
-  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:33`）。
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:50`）。
 - **免费额度与再分发边界以 Finnhub 服务条款为准**：本仓不缓存、不再分发任何行情或新闻数据。
   `docs/guides/connectors-guide.md` 第 35 行列有一句免费额度描述——该数字来自文档而非源码或 spike，
   本仓未复验，**一律以 Finnhub 官方条款为准**。

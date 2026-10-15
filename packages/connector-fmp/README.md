@@ -33,9 +33,12 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 - **provider 词汇**：`packages/router/src/index.ts:70` 的 `PROVIDER_VOCABULARY` 含 `fmp`；
   本包导出 `ROUTER_PROVIDER = 'fmp'`（`src/index.ts:159`），`routeAllows` 只在 `us` 市场当前激活
   provider 为 `fmp` 时激活本实例（`src/index.ts:161-166`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:32`
-  （`{ id: 'fmp', label: 'provider.fmp', url: 'https://site.financialmodelingprep.com/developer', env: 'FMP_API_KEY', type: 'commercial', markets: ['us'] }`），
-  文案见 `packages/client-ui-settings/src/client/locales.ts:242`（zh）与 `:386`（en），界面显示 `FMP (Financial Modeling Prep)`。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `fmp` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:49`：
+  `{ id: 'fmp', label: 'provider.fmp', url: 'https://site.financialmodelingprep.com/developer', env: 'FMP_API_KEY', type: 'commercial', markets: ['us'] }`），
+  文案见 `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.fmp'` 条目
+  （zh / en 都是 `FMP (Financial Modeling Prep)`），界面显示 `FMP (Financial Modeling Prep)`。
+  凭据卡片字段 `apiKey`（`trading-settings-controller.ts:151`）由本包的 `getCredential` 读点消费。
 - **服务键**：`tradingUsMarketData`（`src/index.ts:48`）、`tradingUsTrade`（`src/index.ts:49`）。
 
 ## 上游端点
@@ -128,7 +131,7 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
   （`src/index.ts:172-174`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
 - **key 随查询参数出网**：每次请求把 key 以 `apikey=<key>` 拼进 URL（`src/rest.ts:99`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源，设置页把该源标为 `type: 'commercial'`
-  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:32`）。
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:49`）。
 - **免费额度与再分发边界以 FMP 服务条款为准**：本仓不缓存、不再分发任何行情或公司资料数据。
   `docs/guides/connectors-guide.md` 第 34 行列有一句免费额度描述——该数字来自文档而非源码或 spike，
   本仓未复验，**一律以 FMP 官方条款为准**。

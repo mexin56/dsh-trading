@@ -61,9 +61,11 @@
   行 id `dsh-trading-us-connector-alpaca`，行 config `enabled: true` / `env: demo` / `dryRun: true` /
   `liveTrading: false`。
 - **provider 词汇**：`packages/router/src/index.ts:69`（`PROVIDER_VOCABULARY` 的 `'alpaca'`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:31`
-  （`PROVIDER_LABELS`，`type: 'commercial'`，`markets: ['us']`）与
-  `packages/client-ui-settings/src/client/locales.ts:243`（中文 `Alpaca`）/ 第 389 行（英文 `Alpaca`）。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `alpaca` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:48`：`type: 'commercial'`、
+  `env: 'ALPACA_API_KEY'`、`markets: ['us']`）与 `packages/client-ui-settings/src/client/locales.ts`
+  的 `'provider.alpaca'` 条目（zh / en 都是 `Alpaca`）。凭据卡片字段 `apiKey` / `secretKey`
+  （`trading-settings-controller.ts:147-148`）由本包的 `resolveCredentials` 消费。
 - **bundle 依赖**：`packages/us/package.json` 的 `@dshtrading/connector-alpaca: workspace:*`。
 - **profile overrides**：`node scripts/sync-profile-overrides.mjs --all --dsh-home ~/.dsh-trading`
   （注意 `--dsh-home`：Web 会话继承的 `DSH_HOME` 指向 ~/.dsh 会找错 profile 集）。

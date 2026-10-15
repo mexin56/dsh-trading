@@ -48,9 +48,13 @@
 - **必须导出 `Config`**：`src/dataplane.ts:18` 就地重导出主行同一份 schema。loader 只认**被加载模块**导出的
   Config；缺它则行 config 的默认值全丢，`env` 缺失会在 `OrderIntentLedger` 构造时抛 TypeError，
   导致整行 apply 失败、行情与交易两个服务一起不注册（同引上面的 bug-fix Note）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/locales.ts:253`（zh `MiniQMT (迅投券商实盘)`）与
-  `:399`（en `MiniQMT (broker gateway)`）；凭证字段
-  `packages/client-ui-settings/src/client/trading-settings-controller.ts:43`（`markets: ['cn']`、env `QMT_GATEWAY_URL`）。
+- **设置页显示名与地址提示**：`PROVIDER_LABELS` 的 `qmt` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:64`：`markets: ['cn']`、
+  `configField: 'gatewayUrl'`）与 `packages/client-ui-settings/src/client/locales.ts` 的
+  `'provider.qmt'` 条目（zh `MiniQMT (迅投券商实盘)` / en `MiniQMT (broker gateway)`）。
+  **凭据卡片已撤**（2026-10-15）：面板原先收集 `gatewayUrl` 写进 `dshtrading.credentials.qmt`，
+  而本包只读 `Config.gatewayUrl`（rest 层的 `QMT_GATEWAY_URL` 回落被 schema 默认值遮蔽），
+  提示因此改走 `configField` 槽；见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
 
 ## 上游端点
 

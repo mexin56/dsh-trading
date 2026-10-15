@@ -206,6 +206,22 @@ export class TigerTradeService extends Service implements TradeService {
 
 export const ROUTER_PROVIDER = 'tiger'
 
+/** router 凭据读取面（鸭式，连接器对 router 包零依赖，与 routeAllows 同纪律）。 */
+interface RouterCredentialLike {
+  getCredential?(provider: string): Record<string, string> | undefined
+}
+
+/**
+ * RSA 私钥解析：设置中心 `dshtrading.credentials.tiger.privateKey`（router `getCredential`）
+ * 优先、`process.env[config.privateKeyRef]` 兜底。值进 rest 层的 RSA2 签名
+ * （src/rest.ts 的 generateTigerSignature），设置页写的键不是纯承诺。
+ * tigerId 不走这里——它是非密账户标识，家是连接器 Config（`tigerId` / `TIGER_ID` 回落）。
+ */
+export function resolvePrivateKey(ctx: Context, config: Config): string | undefined {
+  const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as RouterCredentialLike | undefined
+  return router?.getCredential?.(ROUTER_PROVIDER)?.privateKey || (config.privateKeyRef ? process.env[config.privateKeyRef] : undefined)
+}
+
 export function routeAllows(ctx: Context, config: Config, market: string): boolean {
   if (!config.enabled) return false
   const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as { activeProvider(m: string): string | undefined } | undefined
@@ -217,7 +233,7 @@ export function apply(ctx: Context, config: Config): void {
   if (!config.enabled) return
   if (!routeAllows(ctx, config, 'hk')) return
 
-  const privateKey = config.privateKeyRef ? process.env[config.privateKeyRef] : undefined
+  const privateKey = resolvePrivateKey(ctx, config)
   // 只把有值的可选字段交给 rest 层：Config 的可选项类型是 `string | undefined`，
   // 而 TigerRestOptions 在 exactOptionalPropertyTypes 下不接受显式的 undefined。
   const credentials = {

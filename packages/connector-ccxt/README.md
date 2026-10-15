@@ -47,9 +47,8 @@
 依据：`src/index.ts:42-49`（schema 与默认值）、`src/index.ts:177-178`（只把 `defaultExchange`
 传给客户端）。**本包没有凭证字段**——`Config` 里没有 key/secret ref，
 `apply` 也不读任何环境变量；所有请求都是免密公共端点。
-设置页另存着 `CCXT_API_KEY` / `CCXT_API_SECRET` 占位（
-`packages/client-ui-settings/src/client/locales.ts:283-284`、
-`trading-settings-controller.ts:29`），但本连接器从不读取它们（见「已知边界」第 6 条）。
+设置页也不再挂 `CCXT_API_KEY` / `CCXT_API_SECRET` 占位（2026-10-15 撤：面板写进
+`dshtrading.credentials.ccxt` 的键无人读，见「已知边界」第 6 条）。
 
 ## 接线
 
@@ -63,9 +62,11 @@
   交易服务只在 preset 主入口构造（`src/index.ts:178`），**不经 `tradingTradeRegistry`**。
 - **服务键**：`tradingCryptoMarketData`（`src/index.ts:51`）、`tradingCryptoTrade`（`src/index.ts:52`）。
 - **provider 词汇**：`packages/router/src/index.ts:66` 登记 `ccxt`。
-- **设置页显示名**：`packages/client-ui-settings/src/client/locales.ts:241`（中文
-  `CCXT (Binance/OKX/Bybit 直连)`）与 `:387`（英文 `CCXT (Binance / OKX / Bybit only)`），
-  与本包登记的实现面一致；交易所条目 `trading-settings-controller.ts:29`。
+- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:46`
+  （`PROVIDER_LABELS` 的 `ccxt` 条目：`type: 'public'`、无 `env`、无凭据字段）与
+  `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.ccxt'` 条目
+  （zh `CCXT (Binance/OKX/Bybit 直连)` / en `CCXT (Binance / OKX / Bybit only)`），
+  与本包登记的实现面一致。
 - **profile overrides**：`node scripts/sync-profile-overrides.mjs --all --dsh-home ~/.dsh-trading`
   （注意 `--dsh-home`；宿主会话继承的 `DSH_HOME` 指向别处会找错 profile 集）。
 
@@ -144,7 +145,7 @@
    （gateio / kucoin / kraken / coinbase / bitfinex / htx 或任何其它 slug），抛
    `TRADING_NOT_IMPLEMENTED` 且**不发任何请求**——此前「选 kraken 会拿到 Binance 的报价、
    没有任何提示」的静默兜底已不存在。要支持更多所是补实现分支（另一张卡），不是放宽登记。
-   工具描述与设置页显示名同步收窄（`src/index.ts:188`、`locales.ts:241`）。
+   工具描述与设置页显示名同步收窄（`src/index.ts:188`、`locales.ts:226`）。
 2. **K 线只有 Binance 一条分支**：`KLINE_EXCHANGES`（`src/rest.ts:40`）只登记 `binance`，
    `getKlines` 对非 binance 所名在 fetch 之前抛 `TRADING_NOT_IMPLEMENTED`
    （`src/rest.ts:169`，零请求），不再「形态上接收 `exchange`、实现上忽略它恒打 Binance」。
@@ -160,9 +161,10 @@
    `listTradeFills` 直接缺席，消费方按「可选方法缺席」处理。此前硬编码的 100000 USDT
    余额、恒空数组的 `getPositions` 与非契约的 `getOrders` 已删除；回归
    `test/account-read-surface.test.ts`。
-6. **凭证字段缺失**：设置页为 ccxt 存 `CCXT_API_KEY` / `CCXT_API_SECRET` 占位，
-   但连接器既不声明凭证字段也不读环境变量（`src/index.ts:42-49`、`:177-178`）——
-   填了不生效。
+6. **凭证字段已撤（2026-10-15）**：设置页不再为 ccxt 挂 `apiKey` / `apiSecret`——本连接器既不声明
+   凭证字段、也不读设置字典（`src/index.ts:42-49`、`:177-178`；`CcxtRestOptions` 的 `apiKey`/`secret`
+   只被赋值，从不进请求），面板字段是纯承诺，故撤下；日后接签名面时随消费点一起回来。
+   撤字段的理由、逐条对照与一致性用例见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
 7. **live 下单路径是本地 sim stub**：闸门③放行后 `CcxtRestClient.placeOrder`
    返回 `sim-ccxt-*` 回执（`src/rest.ts:184-197`），不触网。
 8. **地域限制由上游实施**：默认出口对 `api.binance.com` 451、`api.bybit.com` 403

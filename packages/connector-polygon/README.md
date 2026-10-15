@@ -33,9 +33,12 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **provider 词汇**：`packages/router/src/index.ts:72` 的 `PROVIDER_VOCABULARY` 含 `polygon`；
   本包导出 `ROUTER_PROVIDER = 'polygon'`（`src/index.ts:155`），`routeAllows` 只在 `us` 市场当前激活
   provider 为 `polygon` 时激活本实例（`src/index.ts:157-162`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:34`
-  （`{ id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] }`），
-  文案见 `packages/client-ui-settings/src/client/locales.ts:244`（zh）与 `:388`（en），界面显示 `Polygon.io (Massive)`。
+- **设置页显示名**：`PROVIDER_LABELS` 的 `polygon` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:51`：
+  `{ id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] }`），
+  文案见 `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.polygon'` 条目
+  （zh / en 都是 `Polygon.io (Massive)`），界面显示 `Polygon.io (Massive)`。凭据卡片字段 `apiKey`
+  （`trading-settings-controller.ts:157`）由本包的 `getCredential` 读点消费。
 - **服务键**：`tradingUsMarketData`（`src/index.ts:48`）、`tradingUsTrade`（`src/index.ts:49`）。
 
 ## 上游端点
@@ -136,7 +139,7 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
   （`src/index.ts:168-170`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
 - **key 随查询参数出网**：每次请求把 key 以 `apiKey=<key>` 拼进 URL（`src/rest.ts:103`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源（设置页标为 `type: 'commercial'`，
-  `packages/client-ui-settings/src/client/trading-settings-controller.ts:34`）。
+  `packages/client-ui-settings/src/client/trading-settings-controller.ts:51`）。
 - **免费额度与再分发边界以 Polygon.io 服务条款为准**：本仓不缓存、不再分发任何行情或标的资料数据。
   `docs/guides/connectors-guide.md` 第 36 行列有一句免费计划额度描述——该数字来自文档而非源码或 spike，
   本仓未复验，**一律以 Polygon.io 官方条款为准**。

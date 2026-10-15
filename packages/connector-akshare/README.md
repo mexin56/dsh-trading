@@ -45,10 +45,10 @@ A 股行情连接器：包名取 AkShare，**实现面是东方财富公开 REST
 - **服务键**：`tradingCnMarketData`（`src/index.ts:37`；dataplane 侧 isolate 同名，`src/dataplane.ts:34`）。
 - **激活判定**：`routeAllows`（`src/index.ts:76-81`）——`enabled` 为真、且 router 的 `cn` 路由选中
   `akshare` 才 provide；router 缺席时视为允许。
-- **设置页登记**：显示名 `packages/client-ui-settings/src/client/locales.ts:250`（zh
-  `AkShare (东方财富公开端点)`）与 `:394`（en `AkShare (Eastmoney public endpoints)`）；
-  候选行 `packages/client-ui-settings/src/client/trading-settings-controller.ts:43` 只标
-  `markets: ['cn']`（= 本包 dataplane 的真实注册面），**无 `env`、无凭据字段**——
+- **设置页登记**：显示名 `packages/client-ui-settings/src/client/locales.ts` 的 `'provider.akshare'` 条目
+  （zh `AkShare (东方财富公开端点)` / en `AkShare (Eastmoney public endpoints)`）；
+  候选行 `packages/client-ui-settings/src/client/trading-settings-controller.ts:60` 只标
+  `markets: ['cn']`（= 本包 dataplane 的真实注册面），**无 `env`、无 `configField`、无凭据字段**——
   本包没有本地服务或凭证可填。
 
 ## 上游端点

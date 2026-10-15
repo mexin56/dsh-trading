@@ -199,6 +199,27 @@ export class LongbridgeTradeService extends Service implements TradeService {
 
 export const ROUTER_PROVIDER = 'longbridge'
 
+/** router 凭据读取面（鸭式，连接器对 router 包零依赖，与 routeAllows 同纪律）。 */
+interface RouterCredentialLike {
+  getCredential?(provider: string): Record<string, string> | undefined
+}
+
+/**
+ * 本连接器的三件凭证解析：设置中心 `dshtrading.credentials.longbridge`
+ * （router `getCredential`）优先、`process.env[<ref>]` 兜底。
+ * 值分别进 rest 层的 `x-api-key` 头、HMAC-SHA256 签名（appSecret）与 `authorization` 头
+ * （accessToken），见 src/rest.ts 的 signing 段——设置页写的键不是纯承诺。
+ */
+export function resolveCredentials(ctx: Context, config: Config): { appKey?: string; appSecret?: string; accessToken?: string } {
+  const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as RouterCredentialLike | undefined
+  const creds = router?.getCredential?.(ROUTER_PROVIDER)
+  return {
+    appKey: creds?.appKey || process.env[config.appKeyRef],
+    appSecret: creds?.appSecret || process.env[config.appSecretRef],
+    accessToken: creds?.accessToken || process.env[config.accessTokenRef],
+  }
+}
+
 export function routeAllows(ctx: Context, config: Config, market: string): boolean {
   if (!config.enabled) return false
   const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as { activeProvider(m: string): string | undefined } | undefined
@@ -210,9 +231,7 @@ export function apply(ctx: Context, config: Config): void {
   if (!config.enabled) return
   if (!routeAllows(ctx, config, 'hk')) return
 
-  const appKey = process.env[config.appKeyRef]
-  const appSecret = process.env[config.appSecretRef]
-  const accessToken = process.env[config.accessTokenRef]
+  const { appKey, appSecret, accessToken } = resolveCredentials(ctx, config)
   const marketData = new LongbridgeMarketDataService(ctx, { appKey, appSecret, accessToken })
   const trade = new LongbridgeTradeService(ctx, { appKey, appSecret, accessToken , config })
 

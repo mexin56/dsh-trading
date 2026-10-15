@@ -1,6 +1,6 @@
-﻿import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { TigerMarketDataService, TRADING_HK_MARKET_DATA_KEY, Config } from './index.js'
+import { TigerMarketDataService, TRADING_HK_MARKET_DATA_KEY, Config, resolvePrivateKey } from './index.js'
 
 export const inject: string[] = []
 
@@ -26,12 +26,21 @@ const MARKET = 'hk'
 
 export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
+  // 私钥与 preset 行同源（resolvePrivateKey：settings 优先、env 兜底）——本行是 hk bundle
+  // 挂载的行情注册面，且 tiger 网关的每次调用都要 RSA2 签名（src/rest.ts 的 request），
+  // 之前这里不带私钥即发未签名请求；面板填的 key 必须在这里也生效。
+  const privateKey = resolvePrivateKey(ctx, config)
+  const credentials = {
+    tigerId: config.tigerId,
+    accountId: config.accountId,
+    ...(privateKey === undefined ? {} : { privateKey }),
+  }
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
-    new TigerMarketDataService(ctx, { tigerId: config.tigerId, accountId: config.accountId })
+    new TigerMarketDataService(ctx, credentials)
     return
   }
   const inner = ctx.isolate(TRADING_HK_MARKET_DATA_KEY)
-  const service = new TigerMarketDataService(inner, { tigerId: config.tigerId, accountId: config.accountId })
+  const service = new TigerMarketDataService(inner, credentials)
   ctx.effect(() => registry.register(MARKET, ROUTER_PROVIDER, service))
 }

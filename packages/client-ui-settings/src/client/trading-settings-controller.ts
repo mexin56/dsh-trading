@@ -16,23 +16,40 @@ export interface ProviderMeta {
   /** 显示名词典键（dshtrading.settings，渲染处 t() 解析）。 */
   label: string
   url?: string
+  /**
+   * 环境变量名，**只有这一种语义**：连接器在自己的读取路径里真回落到的 BYOK 环境变量名。
+   * 连接器没有这个 env 读取点就不写——提示写出来就是一句实现不了的承诺。
+   */
   env?: string
+  /**
+   * 连接器 Config 的字段名，**只有这一种语义**：非密端点/账户标识的家在连接器自己的
+   * Config schema（schema 默认值 + 接线行 + 官方插件配置表单），不在设置页凭据卡片里。
+   */
+  configField?: string
   type: 'public' | 'commercial' | 'gateway'
   markets: readonly string[]
 }
 
-/** provider 候选显示名与指引（词典键 + 官网/API Key 申请链接 + 环境变量 + 支持市场；值与 router PROVIDER_VOCABULARY 对齐）。 */
+/**
+ * provider 候选显示名与指引（词典键 + 官网/API Key 申请链接 + 环境变量或 Config 字段名 +
+ * 支持市场；值与 router PROVIDER_VOCABULARY 对齐）。
+ *
+ * `env` / `configField` 的取值判据 = 连接器源码里的真读取点（不是平台能力，也不是申请
+ * 链接上的名字）：binance/ccxt 全包没有任何 `BINANCE_API_KEY` / `CCXT_API_KEY` 读取点，
+ * 故无提示；ibkr/qmt/xysz/futu 的地址在插件路径上由各自 Config 字段决定（rest 层的同名
+ * 环境变量被 schema 默认值遮蔽），故提示写 Config 字段名而不是环境变量名。
+ */
 export const PROVIDER_LABELS: readonly Readonly<ProviderMeta>[] = [
-  { id: 'binance', label: 'provider.binance', url: 'https://binance.com/en/binance-api', env: 'BINANCE_API_KEY', type: 'public', markets: ['crypto'] },
+  { id: 'binance', label: 'provider.binance', url: 'https://binance.com/en/binance-api', type: 'public', markets: ['crypto'] },
   { id: 'okx', label: 'provider.okx', url: 'https://okx.com/docs-v5/zh/', env: 'OKX_API_KEY', type: 'public', markets: ['crypto'] },
   { id: 'bybit', label: 'provider.bybit', url: 'https://bybit.com/en/api-overview', env: 'BYBIT_API_KEY', type: 'public', markets: ['crypto'] },
-  { id: 'ccxt', label: 'provider.ccxt', url: 'https://ccxt.com', env: 'CCXT_API_KEY', type: 'public', markets: ['crypto'] },
+  { id: 'ccxt', label: 'provider.ccxt', url: 'https://ccxt.com', type: 'public', markets: ['crypto'] },
   { id: 'yahoo', label: 'provider.yahoo', url: 'https://finance.yahoo.com', type: 'public', markets: ['us', 'hk'] },
   { id: 'alpaca', label: 'provider.alpaca', url: 'https://alpaca.markets', env: 'ALPACA_API_KEY', type: 'commercial', markets: ['us'] },
   { id: 'fmp', label: 'provider.fmp', url: 'https://site.financialmodelingprep.com/developer', env: 'FMP_API_KEY', type: 'commercial', markets: ['us'] },
   { id: 'finnhub', label: 'provider.finnhub', url: 'https://finnhub.io/register', env: 'FINNHUB_API_KEY', type: 'commercial', markets: ['us'] },
   { id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] },
-  { id: 'ibkr', label: 'provider.ibkr', url: 'https://interactivebrokers.com/campus/ibkr-api-page/cpapi/', env: 'IBKR_GATEWAY_URL', type: 'gateway', markets: ['us'] },
+  { id: 'ibkr', label: 'provider.ibkr', url: 'https://interactivebrokers.com/campus/ibkr-api-page/cpapi/', configField: 'gatewayUrl', type: 'gateway', markets: ['us'] },
   { id: 'stooq', label: 'provider.stooq', url: 'https://stooq.com', type: 'public', markets: ['us'] },
   { id: 'tencent', label: 'provider.tencent', url: 'https://finance.qq.com', type: 'public', markets: ['cn', 'hk'] },
   { id: 'eastmoney', label: 'provider.eastmoney', url: 'https://eastmoney.com', type: 'public', markets: ['cn', 'hk'] },
@@ -41,13 +58,18 @@ export const PROVIDER_LABELS: readonly Readonly<ProviderMeta>[] = [
   { id: 'tushare', label: 'provider.tushare', url: 'https://tushare.pro/register', env: 'TUSHARE_TOKEN', type: 'commercial', markets: ['cn'] },
   // akshare 实现面是东方财富公开端点：无本地服务、无凭证，故不标 env，也不挂凭据字段。
   { id: 'akshare', label: 'provider.akshare', url: 'https://akshare.xyz', type: 'public', markets: ['cn'] },
-  { id: 'qmt', label: 'provider.qmt', url: 'http://127.0.0.1:5800', env: 'QMT_GATEWAY_URL', type: 'gateway', markets: ['cn'] },
-  { id: 'futu', label: 'provider.futu', url: 'https://futunn.com/download/open-api', env: 'gatewayUrl', type: 'gateway', markets: ['hk', 'us'] },
+  // qmt/ibkr 的网关地址与 xysz 的服务地址：家在各自连接器 Config（schema 默认值随接线行落地）；
+  // rest 层的同名环境变量（QMT_GATEWAY_URL / IBKR_GATEWAY_URL / XYSZ_API_URL）在插件路径上
+  // 被 Config 默认值遮蔽，插件路径不读它们。
+  { id: 'qmt', label: 'provider.qmt', url: 'http://127.0.0.1:5800', configField: 'gatewayUrl', type: 'gateway', markets: ['cn'] },
+  // futu 的 OpenD 地址家在连接器 Config 的 gatewayUrl 一格（面板原来的 host/port 无人读，
+  // 见 src/client/trading-settings-controller.ts 的凭据面规则与 connector-futu README「已知边界」）。
+  { id: 'futu', label: 'provider.futu', url: 'https://futunn.com/download/open-api', configField: 'gatewayUrl', type: 'gateway', markets: ['hk', 'us'] },
   { id: 'longbridge', label: 'provider.longbridge', url: 'https://open.longportapp.com', env: 'LONGBRIDGE_APP_KEY', type: 'commercial', markets: ['hk', 'us'] },
   { id: 'tiger', label: 'provider.tiger', url: 'https://developer.itigerup.com', env: 'TIGER_ID', type: 'commercial', markets: ['hk'] },
   { id: 'jin10', label: 'provider.jin10', url: 'https://mcp.jin10.com', env: 'JIN10_MCP_TOKEN', type: 'public', markets: ['global'] },
   { id: 'hithink', label: 'provider.hithink', url: 'https://fuyao.aicubes.cn', env: 'HITHINK_FINANCE_API_KEY', type: 'commercial', markets: ['cn', 'futures'] },
-  { id: 'xysz', label: 'provider.xysz', url: 'https://www.chinastock.com.cn', env: 'XYSZ_API_URL', type: 'commercial', markets: ['cn'] },
+  { id: 'xysz', label: 'provider.xysz', url: 'https://www.chinastock.com.cn', configField: 'apiUrl', type: 'commercial', markets: ['cn'] },
 ]
 
 /** 新闻/公告源候选（issue #96 源配置化）：id = 各 kit NewsSource 词汇；label = 词典键。 */
@@ -93,23 +115,33 @@ export interface CredentialField {
   secret?: boolean
 }
 
+/**
+ * 凭据卡片的字段规格：**密文字段 × 真出站消费点**两条同时成立，才挂在面板上。
+ *
+ * - 密文字段：值的家是 `dshtrading.credentials.<provider>`（router `getCredential`）。
+ *   设置页写的就是这个字典，卡片自带脱敏显示与「已配置/未配置」状态，只适合密钥类值。
+ * - 真出站消费点：连接器代码真读这个键，且值能进到请求里（签名 / 认证头 / 查询串）。
+ *
+ * 任一条不成立即撤字段（2026-10-15 收窄；对照表与证据见
+ * .agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md）：
+ *
+ * - binance / ccxt / bybit：连接器没有「把 credentials.<provider> 取出来用」的路径。
+ *   binance 与 ccxt 连凭证取值点都不存在（ccxt 的 `CcxtRestOptions.apiKey/secret` 只被赋值、
+ *   从不进请求）；bybit 只从 env 取值，且没有签名出站路径（rest 的 placeOrder 收 `_creds`
+ *   却忽略）。值进不了任何请求的密钥字段 = 让用户以为配好了的纯承诺。
+ * - qmt / ibkr（gatewayUrl）与 futu（host/port）：非密端点地址，家在连接器 Config
+ *   （见 PROVIDER_LABELS 的 `configField`）；面板原字段写进的是另一处无人读的命名空间。
+ * - tiger 的 tigerId：非密账户标识，家在连接器 Config（`tigerId`，rest 层另有 `TIGER_ID` 回落）。
+ *
+ * 反向补齐（同批）：longbridge 三字段与 tiger 的 privateKey 本来只有 env 取值点，现按
+ * fmp/finnhub/polygon 既有体例补上 `getCredential('<provider>')` 读取点（settings 优先、
+ * env 兜底），值分别进 longbridge 的 HMAC-SHA256 签名与 tiger 的 RSA2 签名。
+ */
 export const PROVIDER_CREDENTIAL_SPECS: Record<string, readonly CredentialField[]> = {
-  binance: [
-    { key: 'apiKey', label: 'field.label.apiKey', placeholder: 'field.placeholder.binanceKey', secret: true },
-    { key: 'apiSecret', label: 'field.label.apiSecret', placeholder: 'field.placeholder.binanceSecret', secret: true },
-  ],
   okx: [
     { key: 'apiKey', label: 'field.label.apiKey', placeholder: 'field.placeholder.okxKey', secret: true },
     { key: 'secretKey', label: 'field.label.secretKey', placeholder: 'field.placeholder.okxSecret', secret: true },
     { key: 'passphrase', label: 'field.label.passphrase', placeholder: 'field.placeholder.okxPassphrase', secret: true },
-  ],
-  bybit: [
-    { key: 'apiKey', label: 'field.label.apiKey', placeholder: 'field.placeholder.bybitKey', secret: true },
-    { key: 'apiSecret', label: 'field.label.apiSecret', placeholder: 'field.placeholder.bybitSecret', secret: true },
-  ],
-  ccxt: [
-    { key: 'apiKey', label: 'field.label.apiKey', placeholder: 'field.placeholder.ccxtKey', secret: true },
-    { key: 'apiSecret', label: 'field.label.apiSecret', placeholder: 'field.placeholder.ccxtSecret', secret: true },
   ],
   alpaca: [
     { key: 'apiKey', label: 'field.label.apiKey', placeholder: 'field.placeholder.alpacaKey', secret: true },
@@ -127,23 +159,12 @@ export const PROVIDER_CREDENTIAL_SPECS: Record<string, readonly CredentialField[
   tushare: [
     { key: 'token', label: 'field.label.token', placeholder: 'field.placeholder.tushareToken', secret: true },
   ],
-  qmt: [
-    { key: 'gatewayUrl', label: 'field.label.qmtUrl', placeholder: 'field.placeholder.qmtUrl' },
-  ],
-  futu: [
-    { key: 'host', label: 'field.label.futuHost', placeholder: 'field.placeholder.futuHost' },
-    { key: 'port', label: 'field.label.futuPort', placeholder: 'field.placeholder.futuPort' },
-  ],
-  ibkr: [
-    { key: 'gatewayUrl', label: 'field.label.ibkrUrl', placeholder: 'field.placeholder.ibkrUrl' },
-  ],
   longbridge: [
     { key: 'appKey', label: 'field.label.appKey', placeholder: 'field.placeholder.longbridgeAppKey', secret: true },
     { key: 'appSecret', label: 'field.label.appSecret', placeholder: 'field.placeholder.longbridgeAppSecret', secret: true },
     { key: 'accessToken', label: 'field.label.accessToken', placeholder: 'field.placeholder.longbridgeAccessToken', secret: true },
   ],
   tiger: [
-    { key: 'tigerId', label: 'field.label.tigerId', placeholder: 'field.placeholder.tigerId' },
     { key: 'privateKey', label: 'field.label.tigerPrivateKey', placeholder: 'field.placeholder.tigerPrivateKey', secret: true },
   ],
   jin10: [

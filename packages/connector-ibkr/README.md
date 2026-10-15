@@ -60,12 +60,12 @@ Client Portal Gateway**（IBKR Client Portal Web API）。实现 `@dshtrading/ap
   行 id `dsh-trading-us-connector-ibkr`，行 config `enabled: true` / `dryRun: true` / `liveTrading: false`。
   该行的 `apply` 直接构造行情与交易两个服务（`src/index.ts:220-221`），不经注册表。
 - **provider 词汇**：`packages/router/src/index.ts:73`（`PROVIDER_VOCABULARY` 的 `'ibkr'`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:35`
-  （`PROVIDER_LABELS`，`type: 'gateway'`，`env: 'IBKR_GATEWAY_URL'`，`markets: ['us']`）与
-  `packages/client-ui-settings/src/client/locales.ts:245`（中文 `IBKR (盈透证券)`）/ 第 389 行
-  （英文 `IBKR (Interactive Brokers)`）；凭据表单字段为 `gatewayUrl`（第 137-138 行）。
-  **`markets` 与本包实现面一致**：本包唯一的 `MARKET = 'us'`（`src/dataplane.ts:25`），唯一挂载处
-  是 `packages/us/cordis.patch.yml:42-45`。
+- **设置页显示名与地址提示**：`PROVIDER_LABELS` 的 `ibkr` 条目
+  （`packages/client-ui-settings/src/client/trading-settings-controller.ts:52`：`type: 'gateway'`、
+  `configField: 'gatewayUrl'`、`markets: ['us']`）与 `packages/client-ui-settings/src/client/locales.ts`
+  的 `'provider.ibkr'` 条目（zh `IBKR (盈透证券)` / en `IBKR (Interactive Brokers)`）。
+  **凭据卡片已撤**（2026-10-15）：面板原字段 `gatewayUrl` 写进 `dshtrading.credentials.ibkr`，
+  而本包只读 `Config.gatewayUrl`，故提示改走 `configField` 槽。
 - **bundle 依赖**：`packages/us/package.json` 的 `@dshtrading/connector-ibkr: workspace:*`。
 - **激活条件**：`routeAllows()` 要求 `enabled` 且 `tradingMarketRouter.activeProvider('us') === 'ibkr'`
   （`src/index.ts:209-214`）。
@@ -166,10 +166,12 @@ IBKR Client Portal Gateway，不是公开互联网端点。
 - **设置页市场面靠手工对齐**：`PROVIDER_LABELS` 里 ibkr 的 `markets` 是 `['us']`
   （`trading-settings-controller.ts:35`），与本包 `MARKET = 'us'`（`src/dataplane.ts:25`，注册调用在
   `:36`）、`routeAllows(ctx, config, 'us')`（`src/index.ts:218`）一致；该字段是控制器里的字面量，
-  `trading-settings-controller.ts:39-40` 的注释要求它等于 dataplane 注册面。
+  `trading-settings-controller.ts:56-57` 的注释要求它等于 dataplane 注册面。
 - **`IBKR_GATEWAY_URL` 在插件路径下不生效**：`Config` 的 schema 默认值总会先填上 `gatewayUrl`
   （`src/index.ts:55`），`src/rest.ts:59` 的环境变量回落只在直连 `IbkrRestClient` 且不传
-  `gatewayUrl` 时命中。
+  `gatewayUrl` 时命中。设置页因此把提示写在该 Config 字段名上（`configField: 'gatewayUrl'`），
+  而不是写成一个插件路径下打不通的环境变量名；面板原先的 `gatewayUrl` 凭据卡片自 2026-10-15 起已撤
+  （它写进 `dshtrading.credentials.ibkr`，无人读）。理由与对照见[设置页凭据面收窄](../../.agents/notes/implemented/simplification/2026-10-15-settings-credential-surface-narrowed.md)。
 - **无本地超时**：`requestJson` 不带超时/中止（`src/rest.ts:64-83`）。
 - **pre-order warning 自动确认**：上游预警被连接器自动接受（`src/rest.ts:217-227`）。
 

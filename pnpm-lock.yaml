@@ -463,15 +463,48 @@ importers:
       '@dshtrading/connector-akshare':
         specifier: workspace:^
         version: link:../connector-akshare
+      '@dshtrading/connector-alpaca':
+        specifier: workspace:^
+        version: link:../connector-alpaca
+      '@dshtrading/connector-finnhub':
+        specifier: workspace:^
+        version: link:../connector-finnhub
+      '@dshtrading/connector-fmp':
+        specifier: workspace:^
+        version: link:../connector-fmp
       '@dshtrading/connector-futu':
         specifier: workspace:^
         version: link:../connector-futu
+      '@dshtrading/connector-hithink':
+        specifier: workspace:^
+        version: link:../connector-hithink
       '@dshtrading/connector-ibkr':
         specifier: workspace:^
         version: link:../connector-ibkr
+      '@dshtrading/connector-jin10':
+        specifier: workspace:^
+        version: link:../connector-jin10
+      '@dshtrading/connector-longbridge':
+        specifier: workspace:^
+        version: link:../connector-longbridge
+      '@dshtrading/connector-okx':
+        specifier: workspace:^
+        version: link:../connector-okx
+      '@dshtrading/connector-polygon':
+        specifier: workspace:^
+        version: link:../connector-polygon
+      '@dshtrading/connector-qmt':
+        specifier: workspace:^
+        version: link:../connector-qmt
       '@dshtrading/connector-tiger':
         specifier: workspace:^
         version: link:../connector-tiger
+      '@dshtrading/connector-tushare':
+        specifier: workspace:^
+        version: link:../connector-tushare
+      '@dshtrading/connector-xysz':
+        specifier: workspace:^
+        version: link:../connector-xysz
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31

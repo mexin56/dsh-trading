@@ -65,6 +65,17 @@
     "@dshtrading/connector-tiger": "workspace:^",
     "@dshtrading/connector-akshare": "workspace:^",
     "@dshtrading/connector-ibkr": "workspace:^",
-    "@dshtrading/connector-futu": "workspace:^"
+    "@dshtrading/connector-futu": "workspace:^",
+    "@dshtrading/connector-qmt": "workspace:^",
+    "@dshtrading/connector-xysz": "workspace:^",
+    "@dshtrading/connector-okx": "workspace:^",
+    "@dshtrading/connector-alpaca": "workspace:^",
+    "@dshtrading/connector-fmp": "workspace:^",
+    "@dshtrading/connector-finnhub": "workspace:^",
+    "@dshtrading/connector-polygon": "workspace:^",
+    "@dshtrading/connector-tushare": "workspace:^",
+    "@dshtrading/connector-longbridge": "workspace:^",
+    "@dshtrading/connector-jin10": "workspace:^",
+    "@dshtrading/connector-hithink": "workspace:^"
   }
 }
