@@ -97,6 +97,9 @@ Status: implemented
   标签与占位键（`field.label.apiSecret`、`field.*.qmtUrl|futuHost|futuPort|ibkrUrl|tigerId|binance*|ccxt*|bybit*`），
   并新增 `provider.configFieldPrefix`。显示名引用改按词典键（`'provider.<id>'`）锚定：
   那些行号在本卡前后已多次漂移，键才是稳定锚。
-- 仍存的口径差（本卡范围外，另行裁决）：fmp / finnhub / polygon / alpaca 的**数据面行**只读
-  `process.env[<ref>]`（设置字典读点在插件行），即 GUI 行情注册面不吃设置页填的 key；
-  该差异已在各 README「接线」段如实写出，未在本卡扩面。
+- 仍存的口径差（本卡范围外，另行裁决）：fmp / finnhub / polygon 的**数据面行**只读
+  `process.env[<ref>]`（`src/dataplane.ts:29`；设置字典读点在插件行），即 GUI 行情注册面不吃设置页
+  填的 key——与 tushare 修好前同形（对齐先例：hithink 的数据面行经 `getCredential` 惰性取值，
+  connector-tushare 的同一修正在另一条线上）。alpaca **不在其列**：它的数据面行把
+  `resolveCredentials(ctx, …)` 交给行情服务惰性调用（`packages/connector-alpaca/src/dataplane.ts:69-72`），
+  router 读点已经在数据面路径上。该差异已在相关 README「接线」段如实写出，未在本卡扩面。
