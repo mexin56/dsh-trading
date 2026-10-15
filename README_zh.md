@@ -120,7 +120,7 @@ dsh-trading 已打通 19+ 数据源、交易所及券商连接器：
 
 | 市场 | 连接器与数据提供方 | 数据覆盖与行情能力 | 交易与认证方式 |
 |---|---|---|---|
-| **加密货币** | **Binance（币安）**、**OKX（欧易）**、**Bybit**、**CCXT（100+ 交易所聚合）** | 现货与永续合约 Level 1/Level 2 行情、K 线、盘口深度、持仓量、资金费率、多空人数比 | REST & WebSocket，本地 BYOK 密钥；OKX 支持张币自动折算（ctVal）与模拟/实盘 |
+| **加密货币** | **Binance（币安）**、**OKX（欧易）**、**Bybit**、**CCXT（现货聚合，仅上述三所直连）** | Binance / OKX / Bybit：现货与永续合约报价、盘口深度、K 线、持仓量、资金费率、多空人数比。CCXT：仅现货报价（Binance / OKX / Bybit 三条直连），K 线只有 Binance 一条；无盘口、无衍生品、无账户读面，永续 `-SWAP` 入参显式拒绝 | REST 轮询（各连接器均无 WebSocket 通道），本地 BYOK 密钥；OKX 支持张币自动折算（ctVal）与模拟/实盘 |
 | **美股** | **Alpaca**、**盈透证券（IBKR）**、**Yahoo Finance**、**FMP**、**Finnhub**、**Polygon.io** | 实时报价、历史行情、财务报表、现金流量表、SEC 原始披露、分析师评级 | 官方经纪商 REST/WS 交易网关，BYOK 凭证；Yahoo Finance 免密钥公共接口 |
 | **A 股** | **MiniQMT 券商网关**、**腾讯财经**、**东方财富**、**HiThink（同花顺/富遥）**、**Tushare Pro**、**AkShare** | 实时 L1 行情、集合竞价、日 K 线、板块资金流向、估值基本面指标 | 本地 MiniQMT 客户端实盘交易；公共 REST 接口免密获取基础行情与资讯 |
 | **港股** | **长桥 Longbridge OpenAPI**、**富途 OpenD**、**老虎证券 Tiger OpenAPI**、**腾讯港股** | 实时港股行情、Level 2 盘口深度、窝轮牛熊证衍生品数据 | 持牌券商 OpenAPI / 本地网关执行；腾讯港股公共行情 |
@@ -250,7 +250,7 @@ dsh-trading 依托 DeepSeek Harness (DSH)，原生支持 **DeepSeek (V3 / R1)**�
 
 ### 支持哪些交易所、券商和行情 API？
 
-加密货币包括 Binance（币安）、OKX（欧易）、Bybit 与 CCXT（聚合 100+ 交易所）；美股包括 Alpaca、盈透证券（Interactive Brokers）、Yahoo Finance、FMP、Finnhub、Polygon；A 股包括 MiniQMT 券商网关、东方财富、腾讯财经、HiThink、Tushare Pro、AkShare；港股包括长桥 Longbridge、富途 OpenD、老虎证券 Tiger；国内商品期货包括同花顺/富遥期货。详见[连接器接入与配置指南](docs/guides/connectors-guide.md)。
+加密货币包括 Binance（币安）、OKX（欧易）、Bybit 与 CCXT（现货聚合，仅 Binance / OKX / Bybit 三所直连，K 线只有 Binance）；美股包括 Alpaca、盈透证券（Interactive Brokers）、Yahoo Finance、FMP、Finnhub、Polygon；A 股包括 MiniQMT 券商网关、东方财富、腾讯财经、HiThink、Tushare Pro、AkShare；港股包括长桥 Longbridge、富途 OpenD、老虎证券 Tiger；国内商品期货包括同花顺/富遥期货。详见[连接器接入与配置指南](docs/guides/connectors-guide.md)。
 
 ### 使用前必须配置 API Key 吗？
 
