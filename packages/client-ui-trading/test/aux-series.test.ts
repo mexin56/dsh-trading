@@ -11,7 +11,9 @@ import type { IndicatorDefinition } from '@dshtrading/indicators'
 import { presetDefinitions } from '@dshtrading/indicators'
 import type { SouthboundHoldingHistory } from '@dshtrading/api'
 import {
+  CN_ACTIVE_BUY_KEY,
   HK_CONNECT_HOLDING_KEY,
+  auxEmptyNoticeKey,
   auxSeriesReady,
   createAuxRequestGuard,
   loadAuxSeries,
@@ -68,6 +70,23 @@ describe('指标外部序列接线', () => {
     expect(auxSeriesReady(definition, {})).toBe(false)
     expect(auxSeriesReady(definition, { [HK_CONNECT_HOLDING_KEY]: [] })).toBe(false)
     expect(auxSeriesReady(definition, { [HK_CONNECT_HOLDING_KEY]: [{ date: Date.UTC(2026, 9, 5), value: 11.9 }] })).toBe(true)
+  })
+
+  it('用户看到的空态理由按键位归属：两条已接线指标各有独立文案，未登记的键回落通用', () => {
+    // Given 两个已接线的 aux 键与一个未登记的未来键
+    // When 取各自的空态文案键位
+    // Then 三条互不相同——hk 侧措辞不替「不在港股通范围」下结论（见词典原文的「或」）
+    const noticeKeys = [
+      auxEmptyNoticeKey(HK_CONNECT_HOLDING_KEY),
+      auxEmptyNoticeKey(CN_ACTIVE_BUY_KEY),
+      auxEmptyNoticeKey('some-future-key'),
+    ]
+    expect(noticeKeys).toEqual([
+      'indicator.auxEmpty.hkConnectHolding',
+      'indicator.auxEmpty.cnActiveBuy',
+      'indicator.auxEmpty.generic',
+    ])
+    expect(new Set(noticeKeys).size).toBe(noticeKeys.length)
   })
 
   it('用户切到非港股市场时，宿主不请求港股通持股序列', () => {

@@ -39,17 +39,20 @@ describe('主动买盘外部序列', () => {
     expect(activeBuyToAuxPoints(undefined)).toBeUndefined()
   })
 
-  it('用户未取得主动买盘数据时隐藏副图而不是画零线', async () => {
+  it('用户未取得主动买盘数据时，副图出空态占位组而不是画零线', async () => {
     // Given 注入的桥失败与合法空序列
     const failing = async (): Promise<ActiveBuyHistory> => { throw new Error('bridge unavailable') }
     const empty = async (): Promise<ActiveBuyHistory> => ({ symbol: '002714.SZ', points: [] })
     // When 取数后进入实际调度
     const failed = await loadAuxSeries(CN_ACTIVE_BUY_KEY, 'cn', '002714.SZ', async () => undefined, failing)
     const absent = await loadAuxSeries(CN_ACTIVE_BUY_KEY, 'cn', '002714.SZ', async () => undefined, empty)
-    // Then 两者都无可画数据，实例整体不进调度
+    // Then 两者都无可画数据：取数缝一律 undefined，调度出零输出的占位组（带主动买盘自己的空态键位）
     expect([failed, absent]).toEqual([undefined, undefined])
-    expect(dispatchIndicatorGroups({ klines: bars, instances: [{ id: 'active-buy', params: {} }], market: 'cn', aux: {}, deps })).toEqual([])
-    expect(dispatchIndicatorGroups({ klines: bars, instances: [{ id: 'active-buy', params: {} }], market: 'cn', aux: { [CN_ACTIVE_BUY_KEY]: [] }, deps })).toEqual([])
+    const groups = dispatchIndicatorGroups({ klines: bars, instances: [{ id: 'active-buy', params: {} }], market: 'cn', aux: {}, deps })
+    expect(groups).toEqual([{
+      id: 'active-buy', title: '主动买盘', pane: 'sub', key: 'active-buy:', outputs: [], auxEmptyKey: CN_ACTIVE_BUY_KEY,
+    }])
+    expect(dispatchIndicatorGroups({ klines: bars, instances: [{ id: 'active-buy', params: {} }], market: 'cn', aux: { [CN_ACTIVE_BUY_KEY]: [] }, deps })).toEqual(groups)
   })
 
   it('用户只有在已声明 aux 键含 live 点时得到盘中状态', () => {

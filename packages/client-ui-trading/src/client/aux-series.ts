@@ -10,6 +10,7 @@ import type { AuxBarSeriesMap, AuxPoint, AuxSeriesKey, AuxSeriesMap, IndicatorDe
 import { isDefinitionAvailableOn } from '@dshtrading/indicators'
 import type { SouthboundHoldingHistory } from '@dshtrading/api'
 import type { ActiveBuyHistory } from './api.ts'
+import type { MarketLocaleKey } from './contract.ts'
 import type { MarketId } from './types.ts'
 
 /** 港股通持股比例的外部序列键（冻结字面量，与预置 definition.aux 同名）。 */
@@ -112,6 +113,18 @@ export function auxSeriesReady(definition: Pick<IndicatorDefinition, 'aux'>, ser
   const keys = definition.aux ?? []
   if (keys.length === 0) return true
   return keys.every(key => (series[key]?.length ?? 0) > 0)
+}
+
+/**
+ * 未就绪时的**空态文案**归属：由声明键（数据域身份）决定，不由 definition.id 决定——
+ * 同一个键上的多个 definition（含用户自定义指标）说同一件事，按 id 分派就得每加一个
+ * 定义补一条文案，而且自定义定义根本不在名册里。多键定义取首个声明键（当前无此形态），
+ * 未登记的键回落通用文案（见 dispatch 的占位组）。
+ */
+export function auxEmptyNoticeKey(key: AuxSeriesKey): MarketLocaleKey {
+  if (key === HK_CONNECT_HOLDING_KEY) return 'indicator.auxEmpty.hkConnectHolding'
+  if (key === CN_ACTIVE_BUY_KEY) return 'indicator.auxEmpty.cnActiveBuy'
+  return 'indicator.auxEmpty.generic'
 }
 
 /**

@@ -1,15 +1,16 @@
 /**
  * 指标调度与定义白名单的纯逻辑用例（契约 §5，决策 3/5/7）：
- * 声明 aux 的实例在外部序列未就绪时整体不进调度（副图 pane 不存在，不是空线），
- * 就绪后只走 computeAux 且取 holdRatio 口径；未声明 aux 的指标维持 compute 路径；
- * definition.markets 白名单在选择器/词条带与调度两条路上一致生效；
+ * 声明 aux 的实例在外部序列未就绪时出「空 outputs + 空态键位」的占位组（副图 pane
+ * 出现并给理由，不是空线、不是零线），未就绪的其它形态（宿主缺 computeAux、部分键有
+ * 数据）仍然整组不进调度；就绪后只走 computeAux 且取 holdRatio 口径；未声明 aux 的
+ * 指标维持 compute 路径；definition.markets 白名单在选择器/词条带与调度两条路上一致生效；
  * 新挂载的港股通持股比例默认只适用 1d/1w/1M。
  */
 import { describe, expect, it } from 'vitest'
 import type { IndicatorDefinition, IndicatorInstance, Kline } from '@dshtrading/indicators'
 import { FIVE_DAY_VOLUME_TIER_AUX_KEY, createIndicatorRegistry, isInstanceApplicableOn, presetDefinitions } from '@dshtrading/indicators'
 import type { AuxBarSeriesMap, AuxSeriesMap } from '@dshtrading/indicators'
-import { HK_CONNECT_HOLDING_KEY } from '../src/client/aux-series.ts'
+import { CN_ACTIVE_BUY_KEY, HK_CONNECT_HOLDING_KEY } from '../src/client/aux-series.ts'
 import { defaultScopeEntries } from '../src/client/indicator-defaults.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from '../src/client/indicator-dispatch.ts'
 
@@ -44,17 +45,36 @@ const HOLDING_SERIES: AuxSeriesMap = {
 
 const holdingInstance: IndicatorInstance = { id: HOLDING_ID, params: {} }
 const maInstance: IndicatorInstance = { id: 'ma', params: {} }
+const activeBuyInstance: IndicatorInstance = { id: 'active-buy', params: {} }
+
+/** 主动买盘的外部序列（两个交易日有值，第三根无点 → 区间匹配留空）。 */
+const ACTIVE_BUY_SERIES: AuxSeriesMap = {
+  [CN_ACTIVE_BUY_KEY]: [
+    { date: Date.UTC(2026, 9, 5), value: 4.11 },
+    { date: Date.UTC(2026, 9, 6), value: -2.5 },
+  ],
+}
 
 describe('指标调度（副图门控与定义白名单）', () => {
-  it('用户尚未取到港股通持股数据时，该副图整体不进调度（不是空线也不是零线）', () => {
+  it('用户尚未取到港股通持股数据时，副图不再静默消失而是出一个带空态标记的占位组', () => {
     // Given 港股通持股比例已挂载，但外部序列为空表（取数失败 / 非港股通标的）
     // When 调度渲染组
     const groups = dispatchIndicatorGroups({
       klines: dailyBars(), instances: [holdingInstance], market: 'hk', symbol: '00700.HK', aux: {}, deps,
     })
 
-    // Then 该实例完全不在渲染输入里：副图 pane 不存在
-    expect(groups).toEqual([])
+    // Then 恰好一个占位组：pane 照常出现、组内没有任何输出、没有 live 标记，
+    // 只带一个数据域键位供 UI 层翻译空态理由（空 ≠ 0）
+    expect(groups).toEqual([{
+      id: HOLDING_ID,
+      title: '港股通持股比例',
+      pane: 'sub',
+      key: 'hk-connect-holding:',
+      outputs: [],
+      auxEmptyKey: HK_CONNECT_HOLDING_KEY,
+    }])
+    expect(groups[0]?.outputs).toHaveLength(0)
+    expect(Object.hasOwn(groups[0] ?? {}, 'live')).toBe(false)
   })
 
   it('用户取到港股通持股数据后，副图走 computeAux 并按交易日对齐 holdRatio', () => {
@@ -74,15 +94,33 @@ describe('指标调度（副图门控与定义白名单）', () => {
     ])
   })
 
-  it('用户挂载了空的外部序列时，副图同样隐藏（空 ≠ 0）', () => {
+  it('用户挂载了空的外部序列时，同样出占位组而不是画一条贴底的假线（空 ≠ 0）', () => {
     // Given 桥返回了 0 条持股记录（标的不在港股通范围）
     // When 调度渲染组
     const groups = dispatchIndicatorGroups({
       klines: dailyBars(), instances: [holdingInstance], market: 'hk', symbol: '00700.HK', aux: { [HK_CONNECT_HOLDING_KEY]: [] }, deps,
     })
 
-    // Then 不画出一条贴底的假线
-    expect(groups).toEqual([])
+    // Then 显示为占位组（键位说明「取不到」），零数据点
+    expect(groups.map(group => [group.auxEmptyKey, group.outputs.length])).toEqual([[HK_CONNECT_HOLDING_KEY, 0]])
+  })
+
+  it('用户挂载主动买盘却没有采集记录时，占位组的空态键位指向主动买盘自己的文案', () => {
+    // Given A 股标的 + 已挂载的主动买盘，外部序列两种形态都没有数据
+    // When 分别以缺席与空数组调度
+    const absent = dispatchIndicatorGroups({ klines: dailyBars(), instances: [activeBuyInstance], market: 'cn', symbol: '600519.SH', aux: {}, deps })
+    const empty = dispatchIndicatorGroups({ klines: dailyBars(), instances: [activeBuyInstance], market: 'cn', symbol: '600519.SH', aux: { [CN_ACTIVE_BUY_KEY]: [] }, deps })
+
+    // Then 两条路都出同一个占位组，键位是 cn-active-buy（不是通用文案、也不是港股通那条）
+    expect(absent).toEqual(empty)
+    expect(absent).toEqual([{
+      id: 'active-buy',
+      title: '主动买盘',
+      pane: 'sub',
+      key: 'active-buy:',
+      outputs: [],
+      auxEmptyKey: CN_ACTIVE_BUY_KEY,
+    }])
   })
 
   it('用户挂载未声明 aux 的指标时，仍走 compute 路径且不受外部序列缺席影响', () => {
@@ -284,5 +322,108 @@ describe('逐根序列通道（barAux）的调度选择', () => {
     expect(groups[0]?.outputs).toEqual([
       expect.objectContaining({ key: 'HK_CONNECT_HOLDING', values: [11.9, 12.5, 12.5] }),
     ])
+  })
+})
+
+/**
+ * 占位机制的边界探针（真实 definition 对象，注入真实注册表）：双键定义用来钉住
+ * 「部分键有数据不发明新语义」，缺 computeAux 的定义用来钉住「宿主没这个能力 ≠ 该标的没数据」。
+ */
+const TWO_KEY_PROBE_ID = 'aux-two-key-probe'
+const NO_IMPL_PROBE_ID = 'aux-no-impl-probe'
+
+function auxProbeDefinition(id: string, auxKeys: readonly string[], withImpl: boolean): IndicatorDefinition {
+  return {
+    id,
+    pane: 'sub',
+    title: id,
+    params: [],
+    aux: auxKeys,
+    compute: () => [],
+    ...(withImpl
+      ? { computeAux: (_bars: readonly Kline[], _params: Record<string, number>, aux: AuxSeriesMap) => [{ key: 'PROBE', kind: 'line' as const, color: '#000000', values: (aux[HK_CONNECT_HOLDING_KEY] ?? []).map(point => point.value) }] }
+      : {}),
+  }
+}
+
+const auxProbeRegistry = createIndicatorRegistry()
+auxProbeRegistry.register(auxProbeDefinition(TWO_KEY_PROBE_ID, [HK_CONNECT_HOLDING_KEY, CN_ACTIVE_BUY_KEY], true))
+auxProbeRegistry.register(auxProbeDefinition(NO_IMPL_PROBE_ID, [HK_CONNECT_HOLDING_KEY], false))
+
+const auxProbeDeps = {
+  getDefinition: (id: string): IndicatorDefinition | undefined => auxProbeRegistry.get(id),
+  clampParams: (definition: IndicatorDefinition, params: Record<string, number>): Record<string, number> => auxProbeRegistry.clampParams(definition, params),
+  instanceKey: (instance: IndicatorInstance): string => auxProbeRegistry.instanceKey(instance),
+}
+
+function dispatchProbeAux(id: string, aux: AuxSeriesMap) {
+  return dispatchIndicatorGroups({
+    klines: dailyBars(), instances: [{ id, params: {} }], market: 'hk', symbol: '00700.HK', aux, deps: auxProbeDeps,
+  })
+}
+
+describe('aux 占位组的边界（不发明新语义）', () => {
+  it('用户挂载的双键指标只有部分键有数据时，仍然整组不进调度（不猜该画哪条）', () => {
+    // Given 声明两个 aux 键的探针，只备了其中一个键的非空序列
+    // When 调度渲染组
+    const groups = dispatchProbeAux(TWO_KEY_PROBE_ID, HOLDING_SERIES)
+
+    // Then 既没有数据组也没有占位组：空态只能来自「每个声明键都没有非空序列」
+    expect(groups).toEqual([])
+  })
+
+  it('用户挂载的双键指标一个键都没有数据时，占位组的空态键位取首个声明键', () => {
+    // Given 声明两个 aux 键的探针，两个键都没有非空序列
+    // When 调度渲染组
+    const groups = dispatchProbeAux(TWO_KEY_PROBE_ID, {})
+
+    // Then 出占位组且键位是声明顺序的第一个，输出仍为空
+    expect(groups.map(group => [group.auxEmptyKey, group.outputs.length])).toEqual([[HK_CONNECT_HOLDING_KEY, 0]])
+  })
+
+  it('用户挂载的定义声明了 aux 但宿主没有该通道实现时，维持隐藏而不是谎报「无采集记录」', () => {
+    // Given 一个声明 aux 却没有 computeAux 的定义（宿主未实现该能力）
+    // When 调度渲染组
+    const groups = dispatchProbeAux(NO_IMPL_PROBE_ID, {})
+
+    // Then 整组不进调度：没有数据源可画，「宿主不支持」与「该标的没有记录」是两回事
+    expect(groups).toEqual([])
+  })
+})
+
+describe('占位机制对有数据副图的零回归', () => {
+  it('用户看有数据的港股通副图时，调度输出与占位机制引入前逐字一致', () => {
+    // Given 有非空外部序列的港股通持股比例（第三根按前向填充）
+    // When 调度渲染组并整体序列化
+    const groups = dispatchIndicatorGroups({
+      klines: dailyBars(), instances: [holdingInstance], market: 'hk', symbol: '00700.HK', aux: HOLDING_SERIES, deps,
+    })
+
+    // Then 逐字等于改动前捕获的同一输入输出：没有新增字段、没有值漂移
+    expect(JSON.stringify(groups)).toBe('[{"id":"hk-connect-holding","title":"港股通持股比例","pane":"sub","key":"hk-connect-holding:","outputs":[{"key":"HK_CONNECT_HOLDING","kind":"line","color":"#7c5cff","values":[11.9,12.5,12.5],"precision":2}]}]')
+    expect(Object.hasOwn(groups[0] ?? {}, 'auxEmptyKey')).toBe(false)
+  })
+
+  it('用户看有数据的主动买盘副图时，调度输出与占位机制引入前逐字一致', () => {
+    // Given 有非空外部序列的主动买盘
+    // When 调度渲染组并整体序列化
+    const groups = dispatchIndicatorGroups({
+      klines: dailyBars(), instances: [activeBuyInstance], market: 'cn', symbol: '600519.SH', aux: ACTIVE_BUY_SERIES, deps,
+    })
+
+    // Then 逐字等于改动前捕获的同一输入输出（含净值/买占两条输出的派生值）
+    expect(JSON.stringify(groups)).toBe('[{"id":"active-buy","title":"主动买盘","pane":"sub","key":"active-buy:","outputs":[{"key":"净买","kind":"histogram","histogramBySign":true,"color":"#e64545","values":[4.11,-2.5,null],"precision":2},{"key":"买占","kind":"line","color":"#3b82f6","values":[52.055,48.75,null],"precision":2}]}]')
+  })
+
+  it('用户看有数据的主动买盘副图且该键命中 live 时，live 标记与改动前一致', () => {
+    // Given 同一非空序列 + 命中的 live 键
+    // When 调度渲染组
+    const groups = dispatchIndicatorGroups({
+      klines: dailyBars(), instances: [activeBuyInstance], market: 'cn', symbol: '600519.SH', aux: ACTIVE_BUY_SERIES, liveKeys: [CN_ACTIVE_BUY_KEY], deps,
+    })
+
+    // Then live 仍是唯一被注入的标记，数值输出不受影响
+    expect(groups.map(group => group.live)).toEqual([true])
+    expect(groups[0]?.outputs.map(output => output.values)).toEqual([[4.11, -2.5, undefined], [52.055, 48.75, undefined]])
   })
 })

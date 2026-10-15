@@ -42,7 +42,7 @@ import type { IndicatorDefinition, IndicatorInstance, IndicatorMarketScope } fro
 import {
   effectiveInstanceParams, effectiveMarketScope, isInstanceVisibleOn, symbolScopeKey,
 } from '@dshtrading/indicators'
-import { requiredAuxKeys } from './aux-series.ts'
+import { auxEmptyNoticeKey, requiredAuxKeys } from './aux-series.ts'
 import { useAuxSeries } from './useAuxSeries.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from './indicator-dispatch.ts'
 import { defaultScopeEntries } from './indicator-defaults.ts'
@@ -810,7 +810,17 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   }, [seriesKlines, applicableInstances, rosterVersion, market, symbol, auxSeries, auxState.liveKeys, fiveDayBarAux])
 
   const mainOverlays = useMemo(() => indicatorGroups.filter(group => group.pane === 'main'), [indicatorGroups])
-  const subIndicators = useMemo(() => indicatorGroups.filter(group => group.pane === 'sub'), [indicatorGroups])
+  // 副图组的空态文案在这里落地（词典只属于 UI 层，dispatch 只给数据域键位）：
+  // 占位组的 outputs 恒为空，TvChart 据此建一个只带标题行理由的 pane。
+  const subIndicators = useMemo(() => indicatorGroups
+    .filter(group => group.pane === 'sub')
+    .map(group => ({
+      key: group.key,
+      title: group.title,
+      outputs: group.outputs,
+      ...(group.live !== undefined ? { live: group.live } : {}),
+      ...(group.auxEmptyKey !== undefined ? { emptyNotice: t(auxEmptyNoticeKey(group.auxEmptyKey)) } : {}),
+    })), [indicatorGroups, t])
 
   const bars = useMemo(() => seriesKlines?.map(toBar) ?? [], [seriesKlines])
 

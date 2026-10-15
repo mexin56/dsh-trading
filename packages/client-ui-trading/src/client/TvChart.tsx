@@ -5,6 +5,8 @@
  * （v5 原生 panes）。图表没有内置成交量 pane——成交量由指标名册里的 `vol`
  * 指标（普通副图组）渲染，取消勾选即整个 pane 消失、下方副图随之上移。渲染层
  * 对指标实现零感知，只消费注册表 compute 的输出（@dshtrading/indicators 注册表）。
+ * 唯一的例外是**占位 pane**（外部序列取不到的 aux 副图）：它没有 outputs，本层为它
+ * 建一条不承载任何数值的锚序列（库的 pane 由序列隐式创建），撤下走同一套序列 diff。
  *
  * pane 内 legend：副图指标（pane 1+）的读数以绝对定位 overlay 显示在各自
  * pane 左上角（悬停跟随 readoutIndex，离场回落最新值）；主图指标读数由
@@ -49,6 +51,17 @@ export interface TvIndicatorGroup {
   title?: string
   live?: true
   outputs: readonly IndicatorOutput[]
+  /**
+   * 空态占位组：该组**没有任何输出**，pane 照样出现、标题行改显示这句理由（已翻译的
+   * 文案，词典归属在 UI 层）。占位组由 indicator-dispatch 在「声明了 aux 且每个声明键
+   * 都没有非空序列」时给出——空 ≠ 0：不建数据点、不画零线、不前向填充、不伪造 live。
+   */
+  emptyNotice?: string
+}
+
+/** 占位组判据：带空态文案且没有任何输出。有输出就不是占位（两者不会同时成立）。 */
+export function isPlaceholderGroup(group: TvIndicatorGroup): boolean {
+  return group.emptyNotice !== undefined && group.outputs.length === 0
 }
 
 /* ── 图表标记输入（Issue #41）──────────────────────────────── */
@@ -938,10 +951,20 @@ function TvChartImpl(props: TvChartProps): React.JSX.Element {
         />
       ))}
       {/* pane 1+ legend：副图指标读数（分量按输出色着色，组名打头；pane 序号与
-          序列创建同源——第一个副图指标即 pane 1，无成交量特例读数块） */}
+          序列创建同源——第一个副图指标即 pane 1，无成交量特例读数块）。
+          占位组只有标题行 + 空态理由，且**不随悬停状态消失**（它就是那条理由本身）。 */}
       {subIndicators.map((group, groupIndex) => {
         const top = paneTops[subIndicatorPaneIndex(groupIndex)]
-        if (top === undefined || readoutIndex === null) return null
+        if (top === undefined) return null
+        if (isPlaceholderGroup(group)) {
+          return (
+            <div key={group.key} style={{ position: 'absolute', left: 8, top: top + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, display: 'flex', gap: 8 }}>
+              <IndicatorPaneTitle title={group.title} />
+              <span style={{ color: 'var(--dsw-futu-text-tertiary, #8a919c)', fontWeight: 500 }}>{group.emptyNotice}</span>
+            </div>
+          )
+        }
+        if (readoutIndex === null) return null
         return (
           <div key={group.key} style={{ position: 'absolute', left: 8, top: top + 4, zIndex: 2, pointerEvents: 'none', fontSize: 10.5, fontFamily: monoFont, display: 'flex', gap: 8 }}>
             <IndicatorPaneTitle title={group.title} live={group.live} liveText={props.liveText} />
@@ -1006,8 +1029,8 @@ function hitTestMarker(
   return info
 }
 
-/** 主图叠加（pane 0）与副图（pane 1+，重建式）两套 diff 策略。 */
-function syncIndicators(
+/** 主图叠加（pane 0）与副图（pane 1+，重建式）两套 diff 策略。导出为图表侧直测缝。 */
+export function syncIndicators(
   chart: IChartApi,
   refs: Map<string, Map<string, ISeriesApi<SeriesType>>>,
   groups: readonly TvIndicatorGroup[],
@@ -1018,7 +1041,10 @@ function syncIndicators(
 ): void {
   const nextKeys = new Set(groups.map(group => group.key))
 
-  // 卸载不在场的组（重建模式下全部先卸）。
+  // 卸载不在场的组（重建模式下全部先卸）。占位组的锚序列也在这里被撤下——它一撤，
+  // pane 就成了空 pane，库随即回收（_private__cleanupIfPaneIsEmpty，见
+  // lightweight-charts 的 _internal_removeSeries），占位 pane 因此随组一起消失：
+  // 换标的 / 切市场 / 取消勾选都不需要额外清理路径。
   for (const [groupKey, seriesMap] of refs) {
     const keep = nextKeys.has(groupKey) && !recreateAll
     if (keep) continue
@@ -1027,12 +1053,22 @@ function syncIndicators(
   }
 
   groups.forEach((group, groupIndex) => {
+    // 重建模式：pane 随激活顺序对齐（basePane+i），series 需按 pane 归属重建。
+    const paneIndex = recreateAll ? basePane + groupIndex : basePane
+    if (isPlaceholderGroup(group)) {
+      // 占位组：没有输出，pane 只能靠一个**不承载任何数值**的锚序列建立（库的 pane 由
+      // 序列隐式创建）。锚序列从不 setData，只是让 pane 拥有一个数据源而不被回收。
+      if (refs.get(group.key) === undefined) {
+        const seriesMap = new Map<string, ISeriesApi<SeriesType>>()
+        refs.set(group.key, seriesMap)
+        if (paneIndex > 0) seriesMap.set(EMPTY_PANE_SERIES_KEY, createEmptyPaneSeries(chart, paneIndex))
+      }
+      return
+    }
     let seriesMap = refs.get(group.key)
     if (seriesMap === undefined) {
       seriesMap = new Map()
       refs.set(group.key, seriesMap)
-      // 重建模式：pane 随激活顺序对齐（basePane+i），series 需按 pane 归属重建。
-      const paneIndex = recreateAll ? basePane + groupIndex : basePane
       for (const output of group.outputs) {
         seriesMap.set(output.key, createSeries(chart, output, paneIndex, dark))
       }
@@ -1097,6 +1133,27 @@ function applySeriesColor(series: ISeriesApi<SeriesType>, output: IndicatorOutpu
   }
   const line = series as ISeriesApi<'Line'>
   if (line.options().color !== color) line.applyOptions({ color })
+}
+
+/**
+ * 占位 pane 的锚序列键：NUL 前缀是「不可能与任何 IndicatorOutput.key 撞名」的标记
+ * （定义侧 key 是人写的中文/英文标签），它只活在副图 refs 里，不进 legend 也不进读数。
+ */
+const EMPTY_PANE_SERIES_KEY = '\u0000aux-empty-pane'
+
+/**
+ * 占位 pane 的锚序列：**不承载任何数值**——从不 setData（不是空数组，是从未有过数据，
+ * 更不是零线），各项可见性全关（无绘制、无价格线、无轴标签、十字线不可命中）。它唯一
+ * 的职责是让 lightweight-charts 按 paneIndex 建立那个 pane：没有序列就没有 pane。
+ */
+function createEmptyPaneSeries(chart: IChartApi, paneIndex: number): ISeriesApi<SeriesType> {
+  return chart.addSeries(LineSeries, {
+    lineVisible: false,
+    color: 'transparent',
+    priceLineVisible: false,
+    lastValueVisible: false,
+    crosshairMarkerVisible: false,
+  }, paneIndex)
 }
 
 function createSeries(chart: IChartApi, output: IndicatorOutput, paneIndex: number, dark: boolean): ISeriesApi<SeriesType> {

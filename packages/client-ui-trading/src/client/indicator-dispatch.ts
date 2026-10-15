@@ -1,13 +1,15 @@
 /**
  * 指标调度（契约 §5）：适用实例 × K 线 × 外部序列 → TvChart 的渲染输入。
  *
- * 为什么从 QuoteStage 抽出来：调度里的两条门控正是本次交付的核心行为——声明了
- * aux 的实例在外部序列未就绪时**整体不进**调度（决策 3：副图 pane 不存在，不是画
- * 空线、不是画 0），以及 definition.markets 白名单（决策 5）；jsdom 下挂不起真实
- * 图表（lightweight-charts 需 canvas），纯函数是能钉住这两条行为的落点，
+ * 为什么从 QuoteStage 抽出来：调度里的三条门控正是本次交付的核心行为——声明了
+ * aux 的实例在外部序列未就绪且**每个**声明键都没有非空序列时出一个空 outputs 的
+ * 占位组（决策 3 修订：副图 pane 出现并在标题行给理由，但绝不画空线、不画 0），
+ * 未就绪的其它形态（宿主无 computeAux、部分键有数据）仍然整体不进调度，以及
+ * definition.markets 白名单（决策 5）；jsdom 下挂不起真实图表
+ * （lightweight-charts 需 canvas），纯函数是能钉住这些行为的落点，
  * 同时让 QuoteStage 只留接线。
  */
-import type { AuxBarSeriesMap, AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorOutput } from '@dshtrading/indicators'
+import type { AuxBarSeriesMap, AuxSeriesKey, AuxSeriesMap, IndicatorDefinition, IndicatorInstance, IndicatorOutput } from '@dshtrading/indicators'
 import { effectiveInstanceParams, isDefinitionAvailableOn } from '@dshtrading/indicators'
 import { auxSeriesReady, barAuxSeriesReady } from './aux-series.ts'
 import type { Kline } from './types.ts'
@@ -20,6 +22,12 @@ export interface DispatchedIndicatorGroup {
   key: string
   live?: true
   outputs: readonly IndicatorOutput[]
+  /**
+   * 空态占位标记：声明了 aux 且**每个**声明键都没有非空序列时给出，值 = 首个声明键
+   * （文案按键位归属，见 aux-series.auxEmptyNoticeKey）。带此标记的组 outputs 恒为空：
+   * 副图 pane 出现、标题行给出理由，但不构造任何数据点（不是零线、不前向填充、不伪造 live）。
+   */
+  auxEmptyKey?: AuxSeriesKey
 }
 
 /** 注册表能力（注入：生产传 indicators 注册表，单测传真实名册）。 */
@@ -31,8 +39,9 @@ export interface IndicatorDispatchDeps {
 
 /**
  * 构建渲染组。未声明 aux/barAux 的实例维持原路径（compute）；声明了 aux 的实例只走
- * computeAux，且外部序列缺失/为空时整体跳过——旧宿主（未接线）拿到的也是「无副图」，
- * 不会画出一条贴底的假线；声明了 barAux 的实例在逐根序列齐备时走 computeBarAux，
+ * computeAux——外部序列每个声明键都空 → 出占位组（见 DispatchedIndicatorGroup.auxEmptyKey），
+ * 未就绪的其它形态整体跳过（旧宿主未接线时拿到的是「无副图」而不是一条贴底的假线）；
+ * 声明了 barAux 的实例在逐根序列齐备时走 computeBarAux，
  * 否则回落 compute（不隐藏实例，见 aux-series 的 barAuxSeriesReady）。
  */
 export function dispatchIndicatorGroups(input: {
@@ -59,9 +68,25 @@ export function dispatchIndicatorGroups(input: {
     const params = deps.clampParams(definition, effectiveInstanceParams(instance, market, symbol))
     const declared = definition.aux ?? []
     if (declared.length > 0) {
-      // 契约 §3：声明 aux 时宿主只认 computeAux；未取到数据（缺失/空）不得调用它，
-      // 该实例不进调度 = 副图 pane 不存在（决策 3「整体隐藏」）。
-      if (definition.computeAux === undefined || !auxSeriesReady(definition, aux)) continue
+      // 契约 §3：声明 aux 时宿主只认 computeAux。
+      if (!auxSeriesReady(definition, aux)) {
+        // 空态占位（决策 3 修订）：**每个**声明键都没有非空序列 → 出一个 outputs 为空的
+        // 占位组，让副图 pane 出现、标题行给理由（不再静默消失）。两类情形仍然不进调度：
+        // ① computeAux 缺席是宿主没实现这个能力，不是「该标的没数据」——写成「无采集记录」
+        // 就是撒谎；② 部分键有数据是当前未定义的语义（谁知道该画哪条），按未就绪整体隐藏。
+        const emptyKey = declared[0]
+        if (definition.computeAux !== undefined && emptyKey !== undefined && declared.every(key => (aux[key]?.length ?? 0) === 0)) {
+          groups.push({
+            id: instance.id,
+            title: definition.title,
+            pane: definition.pane,
+            key: deps.instanceKey(instance),
+            outputs: [],
+            auxEmptyKey: emptyKey,
+          })
+        }
+        continue
+      }
       groups.push({
         id: instance.id,
         title: definition.title,
