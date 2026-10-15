@@ -1,11 +1,19 @@
 # ccxt quote 按所普查 + K 线九所 · 真实网络原始响应证据（2026-10-15 本卡）
 
-- 结论绑 commit：`a0c352f76655a4cbd3cfa3982afb6e765638b7fb`（探针启动时现场 `git rev-parse HEAD`）。
-- 实现指纹（`git hash-object`，探针启动时现场取值；工作树尚未提交，指纹是第二把锁）：
-  `packages/connector-ccxt/src/rest.ts` = `b682898edecdef9486827c0acad54772e4c7da75`、
+- 实现提交：`a83886468a6e0614bec1e67549aa8e7b3aae93fc`（探针复跑时现场 `git rev-parse HEAD`，
+  本卡实现所在的提交）。
+- 实现指纹（`git hash-object`，探针复跑时现场取值，与提交内容逐字一致）：
+  `packages/connector-ccxt/src/rest.ts` = `d39394e276277fdec6826213b6845e082b80a9fa`、
   `packages/connector-ccxt/src/index.ts` = `03fba6de7584d04bd82f94595d90a052dd1b7f64`、
   `packages/api/src/index.ts` = `3d58dc586ba088219b31f9c5f125b3837277954a`。
-- 抓取时刻：2026-10-15T02:13Z（quote 普查）– 02:35Z（周期普查）；探针 2026-10-15T02:22:21Z。
+- 抓取时刻：2026-10-15T02:13Z（quote 普查）– 02:35Z（周期普查）；探针跑过两次——
+  02:22:21Z（`rest.ts` 指纹 `b682898e…`，实现改动尚未收尾）与 02:44:45Z（`rest.ts` 指纹
+  `d39394e2…`，绑实现提交 a8388646）。两次都是 **63/63 PASS、退出码 0**；
+  `probe-summary.json` 记录的是后者。两次之间实现只删掉一处不可达的 `?? 0` 兜底
+  （`Interval` 对 `INTERVAL_MS` 是全映射），行为不变——按「指纹变化即结论失效」的纪律重跑，
+  本文件引用的判据、出口表与数字全部取自第二次运行。
+- §2 的原始响应抓取发生在实现提交之前一小时：它们是**端点层真值**（该所挂牌什么、该所接受
+  什么周期），与实现是否已落地无关；连接器层判据由 02:44 的探针复跑提供。
 - 工作树：探针现场 `git status --porcelain` 38 行，全部属于其它会话/在飞改动；本目录新增文件与
   `packages/connector-ccxt/**`、`packages/api/src/index.ts` 的改动属于本卡。
 - 上一轮（九所 ticker 端点层）的证据在同目录 [EVIDENCE.md](EVIDENCE.md)；本文件只覆盖本卡新增的

@@ -1,14 +1,14 @@
 {
   "probe": "ccxt-nine-exchange-ticker-klines-and-quote-census",
-  "capturedAt": "2026-10-15T02:22:21.757Z",
+  "capturedAt": "2026-10-15T02:44:45.795Z",
   "repo": {
-    "headSha": "a0c352f76655a4cbd3cfa3982afb6e765638b7fb",
+    "headSha": "a83886468a6e0614bec1e67549aa8e7b3aae93fc",
     "fingerprints": {
-      "packages/connector-ccxt/src/rest.ts": "b682898edecdef9486827c0acad54772e4c7da75",
+      "packages/connector-ccxt/src/rest.ts": "d39394e276277fdec6826213b6845e082b80a9fa",
       "packages/connector-ccxt/src/index.ts": "03fba6de7584d04bd82f94595d90a052dd1b7f64",
       "packages/api/src/index.ts": "3d58dc586ba088219b31f9c5f125b3837277954a"
     },
-    "statusPorcelainLines": 38
+    "statusPorcelainLines": 14
   },
   "connector": {
     "restTsPath": "packages/connector-ccxt/src/rest.ts",
@@ -525,12 +525,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT",
-      "detail": "BTCUSDT price=81219.9 volume=6556.57211867 ts=1792030944877",
+      "detail": "BTCUSDT price=81303.9 volume=7374.48696774 ts=1792032287076",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81219.9,
-        "volume": 6556.57211867,
-        "timestamp": 1792030944877,
+        "price": 81303.9,
+        "volume": 7374.48696774,
+        "timestamp": 1792032287076,
         "urls": [
           "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         ]
@@ -542,12 +542,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT",
-      "detail": "BTCUSDT price=81200 volume=10176.405996 ts=1792030947656",
+      "detail": "BTCUSDT price=81296.9 volume=11220.272632 ts=1792032289623",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81200,
-        "volume": 10176.405996,
-        "timestamp": 1792030947656,
+        "price": 81296.9,
+        "volume": 11220.272632,
+        "timestamp": 1792032289623,
         "urls": [
           "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT"
         ]
@@ -559,12 +559,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT",
-      "detail": "BTCUSDT price=81251.8 volume=6622.711682401342 ts=1792030948594",
+      "detail": "BTCUSDT price=81293.3 volume=7057.140256681342 ts=1792032290471",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81251.8,
-        "volume": 6622.711682401342,
-        "timestamp": 1792030948594,
+        "price": 81293.3,
+        "volume": 7057.140256681342,
+        "timestamp": 1792032290471,
         "urls": [
           "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT"
         ]
@@ -576,12 +576,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT",
-      "detail": "BTCUSDT price=81231.9 volume=128.80637757 ts=1792030949234",
+      "detail": "BTCUSDT price=81282.7 volume=153.36194918 ts=1792032291059",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81231.9,
-        "volume": 128.80637757,
-        "timestamp": 1792030949234,
+        "price": 81282.7,
+        "volume": 153.36194918,
+        "timestamp": 1792032291059,
         "urls": [
           "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT"
         ]
@@ -593,12 +593,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.exchange.coinbase.com/products/BTC-USDT/ticker",
-      "detail": "BTCUSDT price=81200 volume=28.29819268 ts=1792030949886",
+      "detail": "BTCUSDT price=81214.13 volume=33.74576569 ts=1792032291811",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81200,
-        "volume": 28.29819268,
-        "timestamp": 1792030949886,
+        "price": 81214.13,
+        "volume": 33.74576569,
+        "timestamp": 1792032291811,
         "urls": [
           "https://api.exchange.coinbase.com/products/BTC-USDT/ticker"
         ]
@@ -610,12 +610,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api-pub.bitfinex.com/v2/ticker/tBTCUST",
-      "detail": "BTCUSDT price=81423 volume=791.14338584 ts=1792030951346",
+      "detail": "BTCUSDT price=81297 volume=850.58204351 ts=1792032292590",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81423,
-        "volume": 791.14338584,
-        "timestamp": 1792030951346,
+        "price": 81297,
+        "volume": 850.58204351,
+        "timestamp": 1792032292590,
         "urls": [
           "https://api-pub.bitfinex.com/v2/ticker/tBTCUST"
         ]
@@ -627,12 +627,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.htx.com/market/detail/merged?symbol=btcusdt",
-      "detail": "BTCUSDT price=81254.81 volume=3036.7746136865717 ts=1792030952277",
+      "detail": "BTCUSDT price=81276 volume=3045.558574807656 ts=1792032293522",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81254.81,
-        "volume": 3036.7746136865717,
-        "timestamp": 1792030952277,
+        "price": 81276,
+        "volume": 3045.558574807656,
+        "timestamp": 1792032293522,
         "urls": [
           "https://api.htx.com/market/detail/merged?symbol=btcusdt"
         ]
@@ -644,12 +644,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://www.okx.com/api/v5/market/ticker?instId=ETH-BTC",
-      "detail": "ETHBTC price=0.02939 volume=1537.530206 ts=1792030952350",
+      "detail": "ETHBTC price=0.02923 volume=2178.322006 ts=1792032295075",
       "observed": {
         "symbol": "ETHBTC",
-        "price": 0.02939,
-        "volume": 1537.530206,
-        "timestamp": 1792030952350,
+        "price": 0.02923,
+        "volume": 2178.322006,
+        "timestamp": 1792032295075,
         "urls": [
           "https://www.okx.com/api/v5/market/ticker?instId=ETH-BTC"
         ]
@@ -661,12 +661,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_BTC",
-      "detail": "ETHBTC price=0.029415 volume=54.2194 ts=1792030954127",
+      "detail": "ETHBTC price=0.029221 volume=74.1156 ts=1792032297199",
       "observed": {
         "symbol": "ETHBTC",
-        "price": 0.029415,
-        "volume": 54.2194,
-        "timestamp": 1792030954127,
+        "price": 0.029221,
+        "volume": 74.1156,
+        "timestamp": 1792032297199,
         "urls": [
           "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_BTC"
         ]
@@ -678,12 +678,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC",
-      "detail": "ETHBTC price=0.02938 volume=1381.7749512 ts=1792030955649",
+      "detail": "ETHBTC price=0.02922 volume=1430.8447224 ts=1792032294890",
       "observed": {
         "symbol": "ETHBTC",
-        "price": 0.02938,
-        "volume": 1381.7749512,
-        "timestamp": 1792030955649,
+        "price": 0.02922,
+        "volume": 1430.8447224,
+        "timestamp": 1792032294890,
         "urls": [
           "https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC"
         ]
@@ -695,12 +695,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kraken.com/0/public/Ticker?pair=ETHEUR",
-      "detail": "ETHEUR price=2128.28 volume=8297.30358322 ts=1792030956725",
+      "detail": "ETHEUR price=2113.23 volume=9914.75431949 ts=1792032299021",
       "observed": {
         "symbol": "ETHEUR",
-        "price": 2128.28,
-        "volume": 8297.30358322,
-        "timestamp": 1792030956725,
+        "price": 2113.23,
+        "volume": 9914.75431949,
+        "timestamp": 1792032299021,
         "urls": [
           "https://api.kraken.com/0/public/Ticker?pair=ETHEUR"
         ]
@@ -712,12 +712,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.exchange.coinbase.com/products/ETH-BTC/ticker",
-      "detail": "ETHBTC price=0.02937 volume=866.11971757 ts=1792030957344",
+      "detail": "ETHBTC price=0.029234 volume=1053.61420814 ts=1792032299819",
       "observed": {
         "symbol": "ETHBTC",
-        "price": 0.02937,
-        "volume": 866.11971757,
-        "timestamp": 1792030957344,
+        "price": 0.029234,
+        "volume": 1053.61420814,
+        "timestamp": 1792032299819,
         "urls": [
           "https://api.exchange.coinbase.com/products/ETH-BTC/ticker"
         ]
@@ -729,12 +729,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api-pub.bitfinex.com/v2/ticker/tETHEUR",
-      "detail": "ETHEUR price=2128.7 volume=109.14310979 ts=1792030958170",
+      "detail": "ETHEUR price=2071.8 volume=115.52872778 ts=1792032300728",
       "observed": {
         "symbol": "ETHEUR",
-        "price": 2128.7,
-        "volume": 109.14310979,
-        "timestamp": 1792030958170,
+        "price": 2071.8,
+        "volume": 115.52872778,
+        "timestamp": 1792032300728,
         "urls": [
           "https://api-pub.bitfinex.com/v2/ticker/tETHEUR"
         ]
@@ -746,12 +746,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.htx.com/market/detail/merged?symbol=ethbtc",
-      "detail": "ETHBTC price=0.029495 volume=2.8191 ts=1792030959150",
+      "detail": "ETHBTC price=0.029193 volume=7.3493 ts=1792032301674",
       "observed": {
         "symbol": "ETHBTC",
-        "price": 0.029495,
-        "volume": 2.8191,
-        "timestamp": 1792030959150,
+        "price": 0.029193,
+        "volume": 7.3493,
+        "timestamp": 1792032301674,
         "urls": [
           "https://api.htx.com/market/detail/merged?symbol=ethbtc"
         ]
@@ -1077,7 +1077,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5",
-      "detail": "5 根 close=83760.4/81853.1/83172.2/81682.6/81190.2 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83760.4/81853.1/83172.2/81682.6/81309.5 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1122,9 +1122,9 @@
             "openTime": 1792022400000,
             "open": 81682.6,
             "high": 81933.5,
-            "low": 81183.9,
-            "close": 81190.2,
-            "volume": 630.93020556,
+            "low": 80228.2,
+            "close": 81309.5,
+            "volume": 1454.3251276,
             "closeTime": 1792108799999
           }
         ],
@@ -1140,7 +1140,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5",
-      "detail": "5 根 close=58628/62891.1/78582.1/83618.4/81235.9 openTime 1780272000000–1790812800000",
+      "detail": "5 根 close=58628/62891.1/78582.1/83618.4/81297 openTime 1780272000000–1790812800000",
       "observed": {
         "interval": "1M",
         "count": 5,
@@ -1185,9 +1185,9 @@
             "openTime": 1790812800000,
             "open": 83618.4,
             "high": 87238.3,
-            "low": 80400,
-            "close": 81235.9,
-            "volume": 75924.76448526,
+            "low": 80228.2,
+            "close": 81297,
+            "volume": 76748.62075913,
             "closeTime": 1793404799999
           }
         ],
@@ -1203,7 +1203,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5",
-      "detail": "5 根 close=83761.4/81846.4/83174.1/81672/81207 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83761.4/81846.4/83174.1/81672/81294.4 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1248,9 +1248,9 @@
             "openTime": 1792022400000,
             "open": 81672,
             "high": 81918.3,
-            "low": 81153.8,
-            "close": 81207,
-            "volume": 1178.298777,
+            "low": 80268,
+            "close": 81294.4,
+            "volume": 2275.863054,
             "closeTime": 1792108799999
           }
         ],
@@ -1266,7 +1266,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5",
-      "detail": "5 根 close=81183.4/84478.5/86518.2/83761.4/81245.7 openTime 1789344000000–1791763200000",
+      "detail": "5 根 close=81183.4/84478.5/86518.2/83761.4/81292.1 openTime 1789344000000–1791763200000",
       "observed": {
         "interval": "1w",
         "count": 5,
@@ -1311,9 +1311,9 @@
             "openTime": 1791763200000,
             "open": 83761.5,
             "high": 84352.2,
-            "low": 81040.5,
-            "close": 81245.7,
-            "volume": 28186.53133255,
+            "low": 80268,
+            "close": 81292.1,
+            "volume": 29284.13559655,
             "closeTime": 1792367999999
           }
         ],
@@ -1329,7 +1329,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day",
-      "detail": "5 根 close=83756.9/81858.6/83172.7/81679.7/81250.8 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83756.9/81858.6/83172.7/81679.7/81300.6 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1374,9 +1374,9 @@
             "openTime": 1792022400000,
             "open": 81679.8,
             "high": 81909.6,
-            "low": 81201.2,
-            "close": 81250.8,
-            "volume": 496.21698938,
+            "low": 80247.2,
+            "close": 81300.6,
+            "volume": 722.7152872,
             "closeTime": 1792108799999
           }
         ],
@@ -1392,7 +1392,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week",
-      "detail": "5 根 close=84398.6/83609.9/83321.6/81679.7/81236.4 openTime 1789603200000–1792022400000",
+      "detail": "5 根 close=84398.6/83609.9/83321.6/81679.7/81297.1 openTime 1789603200000–1792022400000",
       "observed": {
         "interval": "1w",
         "count": 5,
@@ -1437,9 +1437,9 @@
             "openTime": 1792022400000,
             "open": 81679.8,
             "high": 81909.6,
-            "low": 81201.2,
-            "close": 81236.4,
-            "volume": 496.26389141,
+            "low": 80247.2,
+            "close": 81297.1,
+            "volume": 722.83105362,
             "closeTime": 1792627199999
           }
         ],
@@ -1455,7 +1455,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440",
-      "detail": "5 根 close=83764.7/81872.1/83169.6/81663.9/81221 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83764.7/81872.1/83169.6/81663.9/81298 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1500,9 +1500,9 @@
             "openTime": 1792022400000,
             "open": 81701.9,
             "high": 81900,
-            "low": 81200,
-            "close": 81221,
-            "volume": 10.64671408,
+            "low": 80250.1,
+            "close": 81298,
+            "volume": 34.22606384,
             "closeTime": 1792108799999
           }
         ],
@@ -1518,7 +1518,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600",
-      "detail": "5 根 close=69311/81269.6/80933.5/84756.3/81221 openTime 1785888000000–1791072000000",
+      "detail": "5 根 close=69311/81269.6/80933.5/84756.3/81298 openTime 1785888000000–1791072000000",
       "observed": {
         "interval": "1M",
         "count": 5,
@@ -1563,9 +1563,9 @@
             "openTime": 1791072000000,
             "open": 84768.8,
             "high": 86990.1,
-            "low": 80400,
-            "close": 81221,
-            "volume": 1260.32094923,
+            "low": 80250.1,
+            "close": 81298,
+            "volume": 1283.90029899,
             "closeTime": 1793663999999
           }
         ],
@@ -1581,7 +1581,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400",
-      "detail": "5 根 close=83757.79/81900.57/83168.15/81785.34/81284.17 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83757.79/81900.57/83168.15/81785.34/81214.13 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1626,9 +1626,9 @@
             "openTime": 1792022400000,
             "open": 81749.58,
             "high": 81930.29,
-            "low": 81284.17,
-            "close": 81284.17,
-            "volume": 2.47826612,
+            "low": 80250,
+            "close": 81214.13,
+            "volume": 7.56110773,
             "closeTime": 1792108799999
           }
         ],
@@ -1644,55 +1644,55 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60",
-      "detail": "5 根 close=81566.01/81529.07/81574.86/81756.85/81669.3 openTime 1792030260000–1792030800000",
+      "detail": "5 根 close=81004.52/81201.37/81307.48/81276.35/81214.13 openTime 1792031640000–1792032060000",
       "observed": {
         "interval": "1m",
         "count": 5,
         "klines": [
           {
-            "openTime": 1792030260000,
-            "open": 81629.34,
-            "high": 81634.74,
-            "low": 81564.43,
-            "close": 81566.01,
-            "volume": 0.05025504,
-            "closeTime": 1792030319999
+            "openTime": 1792031640000,
+            "open": 80941.87,
+            "high": 81004.52,
+            "low": 80941.87,
+            "close": 81004.52,
+            "volume": 0.12146782,
+            "closeTime": 1792031699999
           },
           {
-            "openTime": 1792030380000,
-            "open": 81597.34,
-            "high": 81597.35,
-            "low": 81529.07,
-            "close": 81529.07,
-            "volume": 0.03741734,
-            "closeTime": 1792030439999
+            "openTime": 1792031700000,
+            "open": 81201.37,
+            "high": 81201.37,
+            "low": 81200.86,
+            "close": 81201.37,
+            "volume": 0.00429152,
+            "closeTime": 1792031759999
           },
           {
-            "openTime": 1792030680000,
-            "open": 81537.71,
-            "high": 81574.86,
-            "low": 81502.85,
-            "close": 81574.86,
-            "volume": 0.0144394,
-            "closeTime": 1792030739999
+            "openTime": 1792031760000,
+            "open": 81188.29,
+            "high": 81307.48,
+            "low": 81188.29,
+            "close": 81307.48,
+            "volume": 0.05079179,
+            "closeTime": 1792031819999
           },
           {
-            "openTime": 1792030740000,
-            "open": 81583.7,
-            "high": 81756.85,
-            "low": 81583.7,
-            "close": 81756.85,
-            "volume": 0.06896633,
-            "closeTime": 1792030799999
+            "openTime": 1792031820000,
+            "open": 81276.35,
+            "high": 81276.35,
+            "low": 81276.35,
+            "close": 81276.35,
+            "volume": 0.00030672,
+            "closeTime": 1792031879999
           },
           {
-            "openTime": 1792030800000,
-            "open": 81786.37,
-            "high": 81786.37,
-            "low": 81669.3,
-            "close": 81669.3,
-            "volume": 0.04614859,
-            "closeTime": 1792030859999
+            "openTime": 1792032060000,
+            "open": 81238.18,
+            "high": 81238.18,
+            "low": 81214.13,
+            "close": 81214.13,
+            "volume": 0.07941918,
+            "closeTime": 1792032119999
           }
         ],
         "urls": [
@@ -1707,7 +1707,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5",
-      "detail": "5 根 close=83761/81875/83177/81658/81731 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83761/81875/83177/81658/81276 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1752,9 +1752,9 @@
             "openTime": 1792022400000,
             "open": 81688,
             "high": 81935,
-            "low": 81393,
-            "close": 81731,
-            "volume": 22.9446922,
+            "low": 80250,
+            "close": 81276,
+            "volume": 84.5992578,
             "closeTime": 1792108799999
           }
         ],
@@ -1770,7 +1770,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5",
-      "detail": "5 根 close=81178/84464/86525/83761/81689 openTime 1789344000000–1791763200000",
+      "detail": "5 根 close=81178/84464/86525/83761/81060 openTime 1789344000000–1791763200000",
       "observed": {
         "interval": "1w",
         "count": 5,
@@ -1815,9 +1815,9 @@
             "openTime": 1791763200000,
             "open": 83760,
             "high": 84377,
-            "low": 81035,
-            "close": 81689,
-            "volume": 1831.54704547,
+            "low": 80250,
+            "close": 81060,
+            "volume": 1889.87056785,
             "closeTime": 1792367999999
           }
         ],
@@ -1833,7 +1833,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5",
-      "detail": "5 根 close=83864.66/82682.02/83395.99/81609.39/81208.61 openTime 1791648000000–1791993600000",
+      "detail": "5 根 close=83864.66/82682.02/83395.99/81609.39/81241.5 openTime 1791648000000–1791993600000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -1878,9 +1878,9 @@
             "openTime": 1791993600000,
             "open": 81629.97,
             "high": 82054.38,
-            "low": 81164.2,
-            "close": 81208.61,
-            "volume": 635.5598127476828,
+            "low": 80230.76,
+            "close": 81241.5,
+            "volume": 697.6522115598647,
             "closeTime": 1792079999999
           }
         ],
@@ -1896,7 +1896,7 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5",
-      "detail": "5 根 close=58379.85/62747.43/78506.71/84106.21/81208.61 openTime 1780243200000–1790784000000",
+      "detail": "5 根 close=58379.85/62747.43/78506.71/84106.21/81241.5 openTime 1780243200000–1790784000000",
       "observed": {
         "interval": "1M",
         "count": 5,
@@ -1941,9 +1941,9 @@
             "openTime": 1790784000000,
             "open": 84115.17,
             "high": 87183.12,
-            "low": 80419.16,
-            "close": 81208.61,
-            "volume": 59255.33308838014,
+            "low": 80230.76,
+            "close": 81241.5,
+            "volume": 59317.42548719232,
             "closeTime": 1793375999999
           }
         ],
@@ -2308,12 +2308,12 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
-      "detail": "BTCUSDT price=81220.99 volume=19449.87408 ts=1792030976013",
+      "detail": "BTCUSDT price=81254.95 volume=21644.46534 ts=1792032321013",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81220.99,
-        "volume": 19449.87408,
-        "timestamp": 1792030976013,
+        "price": 81254.95,
+        "volume": 21644.46534,
+        "timestamp": 1792032321013,
         "urls": [
           "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"
         ]
@@ -2325,12 +2325,12 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT",
-      "detail": "BTCUSDT price=81189.3 volume=10091.962639 ts=1792030976850",
+      "detail": "BTCUSDT price=81270.4 volume=10822.142301 ts=1792032321849",
       "observed": {
         "symbol": "BTCUSDT",
-        "price": 81189.3,
-        "volume": 10091.962639,
-        "timestamp": 1792030976850,
+        "price": 81270.4,
+        "volume": 10822.142301,
+        "timestamp": 1792032321849,
         "urls": [
           "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT"
         ]
@@ -2342,7 +2342,7 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5",
-      "detail": "5 根 close=83773.12/81850/83169/81682.01/81204.61 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83773.12/81850/83169/81682.01/81262.93 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -2387,9 +2387,9 @@
             "openTime": 1792022400000,
             "open": 81682.02,
             "high": 81938.96,
-            "low": 81179.79,
-            "close": 81204.61,
-            "volume": 2475.58322,
+            "low": 80226.35,
+            "close": 81262.93,
+            "volume": 4755.8957,
             "closeTime": 1792108799999
           }
         ],
@@ -2405,7 +2405,7 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5",
-      "detail": "5 根 close=58624.71/62887.88/78581.29/83623.6/81201.68 openTime 1780272000000–1790812800000",
+      "detail": "5 根 close=58624.71/62887.88/78581.29/83623.6/81262.93 openTime 1780272000000–1790812800000",
       "observed": {
         "interval": "1M",
         "count": 5,
@@ -2450,9 +2450,9 @@
             "openTime": 1790812800000,
             "open": 83623.59,
             "high": 87220,
-            "low": 80393.56,
-            "close": 81201.68,
-            "volume": 205263.0784,
+            "low": 80226.35,
+            "close": 81262.93,
+            "volume": 207543.3014,
             "closeTime": 1793491199999
           }
         ],
@@ -2468,7 +2468,7 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5",
-      "detail": "5 根 close=83771.2/81852.1/83172/81673.9/81202.9 openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83771.2/81852.1/83172/81673.9/81253.3 openTime 1791676800000–1792022400000",
       "observed": {
         "interval": "1d",
         "count": 5,
@@ -2513,9 +2513,9 @@
             "openTime": 1792022400000,
             "open": 81673.9,
             "high": 81936,
-            "low": 81174.7,
-            "close": 81202.9,
-            "volume": 1421.302087,
+            "low": 80224.4,
+            "close": 81253.3,
+            "volume": 2237.992619,
             "closeTime": 1792108799999
           }
         ],
@@ -2531,7 +2531,7 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5",
-      "detail": "5 根 close=58631/62885.8/78580.8/83616.2/81189.3 openTime 1780272000000–1790812800000",
+      "detail": "5 根 close=58631/62885.8/78580.8/83616.2/81270.4 openTime 1780272000000–1790812800000",
       "observed": {
         "interval": "1M",
         "count": 5,
@@ -2576,9 +2576,9 @@
             "openTime": 1790812800000,
             "open": 83616.2,
             "high": 87256.3,
-            "low": 80393.9,
-            "close": 81189.3,
-            "volume": 102918.533257,
+            "low": 80224.4,
+            "close": 81270.4,
+            "volume": 103735.289344,
             "closeTime": 1793404799999
           }
         ],
