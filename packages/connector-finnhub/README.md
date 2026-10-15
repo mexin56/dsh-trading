@@ -23,7 +23,12 @@ Finnhub 商业数据源美股连接器（`us` 市场，BYOK），实现 `@dshtra
 
 - **数据面行**：`packages/us/cordis.patch.yml` 第 34-37 行 → 行 id `dsh-trading-us-dataplane-finnhub`，
   入口 `@dshtrading/connector-finnhub/dataplane`，行 config 只写 `enabled: true`；
-  该入口把 `(us, finnhub)` 注册进 `tradingMarketDataRegistry`（`src/dataplane.ts:24-25,35-37`）。
+  该入口把 `(us, finnhub)` 注册进 `tradingMarketDataRegistry`（`src/dataplane.ts:24-25,38-40`）。
+- **凭证解析只有一份**（`createApiKeyProvider`，`src/index.ts:181-185`）：设置中心
+  `dshtrading.credentials.finnhub.apiKey`（router `getCredential('finnhub').apiKey`）优先、
+  `process.env[config.apiKeyRef]` 兜底，**每次请求解析**（惰性，`src/rest.ts:95`）——settings 用户层
+  加载/修改晚于插件 `apply` 也生效。主入口（`src/index.ts:192`）与数据面行（`src/dataplane.ts:32`）
+  同用这一份，故设置页填的 key 在宿主面行情注册行与 preset 工具面都生效。
 - **preset 行**：`packages/us/assets/preset/us-trader/agent.cordis.yml` 第 76-88 行 → 组 id
   `dsh-trading-us-connector-finnhub-group`（`isolate` 键 `tradingUsMarketData` + `tradingUsTrade`，第 79-81 行），
   组内行 id `dsh-trading-us-connector-finnhub`（第 83 行），行 config 只写 `enabled/dryRun/liveTrading`（第 86-88 行）。
@@ -117,10 +122,11 @@ Finnhub 商业数据源美股连接器（`us` 市场，BYOK），实现 `@dshtra
 
 ## 合规记录
 
-- **需自备 API key（BYOK）**：配置只存 ref 名 `FINNHUB_API_KEY`；运行期先取
+- **需自备 API key（BYOK）**：配置只存 ref 名 `FINNHUB_API_KEY`；运行期按请求取
   `tradingMarketRouter.getCredential('finnhub')` 的 `apiKey`，缺失时回落同名环境变量
-  （`src/index.ts:177-179`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
-- **key 随查询参数出网**：每次请求把 key 以 `token=<key>` 拼进 URL（`src/rest.ts:82`），会进入上游访问
+  （`src/index.ts:181-185`；主入口与数据面行共用这一份，`src/index.ts:192`、`src/dataplane.ts:32`）。
+  本仓不内置、不落库、不打印 key。
+- **key 随查询参数出网**：每次请求把 key 以 `token=<key>` 拼进 URL（`src/rest.ts:96`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源，设置页把该源标为 `type: 'commercial'`
   （`packages/client-ui-settings/src/client/trading-settings-controller.ts:50`）。
 - **免费额度与再分发边界以 Finnhub 服务条款为准**：本仓不缓存、不再分发任何行情或新闻数据。

@@ -63,23 +63,37 @@ export function normalizeUsSymbol(raw: string): string {
 export interface FinnhubRestOptions {
   baseUrl?: string
   apiKey?: string
+  /**
+   * 惰性凭证源：**每次请求**解析一次（BYOK）。设置中心 `dshtrading.credentials.finnhub.apiKey`
+   * 由它取、`process.env[apiKeyRef]` 兜底（见 `createApiKeyProvider`）。静态 `apiKey` 保留作
+   * 直调用法（README 出网复跑命令、离线用例）的构造期兜底。
+   */
+  apiKeyProvider?: () => string | undefined
   fetchImpl?: typeof fetch
 }
 
 export class FinnhubRestClient {
   readonly baseUrl: string
   private readonly apiKey?: string
+  private readonly apiKeyProvider?: () => string | undefined
   private readonly fetchImpl: typeof fetch
 
   constructor(options: FinnhubRestOptions = {}) {
     this.baseUrl = options.baseUrl ?? 'https://finnhub.io/api/v1'
     this.apiKey = options.apiKey
+    this.apiKeyProvider = options.apiKeyProvider
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch
+  }
+
+  /** 取值顺序：惰性 provider（设置中心优先、env 兜底）→ 构造期静态快照。 */
+  private resolvedApiKey(): string | undefined {
+    return this.apiKeyProvider?.() ?? this.apiKey
   }
 
   private async requestJson<T>(path: string): Promise<T> {
     const sep = path.includes('?') ? '&' : '?'
-    const tokenQuery = this.apiKey ? `${sep}token=${encodeURIComponent(this.apiKey)}` : ''
+    const apiKey = this.resolvedApiKey()
+    const tokenQuery = apiKey ? `${sep}token=${encodeURIComponent(apiKey)}` : ''
     const url = `${this.baseUrl}${path}${tokenQuery}`
     try {
       const res = await this.fetchImpl(url, {

@@ -25,7 +25,12 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 
 - **数据面行**：`packages/us/cordis.patch.yml` 第 30-33 行 → 行 id `dsh-trading-us-dataplane-fmp`，
   入口 `@dshtrading/connector-fmp/dataplane`，行 config 只写 `enabled: true`；
-  该入口把 `(us, fmp)` 注册进 `tradingMarketDataRegistry`（`src/dataplane.ts:24-25,35-37`）。
+  该入口把 `(us, fmp)` 注册进 `tradingMarketDataRegistry`（`src/dataplane.ts:24-25,38-40`）。
+- **凭证解析只有一份**（`createApiKeyProvider`，`src/index.ts:176-180`）：设置中心
+  `dshtrading.credentials.fmp.apiKey`（router `getCredential('fmp').apiKey`）优先、
+  `process.env[config.apiKeyRef]` 兜底，**每次请求解析**（惰性，`src/rest.ts:112`）——settings 用户层
+  加载/修改晚于插件 `apply` 也生效。主入口（`src/index.ts:187`）与数据面行（`src/dataplane.ts:32`）
+  同用这一份，故设置页填的 key 在宿主面行情注册行与 preset 工具面都生效。
 - **preset 行**：`packages/us/assets/preset/us-trader/agent.cordis.yml` 第 62-74 行 → 组 id
   `dsh-trading-us-connector-fmp-group`（`isolate` 键 `tradingUsMarketData` + `tradingUsTrade`，第 65-67 行），
   组内行 id `dsh-trading-us-connector-fmp`（第 69 行），行 config 只写 `enabled/dryRun/liveTrading`（第 72-74 行）。
@@ -126,10 +131,11 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 
 ## 合规记录
 
-- **需自备 API key（BYOK）**：配置只存 ref 名 `FMP_API_KEY`；运行期先取
+- **需自备 API key（BYOK）**：配置只存 ref 名 `FMP_API_KEY`；运行期按请求取
   `tradingMarketRouter.getCredential('fmp')` 的 `apiKey`，缺失时回落同名环境变量
-  （`src/index.ts:172-174`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
-- **key 随查询参数出网**：每次请求把 key 以 `apikey=<key>` 拼进 URL（`src/rest.ts:99`），会进入上游访问
+  （`src/index.ts:176-180`；主入口与数据面行共用这一份，`src/index.ts:187`、`src/dataplane.ts:32`）。
+  本仓不内置、不落库、不打印 key。
+- **key 随查询参数出网**：每次请求把 key 以 `apikey=<key>` 拼进 URL（`src/rest.ts:113`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源，设置页把该源标为 `type: 'commercial'`
   （`packages/client-ui-settings/src/client/trading-settings-controller.ts:49`）。
 - **免费额度与再分发边界以 FMP 服务条款为准**：本仓不缓存、不再分发任何行情或公司资料数据。

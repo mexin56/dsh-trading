@@ -14,8 +14,11 @@
  * （okx/alpaca/tushare/jin10/hithink）用导出的解析函数或真服务方法触发；传输层是手写
  * Response 替身（与本包及 connector-tushare 的 dataplane-loader 用例同款，零 mock 工具）。
  *
- * 边界：断言「字段至少在一个挂载路径上被读」。同一连接器的多个挂载路径（bundle 数据面行
- * 与 preset 行）各自的 sourcing 差异记在 README 与收窄记录的对照表里，不在本用例判据内。
+ * 判据按**挂载路径**分别成立：同一连接器有「bundle 数据面行」与「preset 插件行」两条时，两条各
+ * 挂载一次、各触发一次出网，并各自断言「面板字段被读 + 哨兵值进了这次请求」。只接一条路径的修
+ * 复（2026-10-15 前 fmp/finnhub/polygon 的数据面行只读 env）在这里必红。
+ * 单家 sourcing 的连接器（okx / alpaca / tushare / jin10 的数据面行与插件行共用同一个 resolve
+ * 函数）仍只断言一次读出：它们的行级接线由各包自己的 dataplane loader 用例守，本表不重复挂载。
  */
 import { describe, expect, it } from 'vitest'
 import { resolveConfig, type Context } from '@deepseek-ai/cordis'
@@ -24,6 +27,9 @@ import * as alpaca from '@dshtrading/connector-alpaca'
 import * as fmp from '@dshtrading/connector-fmp'
 import * as finnhub from '@dshtrading/connector-finnhub'
 import * as polygon from '@dshtrading/connector-polygon'
+import * as fmpDataplane from '@dshtrading/connector-fmp/dataplane'
+import * as finnhubDataplane from '@dshtrading/connector-finnhub/dataplane'
+import * as polygonDataplane from '@dshtrading/connector-polygon/dataplane'
 import * as tushare from '@dshtrading/connector-tushare'
 import * as longbridge from '@dshtrading/connector-longbridge'
 import * as longbridgeDataplane from '@dshtrading/connector-longbridge/dataplane'
@@ -215,41 +221,65 @@ describe('设置页凭据卡片字段与连接器消费面一致', () => {
     expect(credentials).toEqual({ key: sentinel('alpaca', 'apiKey'), secret: sentinel('alpaca', 'secretKey') })
   })
 
-  it('用户打开美股 FMP 设置时 apiKey 从设置字典读出并进到上游请求', async () => {
-    // Given: 面板 fmp 的 apiKey 在设置字典里有一个哨兵值
+  it('用户打开美股 FMP 设置时 apiKey 在数据面行与插件行都从设置字典读出并进到上游请求', async () => {
+    // Given: 面板 fmp 的 apiKey 在设置字典里有一个哨兵值（两条挂载路径各一份记录）
     const fields = credentialKeys('fmp')
-    const probe = probeFor('fmp', fields)
-    const target = harness('fmp', probe)
-    // When: 挂载真连接器行并触发一次行情请求
+    const dataplaneProbe = probeFor('fmp', fields)
+    const pluginProbe = probeFor('fmp', fields)
+    const dataplaneHarness = harness('fmp', dataplaneProbe)
+    const pluginHarness = harness('fmp', pluginProbe)
+    // When: 分别挂载 us bundle 的数据面行与 preset 用的插件行，并各触发一次行情请求
     await withStubTransport(async (requests) => {
-      mount(fmp, target.ctx)
-      await requestOnce(marketDataOf(target), 'AAPL')
-      // Then: 面板键被读过，且哨兵值出现在出网 URL 的 apikey 查询串里
-      expect([...probe.read].sort()).toEqual([...fields].sort())
-      expect(requests.map((request) => request.url).join(' ')).toContain(sentinel('fmp', 'apiKey'))
+      mount(fmpDataplane, dataplaneHarness.ctx)
+      mount(fmp, pluginHarness.ctx)
+      await requestOnce(marketDataOf(dataplaneHarness), 'AAPL')
+      await requestOnce(marketDataOf(pluginHarness), 'AAPL')
+      // Then: 两条挂载路径**各自**都把面板键读出来，且各自的出网 URL 都带上哨兵值
+      //       （任一路径退回只读 env 都在这里失败）
+      expect([...dataplaneProbe.read].sort()).toEqual([...fields].sort())
+      expect([...pluginProbe.read].sort()).toEqual([...fields].sort())
+      expect(requests.filter((request) => request.url.includes(sentinel('fmp', 'apiKey')))).toHaveLength(2)
     })
   })
 
-  it('用户打开美股 Finnhub 设置时 apiKey 从设置字典读出', () => {
-    // Given: 面板 finnhub 的 apiKey 在设置字典里有一个哨兵值
+  it('用户打开美股 Finnhub 设置时 apiKey 在数据面行与插件行都从设置字典读出并进到上游请求', async () => {
+    // Given: 面板 finnhub 的 apiKey 在设置字典里有一个哨兵值（两条挂载路径各一份记录）
     const fields = credentialKeys('finnhub')
-    const probe = probeFor('finnhub', fields)
-    const { ctx } = harness('finnhub', probe)
-    // When: 挂载真连接器行
-    mount(finnhub, ctx)
-    // Then: 面板的每个键都被读过
-    expect([...probe.read].sort()).toEqual([...fields].sort())
+    const dataplaneProbe = probeFor('finnhub', fields)
+    const pluginProbe = probeFor('finnhub', fields)
+    const dataplaneHarness = harness('finnhub', dataplaneProbe)
+    const pluginHarness = harness('finnhub', pluginProbe)
+    // When: 分别挂载 us bundle 的数据面行与 preset 用的插件行，并各触发一次行情请求
+    await withStubTransport(async (requests) => {
+      mount(finnhubDataplane, dataplaneHarness.ctx)
+      mount(finnhub, pluginHarness.ctx)
+      await requestOnce(marketDataOf(dataplaneHarness), 'AAPL')
+      await requestOnce(marketDataOf(pluginHarness), 'AAPL')
+      // Then: 两条挂载路径**各自**都把面板键读出来，且各自的出网 URL 都带上哨兵值
+      expect([...dataplaneProbe.read].sort()).toEqual([...fields].sort())
+      expect([...pluginProbe.read].sort()).toEqual([...fields].sort())
+      expect(requests.filter((request) => request.url.includes(sentinel('finnhub', 'apiKey')))).toHaveLength(2)
+    })
   })
 
-  it('用户打开美股 Polygon 设置时 apiKey 从设置字典读出', () => {
-    // Given: 面板 polygon 的 apiKey 在设置字典里有一个哨兵值
+  it('用户打开美股 Polygon 设置时 apiKey 在数据面行与插件行都从设置字典读出并进到上游请求', async () => {
+    // Given: 面板 polygon 的 apiKey 在设置字典里有一个哨兵值（两条挂载路径各一份记录）
     const fields = credentialKeys('polygon')
-    const probe = probeFor('polygon', fields)
-    const { ctx } = harness('polygon', probe)
-    // When: 挂载真连接器行
-    mount(polygon, ctx)
-    // Then: 面板的每个键都被读过
-    expect([...probe.read].sort()).toEqual([...fields].sort())
+    const dataplaneProbe = probeFor('polygon', fields)
+    const pluginProbe = probeFor('polygon', fields)
+    const dataplaneHarness = harness('polygon', dataplaneProbe)
+    const pluginHarness = harness('polygon', pluginProbe)
+    // When: 分别挂载 us bundle 的数据面行与 preset 用的插件行，并各触发一次行情请求
+    await withStubTransport(async (requests) => {
+      mount(polygonDataplane, dataplaneHarness.ctx)
+      mount(polygon, pluginHarness.ctx)
+      await requestOnce(marketDataOf(dataplaneHarness), 'AAPL')
+      await requestOnce(marketDataOf(pluginHarness), 'AAPL')
+      // Then: 两条挂载路径**各自**都把面板键读出来，且各自的出网 URL 都带上哨兵值
+      expect([...dataplaneProbe.read].sort()).toEqual([...fields].sort())
+      expect([...pluginProbe.read].sort()).toEqual([...fields].sort())
+      expect(requests.filter((request) => request.url.includes(sentinel('polygon', 'apiKey')))).toHaveLength(2)
+    })
   })
 
   it('用户打开 A 股 Tushare 设置时 token 从设置字典读出', () => {

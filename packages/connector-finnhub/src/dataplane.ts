@@ -1,6 +1,6 @@
-﻿import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { FinnhubMarketDataService, TRADING_US_MARKET_DATA_KEY, Config } from './index.js'
+import { FinnhubMarketDataService, TRADING_US_MARKET_DATA_KEY, Config, createApiKeyProvider } from './index.js'
 
 export const inject: string[] = []
 
@@ -26,13 +26,16 @@ const MARKET = 'us'
 
 export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
-  const apiKey = process.env[config.apiKeyRef]
+  // 凭证与主入口共用 `createApiKeyProvider`（设置中心 router 凭证优先、`apiKeyRef` 环境变量兜底），
+  // 且惰性到**每次请求**解析：本行是 us bundle 在宿主启动时挂载的行情注册面，而 settings 用户层
+  // 加载晚于插件 apply——apply 期快照会落空（2026-09-12 实证根因；hithink/tushare 同款）。
+  const apiKeyProvider = createApiKeyProvider(ctx, config)
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
-    new FinnhubMarketDataService(ctx, { apiKey })
+    new FinnhubMarketDataService(ctx, { apiKeyProvider })
     return
   }
   const inner = ctx.isolate(TRADING_US_MARKET_DATA_KEY)
-  const service = new FinnhubMarketDataService(inner, { apiKey })
+  const service = new FinnhubMarketDataService(inner, { apiKeyProvider })
   ctx.effect(() => registry.register(MARKET, ROUTER_PROVIDER, service))
 }

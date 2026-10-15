@@ -13,9 +13,9 @@ Status: implemented
 |---|---|---|---|
 | okx | `apiKey` / `secretKey` / `passphrase` | `resolveCredentials` 读 `router.getCredential('okx')`（`packages/connector-okx/src/index.ts:180-186`），值进 `OK-ACCESS-KEY` 与 HMAC 签名 | 真消费 |
 | alpaca | `apiKey` / `secretKey` | `resolveCredentials` 读 `router.getCredential('alpaca')`（`packages/connector-alpaca/src/index.ts:119-122`），值进 `APCA-API-KEY-ID` 等头 | 真消费 |
-| fmp | `apiKey` | `router.getCredential('fmp')?.apiKey \|\| env[apiKeyRef]`（`packages/connector-fmp/src/index.ts:173-174`），进 `apikey=` 查询串 | 真消费 |
-| finnhub | `apiKey` | 同上形（`packages/connector-finnhub/src/index.ts:178-179`），进 `token=` 查询串 | 真消费 |
-| polygon | `apiKey` | 同上形（`packages/connector-polygon/src/index.ts:169-170`），进 `apiKey=` 查询串 | 真消费 |
+| fmp | `apiKey` | `createApiKeyProvider` 读 `router.getCredential('fmp')?.apiKey \|\| env[apiKeyRef]`（`packages/connector-fmp/src/index.ts:176-180`），**每次请求**解析（`src/rest.ts:112`），进 `apikey=` 查询串；主入口与数据面行同用这一份（`src/index.ts:187`、`src/dataplane.ts:32`） | 真消费（两条挂载路径） |
+| finnhub | `apiKey` | 同上形（`packages/connector-finnhub/src/index.ts:181-185`、`src/index.ts:192`、`src/dataplane.ts:32`、`src/rest.ts:95`），进 `token=` 查询串 | 真消费（两条挂载路径） |
+| polygon | `apiKey` | 同上形（`packages/connector-polygon/src/index.ts:172-176`、`src/index.ts:183`、`src/dataplane.ts:32`、`src/rest.ts:116`），进 `apiKey=` 查询串 | 真消费（两条挂载路径） |
 | tushare | `token` | `createTokenProvider` 读 `router.getCredential('tushare')?.token \|\| env[tokenRef]`（`packages/connector-tushare/src/index.ts:188`），进请求体 `token` | 真消费 |
 | hithink | `apiKey` | `router.getCredential('hithink')?.apiKey \|\| env[apiKeyRef]`（`packages/connector-hithink/src/dataplane.ts:36`），进 `X-api-key` 头 | 真消费 |
 | jin10 | `token` | `createTokenProvider` 读 `router.getCredential('jin10')?.token \|\| env[tokenRef]`（`packages/connector-jin10/src/plugin.ts:47`），进 `Authorization: Bearer` | 真消费 |
@@ -87,19 +87,25 @@ Status: implemented
   鸭式 ctx +「记录型 credentials 记录」（每次属性读都记账）断言面板字段 ⊆ 连接器读点，
   并断言覆盖表与面板规格表相等（新增挂凭据字段的 provider 必须同时补用例）。
   逐请求惰性解析的连接器用导出的解析函数或真服务方法触发，传输层是手写 `Response` 替身（零 mock 工具）。
+  判据按**挂载路径**分别成立：有「bundle 数据面行 + preset 插件行」两条时两条各自挂载、各自出网、
+  各自断言（fmp/finnhub/polygon/longbridge/tiger）；两条行共用同一个 resolve 函数的
+  okx/alpaca/tushare/jin10 仍只断言一次读出，其行级接线由各包自己的 dataplane loader 用例守。
   另两条断言把提示槽位的语义钉住：`env` 必须是环境变量名形状，`configField` 必须真出现在
   对应连接器 `resolveConfig` 的 Config 键里。
 - 负向验证（本次实测）：把 longbridge 数据面行退回只读 env → 该用例红；往 `PROVIDER_CREDENTIAL_SPECS`
-  加一个无用例覆盖的 provider → 覆盖用例红。
+  加一个无用例覆盖的 provider → 覆盖用例红。收尾复跑：把 fmp 数据面行退回只读 env → 该包
+  dataplane loader 用例 2 例红（settings 优先例与 apply 后补凭证例，env 回落例仍过），
+  守卫的 fmp 逐路径用例同时红（`expected [] to deeply equal ['apiKey']`）。
 - 撤字段留下的孤儿数据：老 profile 里已存的 `dshtrading.credentials.binance|ccxt|bybit|qmt|ibkr|futu|tiger.*`
   成为无人读的死值（字典开放、不报错）。本卡不动用户 profile 文档，也不主动清理。
 - 各连接器 README 的「配置」「接线」「已知边界」段同步；`locales.ts` 中英词典删除随之失效的
   标签与占位键（`field.label.apiSecret`、`field.*.qmtUrl|futuHost|futuPort|ibkrUrl|tigerId|binance*|ccxt*|bybit*`），
   并新增 `provider.configFieldPrefix`。显示名引用改按词典键（`'provider.<id>'`）锚定：
   那些行号在本卡前后已多次漂移，键才是稳定锚。
-- 仍存的口径差（本卡范围外，另行裁决）：fmp / finnhub / polygon 的**数据面行**只读
-  `process.env[<ref>]`（`src/dataplane.ts:29`；设置字典读点在插件行），即 GUI 行情注册面不吃设置页
-  填的 key——与 tushare 修好前同形（对齐先例：hithink 的数据面行经 `getCredential` 惰性取值，
-  connector-tushare 的同一修正在另一条线上）。alpaca **不在其列**：它的数据面行把
-  `resolveCredentials(ctx, …)` 交给行情服务惰性调用（`packages/connector-alpaca/src/dataplane.ts:69-72`），
-  router 读点已经在数据面路径上。该差异已在相关 README「接线」段如实写出，未在本卡扩面。
+- 三包数据面行的口径差已闭合（2026-10-15 同日收尾）：fmp / finnhub / polygon 的**数据面行**原先只读
+  `process.env[<ref>]`，现与主入口共用同一个惰性 `createApiKeyProvider`（settings 优先、env 兜底、
+  每次请求解析）——GUI 行情注册面与 preset 工具面吃同一份凭证，包内不再有第二份凭证解析
+  （同 connector-tushare 的 `createTokenProvider`）。三包 README「接线」段、`rest.ts` 的
+  `apiKeyProvider` 选项（静态 `apiKey` 保留作直调兜底）与守卫的逐路径判据同步。
+- alpaca **不在其列**：它的数据面行把 `resolveCredentials(ctx, …)` 交给行情服务惰性调用
+  （`packages/connector-alpaca/src/dataplane.ts:69-72`），router 读点已经在数据面路径上。
