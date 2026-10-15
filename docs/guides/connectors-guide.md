@@ -56,7 +56,7 @@
 | **Binance (`binance`)** | 全球主流所 | 行情免密（签名下单未实现；连接器不读任何凭证，设置页也不挂凭据字段） | [binance.com/en/binance-api](https://www.binance.com/en/binance-api) | 行情开箱即用；签名下单是未实现的后续卡（`crypto_place_order` 的 live 档抛 `TRADING_NOT_IMPLEMENTED`） |
 | **OKX (`okx`)** | 全球衍生品所 | 行情免密 / 交易 `OKX_API_KEY` 等 | [okx.com/docs-v5/zh/](https://www.okx.com/docs-v5/zh/) | 支持 Demo 模拟盘与实盘下单 |
 | **Bybit (`bybit`)** | 衍生品三大所 | 行情免密（账户/交易面未实现） | [bybit.com/en/api-overview](https://www.bybit.com/en/api-overview) | Bybit v5 统一账户，免密行情；**账户与交易面未实现**——读方法缺席或抛 `TRADING_NOT_IMPLEMENTED`，不冒充余额/持仓（凭据 ref 保留给将来的签名实现；设置页不再挂凭据卡片——面板的 key 到不了请求） |
-| **CCXT (`ccxt`)** | 免密现货直连（三所，非 ccxt 库） | 免密公共端点（本连接器无凭证字段；设置页原先的 `CCXT_API_KEY`/`CCXT_API_SECRET` 占位已于 2026-10-15 撤下） | [ccxt.com](https://ccxt.com) | 沿用 CCXT 所名词汇的现货直连：ticker 只有 `binance` / `okx` / `bybit` 三条分支，K 线只有 `binance`；盘口、最近成交、衍生品与账户读面均缺席，永续 `-SWAP` 显式拒绝。**不依赖也不打包 `ccxt` 库**，未实现的所名在任何请求前结构化拒绝 |
+| **CCXT (`ccxt`)** | 免密现货直连（九所，非 ccxt 库） | 免密公共端点（本连接器无凭证字段；设置页原先的 `CCXT_API_KEY`/`CCXT_API_SECRET` 占位已于 2026-10-15 撤下） | [ccxt.com](https://ccxt.com) | 沿用 CCXT 所名词汇的现货直连：ticker 与 K 线各有 `binance` / `okx` / `bybit` / `gateio` / `kucoin` / `kraken` / `coinbase` / `bitfinex` / `htx` 九条分支（K 线周期按所映射，该所不支持的周期零请求拒绝）；盘口、最近成交、衍生品与账户读面均缺席，永续 `-SWAP` 显式拒绝。**不依赖也不打包 `ccxt` 库**，未登记的所名在任何请求前结构化拒绝 |
 
 ---
 

@@ -2,12 +2,13 @@
  * 所名登记面 = 实现事实（fail-closed）。
  *
  * 历史：`SUPPORTED_EXCHANGES` 曾登记 9 个所名而实现只有 bybit/okx 两条具名分支，其余 6 个
- * 静默落 Binance 兜底 URL（选 kraken 拿到 Binance 的报价，没有任何提示）。上一轮把登记面
- * 收窄到 3 所，本轮把六条分支补齐、登记面重新等于实现面。本组用例守卫四件事：
+ * 静默落 Binance 兜底 URL（选 kraken 拿到 Binance 的报价，没有任何提示）。2026-10-15 先收窄到
+ * 3 所、同日补齐六条分支，登记面重新等于实现面；同一天 K 线面也从单分支（binance）扩到九所。
+ * 本组用例守卫四件事：
  * ① 未登记所名（如 bitstamp）在**任何 fetch 之前**抛 `TRADING_NOT_IMPLEMENTED`（零请求）；
  * ② 九条 ticker 分支各自只打自己的主机（逐所一条）；
- * ③ K 线单分支：非 binance 的**客户端默认所名**在 fetch 之前拒绝；
- * ④ 注册出来的工具枚举与登记面逐字相等，且 `crypto_get_klines` 不再有 exchange 形参。
+ * ③ K 线登记面也是九所：未登记 slug 的 K 线在 fetch 之前拒绝；
+ * ④ 注册出来的工具枚举与登记面逐字相等，且 `crypto_get_klines` 恢复 exchange 形参。
  *
  * fetch 走契约化注入缝（本仓零 mock 纪律），工具登记面用鸭子 ctx 驱动 `apply`，
  * 与 `test/dataplane-loader.test.ts` 同一体例。
@@ -15,7 +16,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { apply, Config } from '../src/index.ts'
-import { CcxtRestClient, SUPPORTED_EXCHANGES } from '../src/rest.ts'
+import { CcxtRestClient, KLINE_EXCHANGES, SUPPORTED_EXCHANGES } from '../src/rest.ts'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -95,12 +96,12 @@ describe('CCXT 未登记所名在请求前拒绝', () => {
     const client = new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: impl })
     // When 用户请求该客户端的 K 线
     const err = await client.getKlines('BTCUSDT', '1d', 10).catch((e: unknown) => e as Error & { code?: string })
-    // Then 报 TRADING_NOT_IMPLEMENTED（K 线只有 Binance 一条分支）、零请求
+    // Then 报 TRADING_NOT_IMPLEMENTED（K 线登记面是九所，bitstamp 在其外）、零请求
     expect(err).toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
     expect(String(err?.message)).toContain('"bitstamp"')
-    expect(String(err?.message)).toContain('implemented: binance')
+    expect(String(err?.message)).toContain('implemented: binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx')
     expect(String(err?.message)).toContain('zero network requests were made')
-    expect(String(err?.message)).toContain('set the connector defaultExchange to binance')
+    expect(String(err?.message)).toContain('klines have nine implemented direct branches')
     expect(String(err?.message)).toContain('@dshtrading/connector-binance')
     expect(urls).toHaveLength(0)
   })
@@ -243,39 +244,45 @@ describe('CCXT ticker 九条实现分支各自的主机', () => {
   })
 })
 
-describe('CCXT K 线的单一实现分支', () => {
-  it('用户把默认所名设为 okx 或 bybit 并请求 K 线时零请求结构化拒绝', async () => {
-    // Given 任何请求都会失败的注入缝
+describe('CCXT K 线登记面 = 实现面（九所）', () => {
+  it('用户用未登记 slug 请求 K 线时不管走形参还是默认所名都零请求拒绝', async () => {
+    // Given 任何请求都会失败的注入缝 + 未登记 slug 形参与默认所名两种入口
     const { impl, urls } = forbiddenFetch()
-    // When/Then 两个所名的客户端请求 K 线都被拒（K 线形参已无 exchange，裁决走默认所名）
-    await expect(new CcxtRestClient({ exchange: 'okx', fetchImpl: impl }).getKlines('BTCUSDT', '1d', 10))
-      .rejects.toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
-    await expect(new CcxtRestClient({ exchange: 'bybit', fetchImpl: impl }).getKlines('BTCUSDT', '1d', 10))
-      .rejects.toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
+    const client = new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: impl })
+    // When 用户分别以 exchange 形参与客户端默认所名落到 bitstamp
+    const viaArg = await client.getKlines('BTCUSDT', '1d', 10, 'bitstamp').catch((e: unknown) => e as Error & { code?: string })
+    const viaDefault = await client.getKlines('BTCUSDT', '1d', 10).catch((e: unknown) => e as Error & { code?: string })
+    // Then 两次都在 fetch 之前报 TRADING_NOT_IMPLEMENTED，且没有一条请求发出
+    expect(viaArg).toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
+    expect(viaDefault).toMatchObject({ code: 'TRADING_NOT_IMPLEMENTED' })
+    expect(String(viaArg?.message)).toContain('klines have nine implemented direct branches')
+    expect(String(viaDefault?.message)).toContain('"bitstamp"')
     expect(urls).toHaveLength(0)
   })
 })
 
 describe('CCXT 工具登记面与实现面一致', () => {
-  it('运营驱动 apply() 注册的两个工具，ticker 枚举逐字等于九所且 K 线无 exchange 形参', () => {
+  it('运营驱动 apply() 注册的两个工具，枚举逐字等于九所且 K 线恢复 exchange 形参', () => {
     // Given 鸭子 ctx（收集注册定义）+ schema 默认配置
     const { ctx, registered } = toolsCtx()
     // When 挂载插件行
     apply(ctx, Config({}))
-    // Then 两个行情工具都注册出来，ticker 枚举 = 九条实现分支，K 线不再有 exchange 形参
+    // Then 两个行情工具都注册出来，两个 exchange 枚举都逐字等于九条实现分支
     expect([...registered.keys()].sort()).toEqual(['crypto_get_klines', 'crypto_get_ticker'])
     const ticker = registered.get('crypto_get_ticker')
     const klines = registered.get('crypto_get_klines')
+    const nine = ['binance', 'okx', 'bybit', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx']
+    expect([...SUPPORTED_EXCHANGES]).toEqual(nine)
+    expect([...KLINE_EXCHANGES]).toEqual(nine)
     expect(ticker?.parameters.properties.exchange?.enum).toEqual([...SUPPORTED_EXCHANGES])
-    expect(ticker?.parameters.properties.exchange?.enum)
-      .toEqual(['binance', 'okx', 'bybit', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx'])
-    expect(klines?.parameters.properties.exchange).toBeUndefined()
-    expect(Object.keys(klines?.parameters.properties ?? {}).sort()).toEqual(['interval', 'limit', 'symbol'])
-    // 描述面与实现面一致：不再有「100+ 所」这类宽表述，K 线说明单分支与默认所名裁决
+    expect(ticker?.parameters.properties.exchange?.enum).toEqual(nine)
+    expect(klines?.parameters.properties.exchange?.enum).toEqual([...KLINE_EXCHANGES])
+    expect(Object.keys(klines?.parameters.properties ?? {}).sort()).toEqual(['exchange', 'interval', 'limit', 'symbol'])
+    // 描述面与实现面一致：不再有「100+ 所」这类宽表述，K 线说明九条分支与按所周期映射
     expect(ticker?.description).not.toContain('100+')
     expect(ticker?.description).toContain('binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx')
-    expect(klines?.description).toContain('binance')
-    expect(klines?.description).toContain('defaultExchange')
+    expect(klines?.description).toContain('binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx')
+    expect(klines?.description).toContain('TRADING_UNSUPPORTED_INTERVAL')
   })
 })
 
@@ -290,7 +297,7 @@ describe('CCXT binance 现货路径零回归', () => {
       match: '/api/v3/klines',
       body: [[1725000000000, '64000.0', '65000.0', '63000.0', '64500.0', '123.4', 1725003599999]],
     }])
-    // When 用户请求 binance 现货 ticker 与 K 线（K 线只有三个形参，走客户端缺省 binance）
+    // When 用户请求 binance 现货 ticker 与 K 线（不传 exchange，走客户端缺省 binance）
     const ticker = await new CcxtRestClient({ fetchImpl: tickerStub.impl }).getTicker('BTCUSDT', 'binance')
     const klines = await new CcxtRestClient({ fetchImpl: klinesStub.impl }).getKlines('BTCUSDT', '1d', 10)
     // Then 命中现货端点且解析正常

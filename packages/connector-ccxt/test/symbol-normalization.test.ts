@@ -1,20 +1,27 @@
 /**
- * 符号归一：裸符号 ↔ 各所请求符号形态。
+ * 符号归一：裸符号 ↔ 各所请求符号形态（quote 表**按所**维护，2026-10-15 起）。
  *
- * 本轮把**需要形态变换**的七条分支（okx/kucoin/gateio/kraken/coinbase/bitfinex/htx）的请求
- * 符号从「就着一处启发式拼字符串」改成共享的 `splitPair`（quote 表最长优先：USDT/USDC/USD/
- * EUR/TRY/BRL/BTC/ETH）再按所映射。本组用例守卫四件事：
+ * 需要形态变换的七条分支（okx/kucoin/gateio/kraken/coinbase/bitfinex/htx）各有一份 quote 资产表
+ * （`QUOTE_TABLES`，数据来源 = 该所公开挂牌端点普查，见 spikes/impl-ccxt-exchange-expansion/），
+ * `splitPair` 只按**该所**的表切 base+quote。本组用例守卫五件事：
  * ① 九所各自把 `BTCUSDT` 发出的请求符号形态（kraken BTC→XBT、bitfinex t+UST、htx 小写，
  *   binance/bybit 是恒等形态）；
  * ② binance/bybit **不经过** quote 表：`ETHBNB`/`BTCFDUSD` 这类上游存在的计价对照发裸符号；
- * ③ 非 USDT 计价对也走同一条归一（quote 表不是只有一个成员）；
- * ④ 七条变换分支遇到拼不出 base+quote 的输入 → `TRADING_UNSUPPORTED_SYMBOL` 且**零网络请求**
- *   （猜一个 quote 等于给上游发错符号）。
+ * ③ 表内每所一条非 USDT 计价对能拼对（kraken ETHEUR / bitfinex tETHEUR / htx ethbtc …）；
+ * ④ 表是**按所**的：`ETHJPY` 在 kraken（表内）拼得出、在 gateio（表外）本地拒绝，`ETHBRL` 反之；
+ * ⑤ 任何拼不出 base+quote 的输入 → `TRADING_UNSUPPORTED_SYMBOL` 且**零网络请求**。
  *
  * fetch 走契约化注入缝（本仓零 mock 纪律）。
  */
 import { describe, expect, it } from 'vitest'
-import { CcxtRestClient, normalizeSymbol, QUOTE_SUFFIXES, splitPair, SUPPORTED_EXCHANGES } from '../src/rest.ts'
+import {
+  CcxtRestClient,
+  QUOTE_TABLES,
+  SUPPORTED_EXCHANGES,
+  normalizeSymbol,
+  requestSymbol,
+  splitPair,
+} from '../src/rest.ts'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -56,6 +63,19 @@ const REQUEST_FORMS: Record<string, { fragment: string; body: unknown }> = {
   htx: { fragment: 'detail/merged?symbol=btcusdt', body: { status: 'ok', ts: 1, tick: { close: 1, amount: 2 } } },
 }
 
+/** 七条变换分支各自的非 USDT 计价对（都取该所表内确实挂牌的计价币）。 */
+const NON_USDT_FORMS: Record<string, { symbol: string; fragment: string; body: unknown }> = {
+  okx: { symbol: 'ETHBTC', fragment: 'market/ticker?instId=ETH-BTC', body: { data: [{ last: '1', vol24h: '2', ts: '1' }] } },
+  kucoin: { symbol: 'ETHBTC', fragment: 'market/stats?symbol=ETH-BTC', body: { code: '200000', data: { last: '1', vol: '2', time: 1 } } },
+  gateio: { symbol: 'ETHBTC', fragment: 'spot/tickers?currency_pair=ETH_BTC', body: [{ last: '1', base_volume: '2' }] },
+  kraken: { symbol: 'ETHEUR', fragment: 'Ticker?pair=ETHEUR', body: { error: [], result: { ETHEUR: { c: ['1'], v: ['0', '2'] } } } },
+  coinbase: { symbol: 'ETHBTC', fragment: 'products/ETH-BTC/ticker', body: { price: '1', volume: '2', time: '2026-10-15T01:53:37.43Z' } },
+  bitfinex: { symbol: 'ETHEUR', fragment: 'ticker/tETHEUR', body: [0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0] },
+  htx: { symbol: 'ETHBTC', fragment: 'detail/merged?symbol=ethbtc', body: { status: 'ok', ts: 1, tick: { close: 1, amount: 2 } } },
+}
+
+const TRANSFORM_EXCHANGES = ['okx', 'kucoin', 'gateio', 'kraken', 'coinbase', 'bitfinex', 'htx'] as const
+
 describe('CCXT 裸符号到各所请求符号的归一', () => {
   it('用户用裸符号请求九所 ticker 时各自被翻译成该所的请求符号形态', async () => {
     // Given 九所各自的最小上游响应（price=1 / volume=2）与裸符号 BTCUSDT
@@ -73,18 +93,59 @@ describe('CCXT 裸符号到各所请求符号的归一', () => {
     }
   })
 
-  it('用户用非 USDT 计价的裸符号请求 okx 时按 quote 表切出 base 与 quote', async () => {
-    // Given 登记 okx 响应的注入缝 + quote 表含 BTC/ETH/USDC 等非 USDT 成员
-    const stub = fixedFetch({ data: [{ last: '1', vol24h: '2', ts: '1' }] })
-    // When 用户请求 ETHBTC（quote=BTC）与 BTCUSDC（quote=USDC）
-    const vsBtc = await new CcxtRestClient({ fetchImpl: stub.impl }).getTicker('ETHBTC', 'okx')
-    const vsUsdc = await new CcxtRestClient({ fetchImpl: stub.impl }).getTicker('BTCUSDC', 'okx')
-    // Then 两对都切成 instId=base-quote 的形态，而不是被 USDT 启发式拼成错符号
-    expect(stub.urls[0]).toContain('instId=ETH-BTC')
-    expect(stub.urls[1]).toContain('instId=BTC-USDC')
-    expect(vsBtc.symbol).toBe('ETHBTC')
-    expect(vsUsdc.symbol).toBe('BTCUSDC')
-    expect(QUOTE_SUFFIXES).toEqual(['USDT', 'USDC', 'USD', 'EUR', 'TRY', 'BRL', 'BTC', 'ETH'])
+  it('用户用该所表内的非 USDT 计价对请求七条变换分支时按该所 quote 表切出 base 与 quote', async () => {
+    // Given 七条变换分支各自的非 USDT 计价对（kraken/bitfinex 取 EUR，其余取 BTC）
+    // When 逐个所请求该对
+    // Then 请求符号由该所 quote 表切成 base+quote（而不是 USDT 启发式），且每所只发一条请求
+    for (const exchange of TRANSFORM_EXCHANGES) {
+      const form = NON_USDT_FORMS[exchange]
+      expect(form, `缺少 ${exchange} 的非 USDT 形态`).toBeDefined()
+      const stub = fixedFetch(form?.body)
+      const ticker = await new CcxtRestClient({ fetchImpl: stub.impl }).getTicker(form?.symbol ?? '', exchange)
+      expect(stub.urls).toHaveLength(1)
+      expect(stub.urls[0]).toContain(form?.fragment)
+      expect(ticker.symbol).toBe(form?.symbol)
+      expect(ticker.price).toBe(1)
+      expect(ticker.volume).toBe(2)
+    }
+  })
+
+  it('用户请求只在部分所有挂牌的计价币时，登记该币的所拼得出、未登记的所本地拒绝', async () => {
+    // Given JPY 在 kraken 表内而 gateio 表外，BRL 在 okx/coinbase/htx 表内而 kraken/gateio 表外
+    const stub = fixedFetch({ error: [], result: { ETHJPY: { c: ['1'], v: ['0', '2'] } } })
+    const client = new CcxtRestClient({ fetchImpl: stub.impl })
+    // When 用户分别用 ETHJPY / ETHBRL 请求两边的所
+    // Then 表内的所拼得出请求符号，表外的所在发请求之前就拒绝
+    expect(requestSymbol('kraken', 'ETHJPY')).toBe('ETHJPY')
+    await expect(client.getTicker('ETHJPY', 'gateio')).rejects.toMatchObject({ code: 'TRADING_UNSUPPORTED_SYMBOL' })
+    expect(requestSymbol('okx', 'ETHBRL')).toBe('ETH-BRL')
+    expect(requestSymbol('coinbase', 'ETHBRL')).toBe('ETH-BRL')
+    expect(requestSymbol('htx', 'ETHBRL')).toBe('ethbrl')
+    expect(() => splitPair('ETHBRL', 'kraken')).toThrow(/cannot split "ETHBRL" into base\+quote for kraken/)
+    expect(() => splitPair('ETHBRL', 'gateio')).toThrow(/cannot split "ETHBRL" into base\+quote for gateio/)
+    // 只有 kraken 的那条请求真的发出去了（表内的所各一条，这里只调了 kraken 一次）
+    await client.getTicker('ETHJPY', 'kraken')
+    expect(stub.urls).toHaveLength(1)
+  })
+
+  it('用户读取各所 quote 表时看到的是逐所普查结果：最长优先且互不相同', () => {
+    // Given 各所公开挂牌端点普查出的 quote 集合（原始响应在 spikes/impl-ccxt-exchange-expansion/）
+    // When 用户查表并让 splitPair 按表切一个与既有 quote 同前缀的符号 BTCUSD1
+    // Then 表内是各所真实的计价币（kraken 记 XBT、gateio 无 JPY、okx/kucoin 有 USD 系变体），
+    //      最长优先把 USD1 切在 USD 之前，而不是把它切成 base=BTCUSD/quote=1
+    expect(QUOTE_TABLES.kraken).toContain('XBT')
+    expect(QUOTE_TABLES.kraken).toContain('JPY')
+    expect(QUOTE_TABLES.gateio).not.toContain('JPY')
+    expect(QUOTE_TABLES.gateio).toContain('USD1')
+    expect(QUOTE_TABLES.kucoin).toContain('KCS')
+    expect(QUOTE_TABLES.htx).toContain('USTC')
+    expect(QUOTE_TABLES.bitfinex).toContain('XAUT')
+    expect(splitPair('BTCUSD1', 'gateio')).toEqual({ base: 'BTC', quote: 'USD1' })
+    expect(splitPair('BTCUSDT', 'okx')).toEqual({ base: 'BTC', quote: 'USDT' })
+    for (const exchange of TRANSFORM_EXCHANGES) {
+      expect([...QUOTE_TABLES[exchange]].every((quote) => quote === quote.toUpperCase())).toBe(true)
+      expect(new Set(QUOTE_TABLES[exchange]).size).toBe(QUOTE_TABLES[exchange].length)
+    }
   })
 
   it('用户用 BTC/USDT 或 btc_usdt 等写法请求时归一成同一个裸符号', async () => {
@@ -101,7 +162,7 @@ describe('CCXT 裸符号到各所请求符号的归一', () => {
     expect(stub.urls[0]).toContain('symbol=BTCUSDT')
   })
 
-  it('用户用不在 quote 表里的计价对请求 binance/bybit 时仍原样发裸符号到各自主机', async () => {
+  it('用户用不在任何 quote 表里的计价对请求 binance/bybit 时仍原样发裸符号到各自主机', async () => {
     // Given 登记 binance 与 bybit 响应的注入缝 + 上游确实存在的非 quote 表计价对
     const binance = fixedFetch({ lastPrice: '1', volume: '2', closeTime: 1 })
     const bybit = fixedFetch({ result: { list: [{ lastPrice: '1', volume24h: '2' }] } })
@@ -124,23 +185,23 @@ describe('CCXT 裸符号到各所请求符号的归一', () => {
     // Given 任何请求都会失败的注入缝 + 需要形态变换的七条分支
     const { impl, urls } = forbiddenFetch()
     const client = new CcxtRestClient({ fetchImpl: impl })
-    const transformExchanges = ['okx', 'kucoin', 'gateio', 'kraken', 'coinbase', 'bitfinex', 'htx']
-    // When 用户用未知 quote 的 BTCJPY 逐个请求七条变换分支，再用没有 base 的 USDT 请求 htx
+    // When 用户用七条分支表外（任何一所都没挂牌 NGN）的 BTCNGN 逐个请求，再用没有 base 的 USDT 请求 htx
     const rejected = []
-    for (const exchange of transformExchanges) {
-      rejected.push(await client.getTicker('BTCJPY', exchange).catch((e: unknown) => e as Error & { code?: string }))
+    for (const exchange of TRANSFORM_EXCHANGES) {
+      rejected.push(await client.getTicker('BTCNGN', exchange).catch((e: unknown) => e as Error & { code?: string }))
     }
     const emptyBase = await client.getTicker('USDT', 'htx').catch((e: unknown) => e as Error & { code?: string })
-    // Then 七条分支都报 TRADING_UNSUPPORTED_SYMBOL（文案点名输入与 quote 表），且一条请求都没发
-    expect(rejected).toHaveLength(transformExchanges.length)
+    // Then 七条分支都报 TRADING_UNSUPPORTED_SYMBOL（文案点名输入与该所的 quote 表），且一条请求都没发
+    expect(rejected).toHaveLength(TRANSFORM_EXCHANGES.length)
     for (const err of rejected) {
       expect(err).toMatchObject({ code: 'TRADING_UNSUPPORTED_SYMBOL' })
-      expect(String(err?.message)).toContain('"BTCJPY"')
+      expect(String(err?.message)).toContain('"BTCNGN"')
     }
-    expect(String(rejected[0]?.message)).toContain('USDT, USDC, USD, EUR, TRY, BRL, BTC, ETH')
+    expect(String(rejected[0]?.message)).toContain('okx quotes are')
+    expect(String(rejected[3]?.message)).toContain('kraken quotes are')
     expect(emptyBase).toMatchObject({ code: 'TRADING_UNSUPPORTED_SYMBOL' })
     expect(String(emptyBase?.message)).toContain('"USDT"')
-    expect(() => splitPair('USDT')).toThrow(/cannot split "USDT" into base\+quote/)
+    expect(() => splitPair('USDT', 'htx')).toThrow(/cannot split "USDT" into base\+quote for htx/)
     expect(urls).toHaveLength(0)
   })
 })

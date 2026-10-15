@@ -251,8 +251,9 @@ export class BybitRestClient {
     }>(`/v5/market/tickers?category=${bybitCategory(form)}&symbol=${sym}`)
 
     if (data.retCode !== 0 || !data.result?.list || data.result.list.length === 0) {
-      // 统一用词汇表内的 TRADING_UNSUPPORTED_SYMBOL：Bybit 对不存在的标的回 retCode 0 + 空列表，
-      // 永续查无此合约必须报「不支持」而不是无码可用（TRADING_SYMBOL_NOT_FOUND 不在 TradingErrorCode 里）。
+      // 统一用 TRADING_UNSUPPORTED_SYMBOL：Bybit 对不存在的标的回 retCode 0 + 空列表，
+      // 永续查无此合约是「该所不支持这个形态」，与「上游说这个符号不存在」（TRADING_SYMBOL_NOT_FOUND，
+      // 2026-10-15 已收录进 TradingErrorCode）语义不同，不换码。
       throw new TradingServiceError('TRADING_UNSUPPORTED_SYMBOL', `Bybit ticker not found for ${canonical} (category=${bybitCategory(form)})`)
     }
 

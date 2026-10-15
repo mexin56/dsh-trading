@@ -14,19 +14,10 @@ import {
   type TradingErrorCode,
 } from '@dshtrading/api'
 
-/**
- * 本包错误码词汇 = api 的 `TradingErrorCode` + 本包实际会抛、但 api 联合尚未收录的码。
- *
- * `TRADING_SYMBOL_NOT_FOUND` 已被多个连接器实际使用（bybit/akshare/eastmoney/finnhub/…），
- * 却漏在 api 的联合里（与 `TRADING_UPSTREAM_ERROR` 曾经的缺口同形）。在这里显式登记一次，
- * 每一处行级判空就能用同一个码，不必逐处 cast、也不必往包内 tsc 债里逐处加一条错误。
- */
-export type CcxtErrorCode = TradingErrorCode | 'TRADING_SYMBOL_NOT_FOUND'
-
 export class TradingServiceError extends Error {
-  readonly code: CcxtErrorCode
+  readonly code: TradingErrorCode
 
-  constructor(code: CcxtErrorCode, message: string, cause?: unknown) {
+  constructor(code: TradingErrorCode, message: string, cause?: unknown) {
     super(message)
     this.name = 'TradingServiceError'
     this.code = code
@@ -46,12 +37,15 @@ export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', 
 export const SUPPORTED_EXCHANGES = ['binance', 'okx', 'bybit', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx'] as const
 
 /**
- * K 线面的实现分支只有一条（Binance）：单独一份登记。
+ * K 线登记面（2026-10-15 起九条直连分支）。
  *
- * 形参面的 `exchange` 已撤掉（getKlines 不再接收），本表只剩一个用途：客户端默认所名
- * （`new CcxtRestClient({ exchange })`）落在表外时在 fetch 之前结构化拒绝。
+ * 上一轮曾把 K 线面撤成单分支（binance）并把「按所取 K 线」记为另一张卡；本卡就是那张卡：
+ * 九所各有自己的 K 线端点、周期词汇与行结构，周期映射表见 KLINE_INTERVAL_PARAMS。
+ * 未登记所名（如 bitstamp）仍在**任何 fetch 之前**结构化拒绝（零请求）。
  */
-export const KLINE_EXCHANGES = ['binance'] as const
+export const KLINE_EXCHANGES = ['binance', 'okx', 'bybit', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx'] as const
+
+export type KlineExchange = (typeof KLINE_EXCHANGES)[number]
 
 /** 数据面方法名（拒绝文案按面区分）。 */
 type DataSurface = 'ticker' | 'klines'
@@ -63,7 +57,7 @@ const IMPLEMENTED_EXCHANGES: Record<DataSurface, readonly string[]> = {
 
 const UNIMPLEMENTED_HINT: Record<DataSurface, string> = {
   ticker: 'ticker has nine implemented direct branches (binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx): use one of them, or the dedicated per-exchange packages @dshtrading/connector-binance / @dshtrading/connector-okx / @dshtrading/connector-bybit.',
-  klines: 'klines have a single implemented branch (binance): set the connector defaultExchange to binance, or use @dshtrading/connector-binance.',
+  klines: 'klines have nine implemented direct branches (binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx): use one of them, or the dedicated per-exchange packages @dshtrading/connector-binance / @dshtrading/connector-okx / @dshtrading/connector-bybit.',
 }
 
 /** 未实现所名的统一拒绝构造：两处调用点共用，禁止各自复制文案。 */
@@ -75,11 +69,16 @@ function notImplementedError(surface: DataSurface, exchange: string): TradingSer
   )
 }
 
-/** 行级判空的统一拒绝：上游答了、但没有这个标的的行（≠ 网络故障、≠ 上游故障）。 */
-function symbolNotFoundError(exchange: string, symbol: string): TradingServiceError {
+/**
+ * 行级判空的统一拒绝：上游答了、但没有这个标的的行（≠ 网络故障、≠ 上游故障）。
+ *
+ * 上游明确报「查不到」的三种形态都归到这里：ticker 的空行、K 线的错误信封，
+ * 以及 requestJson 里的 HTTP 404 / 400 + `label=INVALID_*`。
+ */
+function symbolNotFoundError(surface: DataSurface, exchange: string, symbol: string): TradingServiceError {
   return new TradingServiceError(
     'TRADING_SYMBOL_NOT_FOUND',
-    `CCXT/${exchange} ticker not found: ${symbol} (the venue answered, but without a usable row for this pair)`,
+    `CCXT/${exchange} ${surface} not found: ${symbol} (the venue answered, but without a usable row for this pair)`,
   )
 }
 
@@ -103,20 +102,48 @@ export function normalizeSymbol(raw: string): string {
   return clean
 }
 
-/** quote 后缀表：`splitPair` 按**最长优先**匹配它（USDT/USDC 必须先于 USD 尝试）。 */
-export const QUOTE_SUFFIXES = ['USDT', 'USDC', 'USD', 'EUR', 'TRY', 'BRL', 'BTC', 'ETH'] as const
+/**
+ * 各所 quote 资产表（**按所维护**，2026-10-15 起）。
+ *
+ * 数据来源 = 该所公开挂牌端点的逐所普查（原始响应 `census-*.json` 与派生命题见
+ * `spikes/impl-ccxt-exchange-expansion/EVIDENCE-2026-10-15-quote-census-and-klines.md`）：
+ * - okx `GET /api/v5/public/instruments?instType=SPOT` → `quoteCcy`（剔除空串）
+ * - kucoin `GET /api/v2/symbols` → `quoteCurrency`
+ * - gateio `GET /api/v4/spot/currency_pairs` → `quote`
+ * - kraken `GET /0/public/AssetPairs` → `wsname` 的 quote 段（kraken 的 `quote` 字段是
+ *   Z/X 前缀的旧代号 ZEUR/XXBT，而请求符号用现代形 EUR/XBT）
+ * - coinbase `GET /products` → `quote_currency`
+ * - bitfinex `GET /v2/conf/pub:list:pair:exchange` + `.../pub:list:currency` → 最长货币后缀
+ *   （`UST` 归一成用户写法的 `USDT`；`:` 分隔的挂牌对按分隔符切开）
+ * - htx `GET /v2/settings/common/symbols` → `qcdn`（大写展示形）
+ *
+ * 表只登记上游确实挂牌的 quote：表外计价对在七条变换分支上仍是本地
+ * `TRADING_UNSUPPORTED_SYMBOL` 且零请求——「猜一个 quote」等于给上游发错符号，比本地拒绝更糟。
+ * 每条表都由 `spikes/impl-ccxt-exchange-expansion/run-probe.ts` 按同一条普查规则现场复核
+ * （表 = 普查结果），上游新增 quote 而表未跟进即探针失败。
+ */
+export const QUOTE_TABLES: Readonly<Record<TransformExchange, readonly string[]>> = {
+  okx: ['AED', 'AUD', 'BRL', 'BTC', 'ETH', 'EUR', 'PLN', 'SGD', 'SOL', 'TRY', 'USD', 'USDC', 'USDT'],
+  kucoin: ['BTC', 'DOGE', 'ETH', 'EUR', 'KCS', 'TRX', 'USD1', 'USDC', 'USDG', 'USDT'],
+  gateio: ['BTC', 'ETH', 'GUSD', 'RLUSD', 'USD', 'USD1', 'USDC', 'USDT'],
+  kraken: ['AUD', 'AUSD', 'CAD', 'CHF', 'DAI', 'ETH', 'EUR', 'EURC', 'EUROP', 'FIDD', 'GBP', 'JPY', 'PYUSD', 'RLUSD', 'SOFID', 'SOL', 'USD', 'USD1', 'USDC', 'USDD', 'USDQ', 'USDR', 'USDT', 'XBT'],
+  coinbase: ['AUD', 'BRL', 'BTC', 'CAD', 'DAI', 'ETH', 'EUR', 'GBP', 'INR', 'SGD', 'USD', 'USDC', 'USDT'],
+  bitfinex: ['BTC', 'ETH', 'EUR', 'GBP', 'TESTUSD', 'TESTUSDT', 'USD', 'USDT', 'XAUT'],
+  htx: ['BRL', 'BTC', 'ETH', 'EUR', 'EUROC', 'GBP', 'HT', 'HUSD', 'KGST', 'PYUSD', 'RUB', 'TRX', 'TRY', 'TUSD', 'UAH', 'USD1', 'USDC', 'USDD', 'USDT', 'USTC'],
+}
 
 /**
- * 裸符号 → `{ base, quote }`，按 `QUOTE_SUFFIXES` 最长优先匹配。
+ * 裸符号 → `{ base, quote }`，按**该所**的 quote 表最长优先匹配。
  *
  * 只服务需要形态变换的七条分支（`requestSymbol`）；binance/bybit 把裸符号原样发上游，
- * 不经过这里——上游存在 `ETHBNB`/`BTCFDUSD` 这类不在 quote 表里的计价对。
- * base 为空（如 `USDT`）或后缀不在表内（如 `BTCJPY`）→ TRADING_UNSUPPORTED_SYMBOL，
- * 文案点名该输入与支持的 quote 表：猜一个 quote 会变成给上游发错符号。
+ * 不经过这里——上游存在 `ETHBNB`/`BTCFDUSD` 这类不在任何 quote 表里的计价对。
+ * base 为空（如 `USDT`）或后缀不在该所表内（如 gateio 的 `BTCJPY`、kraken 的 `BTCBRL`）
+ * → TRADING_UNSUPPORTED_SYMBOL，文案点名该所与该所的 quote 表：猜一个 quote 会变成给上游发错符号。
  */
-export function splitPair(symbol: string): { base: string; quote: string } {
+export function splitPair(symbol: string, exchange: TransformExchange): { base: string; quote: string } {
   const clean = symbol.trim().toUpperCase()
-  const quotes = [...QUOTE_SUFFIXES].sort((a, b) => b.length - a.length)
+  const table = QUOTE_TABLES[exchange]
+  const quotes = [...table].sort((a, b) => b.length - a.length)
   for (const quote of quotes) {
     if (clean.length > quote.length && clean.endsWith(quote)) {
       return { base: clean.slice(0, clean.length - quote.length), quote }
@@ -124,7 +151,7 @@ export function splitPair(symbol: string): { base: string; quote: string } {
   }
   throw new TradingServiceError(
     'TRADING_UNSUPPORTED_SYMBOL',
-    `CCXT connector cannot split "${symbol}" into base+quote: supported quote suffixes are ${QUOTE_SUFFIXES.join(', ')} (longest match first, base must be non-empty).`,
+    `CCXT connector cannot split "${symbol}" into base+quote for ${exchange}: ${exchange} quotes are ${[...table].sort().join(', ')} (longest match first, base must be non-empty).`,
   )
 }
 
@@ -141,10 +168,11 @@ type TransformExchange = 'okx' | 'kucoin' | 'gateio' | 'kraken' | 'coinbase' | '
  * 各所现货端点的请求符号形态（入参 = `normalizeSymbol` 的裸符号，如 BTCUSDT）。
  *
  * okx/kucoin/coinbase 用 `-`、gateio 用 `_`、kraken 把 BTC 记作 XBT、bitfinex 加 `t`
- * 前缀且 USDT 记作 UST、htx 全小写。
+ * 前缀且 USDT 记作 UST、htx 全小写。导出让离线用例与探针能直接断言拼出来的符号形态
+ * （不必为了看一个 URL 去打网络）。
  */
-function requestSymbol(exchange: TransformExchange, sym: string): string {
-  const { base, quote } = splitPair(sym)
+export function requestSymbol(exchange: TransformExchange, sym: string): string {
+  const { base, quote } = splitPair(sym, exchange)
   switch (exchange) {
     case 'okx':
     case 'kucoin':
@@ -191,6 +219,127 @@ function invalidSymbolLabel(body: string): boolean {
 /** 上游正文的取证片段：压成单行、截断约 200 字符（进 message，不进日志正文）。 */
 function bodySnippet(body: string): string {
   return body.replace(/\s+/g, ' ').trim().slice(0, 200)
+}
+
+/* ── K 线周期映射与行归一（2026-10-15 起九所）──────────────────────────────── */
+
+/**
+ * api `Interval` → 各所 K 线周期参数（缺键 = 该所不支持，抛 TRADING_UNSUPPORTED_INTERVAL 且零请求）。
+ *
+ * 逐所实测口径（原始响应见 `spikes/impl-ccxt-exchange-expansion/klines-*.json` 与同目录 EVIDENCE）：
+ * - binance 原文直发；bybit `1/5/15/30/60/240/D/W/M`
+ * - okx bar 取 **utc 变体**（`1Dutc`/`1Wutc`/`1Mutc`）：与 connector-okx 同一裁决，
+ *   日界对齐 UTC（Binance 口径）；okx 的 `1D` 是 UTC+8 零点，跨连接器会错位 8 小时
+ * - gateio 无 1M（实测 400 `invalid interval 1M`）；1w 用上游的 `7d`
+ * - kucoin 无 1M（实测 400 `Incorrect candlestick type`）
+ * - kraken 周期是**分钟数**（1w=10080、1M=21600）
+ * - coinbase granularity 是**秒**，且实测只接受 60/300/900/3600/21600/86400：30m→1800 与
+ *   4h→14400 都回 400 `Unsupported granularity`（1w/1M 同），故本词汇表内只支持 1m/5m/15m/1h/1d
+ * - bitfinex `1m..1h` 小写、日线及以上大写（`1D`/`1W`/`1M`）；4h 实测上游接受
+ * - htx `1min/5min/…/60min/4hour/1day/1mon/1week`
+ */
+const KLINE_INTERVAL_PARAMS: Readonly<Record<KlineExchange, Readonly<Partial<Record<Interval, string>>>>> = {
+  binance: { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w', '1M': '1M' },
+  okx: { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1H', '4h': '4H', '1d': '1Dutc', '1w': '1Wutc', '1M': '1Mutc' },
+  bybit: { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W', '1M': 'M' },
+  gateio: { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '7d' },
+  kucoin: { '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '1h': '1hour', '4h': '4hour', '1d': '1day', '1w': '1week' },
+  kraken: { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': '1440', '1w': '10080', '1M': '21600' },
+  coinbase: { '1m': '60', '5m': '300', '15m': '900', '1h': '3600', '1d': '86400' },
+  bitfinex: { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1h', '4h': '4h', '1d': '1D', '1w': '1W', '1M': '1M' },
+  htx: { '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '1h': '60min', '4h': '4hour', '1d': '1day', '1w': '1week', '1M': '1mon' },
+}
+
+/** 周期毫秒时长（closeTime 补算用；1M 以 30 天近似，与 connector-okx 同口径）。 */
+const INTERVAL_MS: Readonly<Record<Interval, number>> = {
+  '1m': 60_000,
+  '3m': 180_000,
+  '5m': 300_000,
+  '15m': 900_000,
+  '30m': 1_800_000,
+  '1h': 3_600_000,
+  '2h': 7_200_000,
+  '4h': 14_400_000,
+  '6h': 21_600_000,
+  '8h': 28_800_000,
+  '12h': 43_200_000,
+  '1d': 86_400_000,
+  '3d': 259_200_000,
+  '1w': 604_800_000,
+  '1M': 2_592_000_000,
+}
+
+/** 某所支持的周期（映射表键集；供离线用例与探针断言，不在运行时按上游探测）。 */
+export function klineSupportedIntervals(exchange: KlineExchange): readonly Interval[] {
+  return Object.keys(KLINE_INTERVAL_PARAMS[exchange]) as Interval[]
+}
+
+/**
+ * `Interval` → 该所周期参数；该所不支持（coinbase 的 30m/4h/1w/1M、gateio/kucoin 的 1M、
+ * 以及任何词汇表外取值）→ TRADING_UNSUPPORTED_INTERVAL，**在 fetch 之前**（零请求）。
+ */
+export function klineIntervalParam(exchange: KlineExchange, interval: Interval): string {
+  const param = KLINE_INTERVAL_PARAMS[exchange][interval]
+  if (param === undefined) {
+    throw new TradingServiceError(
+      'TRADING_UNSUPPORTED_INTERVAL',
+      `CCXT/${exchange} klines: unsupported interval ${String(interval)} — ${exchange} supports ${klineSupportedIntervals(exchange).join('/')}; no network request was made.`,
+    )
+  }
+  return param
+}
+
+/** 单根 K 线的形状判空：任一分量非有限数即整根丢弃（丢行，不猜值）。 */
+function klineRow(
+  openTime: number,
+  open: unknown,
+  high: unknown,
+  low: unknown,
+  close: unknown,
+  volume: unknown,
+  closeTime: number,
+): Kline | undefined {
+  const o = toNumber(open)
+  const h = toNumber(high)
+  const l = toNumber(low)
+  const c = toNumber(close)
+  const v = toNumber(volume)
+  if (!Number.isFinite(openTime) || !Number.isFinite(closeTime)) return undefined
+  if (o === undefined || h === undefined || l === undefined || c === undefined || v === undefined) return undefined
+  return { openTime, open: o, high: h, low: l, close: c, volume: v, closeTime }
+}
+
+/**
+ * 行集归一：按 openTime 去重、**升序（旧→新）**排序、只保留最新 limit 根。
+ *
+ * 九所里只有 binance 与 kraken 的上游序列本来就是升序；okx/kucoin/gateio/coinbase/bitfinex/htx/bybit
+ * 都是新→旧。统一在这里归一，消费方拿到的序列与 connector-binance 同向。
+ */
+function finalizeKlines(rows: Array<Kline | undefined>, limit: number): Kline[] {
+  const byOpenTime = new Map<number, Kline>()
+  for (const row of rows) {
+    if (row === undefined) continue
+    byOpenTime.set(row.openTime, row)
+  }
+  const sorted = [...byOpenTime.values()].sort((a, b) => a.openTime - b.openTime)
+  return limit > 0 ? sorted.slice(-limit) : sorted
+}
+
+/**
+ * 各所单请求的根数参数与上限（超出上限只请求上限内的根数，**不翻页**）。
+ * kucoin / kraken / coinbase 的上游没有根数参数（kucoin 固定回 1500、kraken 720、coinbase 300），
+ * 一律留空并在 finalizeKlines 里切成 limit 根。
+ */
+const KLINE_LIMIT_PARAMS: Readonly<Record<KlineExchange, { query: string; max: number } | undefined>> = {
+  binance: { query: 'limit', max: 1000 },
+  okx: { query: 'limit', max: 300 },
+  bybit: { query: 'limit', max: 1000 },
+  gateio: { query: 'limit', max: 1000 },
+  kucoin: undefined,
+  kraken: undefined,
+  coinbase: undefined,
+  bitfinex: { query: 'limit', max: 10_000 },
+  htx: { query: 'size', max: 2000 },
 }
 
 export interface CcxtRestOptions {
@@ -254,7 +403,7 @@ export class CcxtRestClient {
       const url = `https://api.bybit.com/v5/market/tickers?category=spot&symbol=${sym}`
       const res = await this.requestJson<{ result?: { list?: Array<{ symbol: string; lastPrice: string; volume24h: string }> } }>(url)
       const row = res.result?.list?.[0]
-      if (!row) throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `CCXT/Bybit ticker not found: ${symbol}`)
+      if (!row) throw symbolNotFoundError('ticker', 'bybit', symbol)
       return {
         symbol: sym,
         price: parseFloat(row.lastPrice),
@@ -264,13 +413,13 @@ export class CcxtRestClient {
     }
 
     if (exchange === 'okx') {
-      // 请求符号改用共享 splitPair（此前是 `symbol.includes('-') ? symbol : sym.replace('USDT','')`
+      // 请求符号走 okx 的 quote 表（此前是 `symbol.includes('-') ? symbol : sym.replace('USDT','')`
       // 的启发式：非 USDT 计价对会被拼成错符号）。
       const pair = requestSymbol('okx', sym)
       const url = `https://www.okx.com/api/v5/market/ticker?instId=${pair}`
       const res = await this.requestJson<{ data?: Array<{ instId: string; last: string; vol24h: string; ts: string }> }>(url)
       const row = res.data?.[0]
-      if (!row) throw new TradingServiceError('TRADING_SYMBOL_NOT_FOUND', `CCXT/OKX ticker not found: ${symbol}`)
+      if (!row) throw symbolNotFoundError('ticker', 'okx', symbol)
       return {
         symbol: sym,
         price: parseFloat(row.last),
@@ -290,7 +439,7 @@ export class CcxtRestClient {
       const row = Array.isArray(res) ? res[0] : undefined
       const price = toNumber(row?.last)
       const volume = toNumber(row?.base_volume)
-      if (price === undefined || volume === undefined) throw symbolNotFoundError('gateio', symbol)
+      if (price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'gateio', symbol)
       return { symbol: sym, price, volume, timestamp: Date.now() }
     }
 
@@ -300,7 +449,7 @@ export class CcxtRestClient {
       const res = await this.requestJson<{ code?: string; data?: { last?: unknown; vol?: unknown; time?: unknown } }>(url)
       const price = toNumber(res.data?.last)
       const volume = toNumber(res.data?.vol)
-      if (res.code !== '200000' || price === undefined || volume === undefined) throw symbolNotFoundError('kucoin', symbol)
+      if (res.code !== '200000' || price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'kucoin', symbol)
       return {
         symbol: sym,
         price,
@@ -318,7 +467,7 @@ export class CcxtRestClient {
       const row = key === undefined ? undefined : res.result?.[key]
       const price = toNumber(row?.c?.[0])
       const volume = toNumber(row?.v?.[1]) // v = [24h 量, 24h 加权量]，[1] 才是 24h 基础币量
-      if ((res.error?.length ?? 0) > 0 || price === undefined || volume === undefined) throw symbolNotFoundError('kraken', symbol)
+      if ((res.error?.length ?? 0) > 0 || price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'kraken', symbol)
       return { symbol: sym, price, volume, timestamp: Date.now() }
     }
 
@@ -328,7 +477,7 @@ export class CcxtRestClient {
       const res = await this.requestJson<{ price?: unknown; volume?: unknown; time?: string }>(url)
       const price = toNumber(res.price)
       const volume = toNumber(res.volume)
-      if (price === undefined || volume === undefined) throw symbolNotFoundError('coinbase', symbol)
+      if (price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'coinbase', symbol)
       // 不用响应里的 `time`：它是**最后成交时间**不是服务器时间（实测薄标的 tsAge≈449s），
       // 拿它当观测时刻会让消费方把当前有效报价读成陈旧——这里取本地观测时刻。
       return { symbol: sym, price, volume, timestamp: Date.now() }
@@ -339,10 +488,10 @@ export class CcxtRestClient {
       const url = `https://api-pub.bitfinex.com/v2/ticker/${pair}`
       const res = await this.requestJson<unknown>(url)
       // 响应恰为 11 个元素（下标 0..10）。
-      if (!Array.isArray(res) || res.length === 0) throw symbolNotFoundError('bitfinex', symbol)
+      if (!Array.isArray(res) || res.length === 0) throw symbolNotFoundError('ticker', 'bitfinex', symbol)
       const price = toNumber(res[6])
       const volume = toNumber(res[7])
-      if (price === undefined || volume === undefined) throw symbolNotFoundError('bitfinex', symbol)
+      if (price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'bitfinex', symbol)
       // 下标 10 是**上游字段不可用**，不是我们没解析：实测 BTC 1552298737974 / ETH 1552298634552
       // （均为 2019-03-11，比抓取时刻早 7.6 年，两对都坏），禁止当 timestamp 用——这里取本地时间，
       // 与 gateio/kraken 同口径。
@@ -356,7 +505,7 @@ export class CcxtRestClient {
       const price = toNumber(res.tick?.close)
       // amount = 基础币量，vol = 计价币量：取 amount。
       const volume = toNumber(res.tick?.amount)
-      if (res.status !== 'ok' || price === undefined || volume === undefined) throw symbolNotFoundError('htx', symbol)
+      if (res.status !== 'ok' || price === undefined || volume === undefined) throw symbolNotFoundError('ticker', 'htx', symbol)
       return {
         symbol: sym,
         price,
@@ -378,25 +527,145 @@ export class CcxtRestClient {
   }
 
   /**
-   * K 线只有 Binance 一条分支（形参 `exchange` 已撤掉）：裁决对象是**客户端默认所名**
-   * `this.exchange`，非 binance 在 fetch 之前结构化拒绝，不再「形态上接收 exchange、
-   * 实现上忽略它恒打 Binance」。
+   * K 线九条直连分支（2026-10-15 起）：周期按所映射（KLINE_INTERVAL_PARAMS）、行结构按所解析，
+   * 输出一律**升序（旧→新）且只含最新 limit 根**。
+   *
+   * `exchange` 是**连接器自有形参**（缺省 = 客户端默认所名）：`@dshtrading/api` 的
+   * `MarketDataService.getKlines(symbol, interval, limit?)` 没有这个形参，服务缝保持与契约同形，
+   * 形参只在本客户端方法与 `crypto_get_klines` 工具上暴露（见包 README「周期与契约」）。
+   * 未登记所名 → TRADING_NOT_IMPLEMENTED、该所不支持的周期 → TRADING_UNSUPPORTED_INTERVAL，
+   * 两者都在 fetch 之前（零请求）。
    */
-  async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
+  async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100, exchange: string = this.exchange): Promise<Kline[]> {
     const sym = normalizeSymbol(symbol)
-    if (!(KLINE_EXCHANGES as readonly string[]).includes(this.exchange)) throw notImplementedError('klines', this.exchange)
-    const url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`
-    const data = await this.requestJson<Array<[number, string, string, string, string, string, number]>>(url)
-    if (!Array.isArray(data)) return []
-    return data.map((r) => ({
-      openTime: r[0],
-      open: parseFloat(r[1]),
-      high: parseFloat(r[2]),
-      low: parseFloat(r[3]),
-      close: parseFloat(r[4]),
-      volume: parseFloat(r[5]),
-      closeTime: r[6],
-    }))
+    if (!(KLINE_EXCHANGES as readonly string[]).includes(exchange)) throw notImplementedError('klines', exchange)
+    const venue = exchange as KlineExchange
+    const period = klineIntervalParam(venue, interval)
+    const stepMs = INTERVAL_MS[interval]
+    const cap = KLINE_LIMIT_PARAMS[venue]
+    const cappedLimit = cap === undefined ? undefined : Math.min(Math.max(limit, 1), cap.max)
+    // 已有 query 串的端点接 `&`；bitfinex 的 base URL 没有 query 串，必须用 `?`（`&limit=` 会被当成路径）。
+    const limitQuery = cap === undefined || cappedLimit === undefined ? '' : `&${cap.query}=${cappedLimit}`
+    const limitQueryStart = cap === undefined || cappedLimit === undefined ? '' : `?${cap.query}=${cappedLimit}`
+
+    switch (venue) {
+      case 'binance': {
+        const url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${period}${limitQuery}`
+        const data = await this.requestJson<unknown>(url)
+        if (!Array.isArray(data)) return []
+        return finalizeKlines(data.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          const [openTime, open, high, low, close, volume, closeTime] = raw as unknown[]
+          return klineRow(Number(openTime), open, high, low, close, volume, Number(closeTime))
+        }), limit)
+      }
+      case 'bybit': {
+        const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${sym}&interval=${period}&limit=${cappedLimit ?? 200}`
+        const data = await this.requestJson<{ retCode?: number; result?: { list?: unknown } }>(url)
+        if (data.retCode !== 0) throw symbolNotFoundError('klines', 'bybit', symbol)
+        const rows = Array.isArray(data.result?.list) ? data.result.list : []
+        return finalizeKlines(rows.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          const [openTime, open, high, low, close, volume] = raw as unknown[]
+          const t = Number(openTime)
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'okx': {
+        const pair = requestSymbol('okx', sym)
+        const url = `https://www.okx.com/api/v5/market/candles?instId=${pair}&bar=${period}${limitQuery}`
+        const data = await this.requestJson<{ code?: string; data?: unknown }>(url)
+        if (data.code !== '0') throw symbolNotFoundError('klines', 'okx', symbol)
+        const rows = Array.isArray(data.data) ? data.data : []
+        return finalizeKlines(rows.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          const [ts, open, high, low, close, volume] = raw as unknown[]
+          const t = Number(ts)
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'gateio': {
+        const pair = requestSymbol('gateio', sym)
+        const url = `https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${pair}&interval=${period}${limitQuery}`
+        const data = await this.requestJson<unknown>(url)
+        if (!Array.isArray(data)) return []
+        return finalizeKlines(data.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          // 行结构 [秒级 ts, 计价量, close, high, low, open, 基础量, windowClosed]
+          const [ts, , close, high, low, open, baseVolume] = raw as unknown[]
+          const t = Number(ts) * 1000
+          return klineRow(t, open, high, low, close, baseVolume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'kucoin': {
+        const pair = requestSymbol('kucoin', sym)
+        const url = `https://api.kucoin.com/api/v1/market/candles?symbol=${pair}&type=${period}`
+        const data = await this.requestJson<{ code?: string; data?: unknown }>(url)
+        if (data.code !== '200000') throw symbolNotFoundError('klines', 'kucoin', symbol)
+        const rows = Array.isArray(data.data) ? data.data : []
+        return finalizeKlines(rows.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          // 行结构 [秒级 ts, open, close, high, low, 基础量, 计价量]
+          const [ts, open, close, high, low, volume] = raw as unknown[]
+          const t = Number(ts) * 1000
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'kraken': {
+        const pair = requestSymbol('kraken', sym)
+        const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${period}`
+        const data = await this.requestJson<{ error?: unknown[]; result?: Record<string, unknown> }>(url)
+        if ((data.error?.length ?? 0) > 0) throw symbolNotFoundError('klines', 'kraken', symbol)
+        // result 里除 <pair> 数组外还有一个 `last` 数字：按形状取数组。
+        const rows = Object.values(data.result ?? {}).find((value) => Array.isArray(value))
+        if (!Array.isArray(rows)) return []
+        return finalizeKlines(rows.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          // 行结构 [秒级 ts, open, high, low, close, vwap, 基础量, count]
+          const [ts, open, high, low, close, , volume] = raw as unknown[]
+          const t = Number(ts) * 1000
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'coinbase': {
+        const pair = requestSymbol('coinbase', sym)
+        const url = `https://api.exchange.coinbase.com/products/${pair}/candles?granularity=${period}`
+        const data = await this.requestJson<unknown>(url)
+        if (!Array.isArray(data)) return []
+        return finalizeKlines(data.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          // 行结构 [秒级 ts, low, high, open, close, 基础量]
+          const [ts, low, high, open, close, volume] = raw as unknown[]
+          const t = Number(ts) * 1000
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'bitfinex': {
+        const pair = requestSymbol('bitfinex', sym)
+        const url = `https://api-pub.bitfinex.com/v2/candles/trade:${period}:${pair}/hist${limitQueryStart}`
+        const data = await this.requestJson<unknown>(url)
+        if (!Array.isArray(data)) return []
+        return finalizeKlines(data.map((raw): Kline | undefined => {
+          if (!Array.isArray(raw)) return undefined
+          // 行结构 [毫秒级 mts, open, close, high, low, 基础量]
+          const [mts, open, close, high, low, volume] = raw as unknown[]
+          const t = Number(mts)
+          return klineRow(t, open, high, low, close, volume, t + stepMs - 1)
+        }), limit)
+      }
+      case 'htx': {
+        const pair = requestSymbol('htx', sym)
+        const url = `https://api.htx.com/market/history/kline?symbol=${pair}&period=${period}${limitQuery}`
+        const data = await this.requestJson<{ status?: string; data?: unknown }>(url)
+        if (data.status !== 'ok') throw symbolNotFoundError('klines', 'htx', symbol)
+        const rows = Array.isArray(data.data) ? data.data : []
+        return finalizeKlines(rows.map((raw): Kline | undefined => {
+          const row = raw as { id?: unknown; open?: unknown; close?: unknown; low?: unknown; high?: unknown; amount?: unknown }
+          const t = Number(row.id) * 1000
+          return klineRow(t, row.open, row.high, row.low, row.close, row.amount, t + stepMs - 1)
+        }), limit)
+      }
+    }
   }
 
   async placeOrder(_creds: unknown, req: OrderRequest): Promise<Order> {

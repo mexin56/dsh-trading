@@ -90,7 +90,9 @@ Status: implemented
   `TRADING_UPSTREAM_ERROR`、连不上 → `TRADING_NETWORK`、非 JSON 或没有可用报价行（未收录 secid 的
   `data:null`、停牌占位 `f2` 缺失或 0）→ `TRADING_EXCHANGE_ERROR`，绝不再交零价快照（`price: 0`
   会被消费方读成「这只标的不值钱」）。走进回退的唯一原因是主取价路径不可用，故不从 push2 的沉默
-  推断「该标的不存在」，不借用词汇表外的 `TRADING_SYMBOL_NOT_FOUND`（同 bybit 对同一缺口的取舍）。
+  推断「该标的不存在」，不借用 `TRADING_SYMBOL_NOT_FOUND`（该码 2026-10-15 已收录进
+  `TradingErrorCode`，见 [词汇表 note](../architecture/2026-10-15-trading-error-code-vocabulary-symbol-not-found.md)；
+  这里的取舍是语义的，不是「词汇表里没有」，同 bybit 对同一缺口的取舍）。
   回退仍是限流敏感路径：每次调用最多一个 push2 请求，不重试、不批量。
 
 ## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
