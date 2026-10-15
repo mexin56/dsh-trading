@@ -460,6 +460,18 @@ importers:
         specifier: workspace:^
         version: link:../router
     devDependencies:
+      '@dshtrading/connector-akshare':
+        specifier: workspace:^
+        version: link:../connector-akshare
+      '@dshtrading/connector-futu':
+        specifier: workspace:^
+        version: link:../connector-futu
+      '@dshtrading/connector-ibkr':
+        specifier: workspace:^
+        version: link:../connector-ibkr
+      '@dshtrading/connector-tiger':
+        specifier: workspace:^
+        version: link:../connector-tiger
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31

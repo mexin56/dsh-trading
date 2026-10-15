@@ -118,7 +118,6 @@ export type SettingsLocaleKey =
   | 'field.label.passphrase'
   | 'field.label.token'
   | 'field.label.mcpToken'
-  | 'field.label.apiUrl'
   | 'field.label.qmtUrl'
   | 'field.label.futuHost'
   | 'field.label.futuPort'
@@ -143,7 +142,6 @@ export type SettingsLocaleKey =
   | 'field.placeholder.finnhubKey'
   | 'field.placeholder.polygonKey'
   | 'field.placeholder.tushareToken'
-  | 'field.placeholder.akshareUrl'
   | 'field.placeholder.qmtUrl'
   | 'field.placeholder.futuHost'
   | 'field.placeholder.futuPort'
@@ -234,11 +232,11 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'field.action.hide': '隐藏',
       'field.action.show': '显示',
       'provider.docsLink': '官方指引与文档',
-      'provider.envPrefix': '环境变量：',
+      'provider.envPrefix': '环境变量/配置项：',
       'provider.binance': 'Binance (币安)',
       'provider.okx': 'OKX (欧易)',
       'provider.bybit': 'Bybit',
-      'provider.ccxt': 'CCXT (跨所聚合 100+)',
+      'provider.ccxt': 'CCXT (Binance/OKX/Bybit 直连)',
       'provider.yahoo': 'Yahoo Finance',
       'provider.alpaca': 'Alpaca',
       'provider.fmp': 'FMP (Financial Modeling Prep)',
@@ -249,7 +247,7 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'provider.tencent': '腾讯 (Tencent)',
       'provider.eastmoney': '东方财富 (Eastmoney)',
       'provider.tushare': 'Tushare Pro',
-      'provider.akshare': 'AkShare (宏观/另类量化)',
+      'provider.akshare': 'AkShare (东方财富公开端点)',
       'provider.qmt': 'MiniQMT (迅投券商实盘)',
       'provider.futu': 'Futu (富途 OpenD)',
       'provider.longbridge': 'Longbridge (长桥)',
@@ -263,7 +261,6 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'field.label.passphrase': 'Passphrase',
       'field.label.token': 'Pro Token',
       'field.label.mcpToken': 'MCP Token',
-      'field.label.apiUrl': 'HTTP 服务地址',
       'field.label.qmtUrl': 'MiniQMT 服务地址',
       'field.label.futuHost': 'OpenD IP',
       'field.label.futuPort': 'OpenD 端口',
@@ -279,7 +276,7 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'field.placeholder.okxSecret': 'OKX_SECRET_KEY',
       'field.placeholder.okxPassphrase': 'OKX_PASSPHRASE',
       'field.placeholder.bybitKey': 'BYBIT_API_KEY (留空走免密公共行情)',
-      'field.placeholder.bybitSecret': 'BYBIT_API_SECRET',
+      'field.placeholder.bybitSecret': 'BYBIT_SECRET_KEY',
       'field.placeholder.ccxtKey': 'CCXT_API_KEY',
       'field.placeholder.ccxtSecret': 'CCXT_API_SECRET',
       'field.placeholder.alpacaKey': 'ALPACA_API_KEY',
@@ -288,7 +285,6 @@ export const zh: Record<SettingsLocaleKey, string> = {
       'field.placeholder.finnhubKey': 'FINNHUB_API_KEY',
       'field.placeholder.polygonKey': 'POLYGON_API_KEY',
       'field.placeholder.tushareToken': 'TUSHARE_TOKEN',
-      'field.placeholder.akshareUrl': 'http://127.0.0.1:8080 (默认内置)',
       'field.placeholder.qmtUrl': 'http://127.0.0.1:5800',
       'field.placeholder.futuHost': '127.0.0.1',
       'field.placeholder.futuPort': '11111',
@@ -380,11 +376,11 @@ export const en: Record<SettingsLocaleKey, string> = {
       'field.action.hide': 'Hide',
       'field.action.show': 'Show',
       'provider.docsLink': 'Official docs & guides',
-      'provider.envPrefix': 'Env var: ',
+      'provider.envPrefix': 'Env var / config field: ',
       'provider.binance': 'Binance',
       'provider.okx': 'OKX',
       'provider.bybit': 'Bybit',
-      'provider.ccxt': 'CCXT (100+ exchanges)',
+      'provider.ccxt': 'CCXT (Binance / OKX / Bybit only)',
       'provider.yahoo': 'Yahoo Finance',
       'provider.alpaca': 'Alpaca',
       'provider.fmp': 'FMP (Financial Modeling Prep)',
@@ -395,7 +391,7 @@ export const en: Record<SettingsLocaleKey, string> = {
       'provider.tencent': 'Tencent',
       'provider.eastmoney': 'Eastmoney',
       'provider.tushare': 'Tushare Pro',
-      'provider.akshare': 'AkShare (macro / alt-data)',
+      'provider.akshare': 'AkShare (Eastmoney public endpoints)',
       'provider.qmt': 'MiniQMT (broker gateway)',
       'provider.futu': 'Futu (OpenD)',
       'provider.longbridge': 'Longbridge',
@@ -409,7 +405,6 @@ export const en: Record<SettingsLocaleKey, string> = {
       'field.label.passphrase': 'Passphrase',
       'field.label.token': 'Pro Token',
       'field.label.mcpToken': 'MCP Token',
-      'field.label.apiUrl': 'HTTP endpoint',
       'field.label.qmtUrl': 'MiniQMT endpoint',
       'field.label.futuHost': 'OpenD IP',
       'field.label.futuPort': 'OpenD port',
@@ -425,7 +420,7 @@ export const en: Record<SettingsLocaleKey, string> = {
       'field.placeholder.okxSecret': 'OKX_SECRET_KEY',
       'field.placeholder.okxPassphrase': 'OKX_PASSPHRASE',
       'field.placeholder.bybitKey': 'BYBIT_API_KEY (leave empty for public quotes)',
-      'field.placeholder.bybitSecret': 'BYBIT_API_SECRET',
+      'field.placeholder.bybitSecret': 'BYBIT_SECRET_KEY',
       'field.placeholder.ccxtKey': 'CCXT_API_KEY',
       'field.placeholder.ccxtSecret': 'CCXT_API_SECRET',
       'field.placeholder.alpacaKey': 'ALPACA_API_KEY',
@@ -434,7 +429,6 @@ export const en: Record<SettingsLocaleKey, string> = {
       'field.placeholder.finnhubKey': 'FINNHUB_API_KEY',
       'field.placeholder.polygonKey': 'POLYGON_API_KEY',
       'field.placeholder.tushareToken': 'TUSHARE_TOKEN',
-      'field.placeholder.akshareUrl': 'http://127.0.0.1:8080 (built-in default)',
       'field.placeholder.qmtUrl': 'http://127.0.0.1:5800',
       'field.placeholder.futuHost': '127.0.0.1',
       'field.placeholder.futuPort': '11111',

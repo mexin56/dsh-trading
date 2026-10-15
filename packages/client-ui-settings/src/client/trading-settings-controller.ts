@@ -32,18 +32,19 @@ export const PROVIDER_LABELS: readonly Readonly<ProviderMeta>[] = [
   { id: 'fmp', label: 'provider.fmp', url: 'https://site.financialmodelingprep.com/developer', env: 'FMP_API_KEY', type: 'commercial', markets: ['us'] },
   { id: 'finnhub', label: 'provider.finnhub', url: 'https://finnhub.io/register', env: 'FINNHUB_API_KEY', type: 'commercial', markets: ['us'] },
   { id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] },
-  { id: 'ibkr', label: 'provider.ibkr', url: 'https://interactivebrokers.com/campus/ibkr-api-page/cpapi/', env: 'IBKR_GATEWAY_URL', type: 'gateway', markets: ['us', 'hk'] },
+  { id: 'ibkr', label: 'provider.ibkr', url: 'https://interactivebrokers.com/campus/ibkr-api-page/cpapi/', env: 'IBKR_GATEWAY_URL', type: 'gateway', markets: ['us'] },
   { id: 'stooq', label: 'provider.stooq', url: 'https://stooq.com', type: 'public', markets: ['us'] },
   { id: 'tencent', label: 'provider.tencent', url: 'https://finance.qq.com', type: 'public', markets: ['cn', 'hk'] },
   { id: 'eastmoney', label: 'provider.eastmoney', url: 'https://eastmoney.com', type: 'public', markets: ['cn', 'hk'] },
-  // markets 必须 = 连接器实现的真实覆盖（dataplane 注册面），不是券商平台能力：
-  // tushare connector 仅 A 股实现；futu 行情面 hk+us（交易面仅 hk）；cn 未实现。
+  // markets 判据 = 连接器 dataplane 的真实注册面，不是券商平台能力：tushare 仅 A 股（cn）、
+  // ibkr 仅 us、akshare 仅 cn、tiger 仅 hk（各注册一个市场）；futu 行情面 hk+us（EXTRA_QUOTE_MARKETS），交易面仍仅 hk。
   { id: 'tushare', label: 'provider.tushare', url: 'https://tushare.pro/register', env: 'TUSHARE_TOKEN', type: 'commercial', markets: ['cn'] },
-  { id: 'akshare', label: 'provider.akshare', url: 'https://akshare.xyz', env: 'AKSHARE_API_URL', type: 'public', markets: ['cn', 'hk'] },
+  // akshare 实现面是东方财富公开端点：无本地服务、无凭证，故不标 env，也不挂凭据字段。
+  { id: 'akshare', label: 'provider.akshare', url: 'https://akshare.xyz', type: 'public', markets: ['cn'] },
   { id: 'qmt', label: 'provider.qmt', url: 'http://127.0.0.1:5800', env: 'QMT_GATEWAY_URL', type: 'gateway', markets: ['cn'] },
-  { id: 'futu', label: 'provider.futu', url: 'https://futunn.com/download/open-api', env: 'FUTU_HOST', type: 'gateway', markets: ['hk', 'us'] },
+  { id: 'futu', label: 'provider.futu', url: 'https://futunn.com/download/open-api', env: 'gatewayUrl', type: 'gateway', markets: ['hk', 'us'] },
   { id: 'longbridge', label: 'provider.longbridge', url: 'https://open.longportapp.com', env: 'LONGBRIDGE_APP_KEY', type: 'commercial', markets: ['hk', 'us'] },
-  { id: 'tiger', label: 'provider.tiger', url: 'https://developer.itigerup.com', env: 'TIGER_ID', type: 'commercial', markets: ['hk', 'us', 'cn'] },
+  { id: 'tiger', label: 'provider.tiger', url: 'https://developer.itigerup.com', env: 'TIGER_ID', type: 'commercial', markets: ['hk'] },
   { id: 'jin10', label: 'provider.jin10', url: 'https://mcp.jin10.com', env: 'JIN10_MCP_TOKEN', type: 'public', markets: ['global'] },
   { id: 'hithink', label: 'provider.hithink', url: 'https://fuyao.aicubes.cn', env: 'HITHINK_FINANCE_API_KEY', type: 'commercial', markets: ['cn', 'futures'] },
   { id: 'xysz', label: 'provider.xysz', url: 'https://www.chinastock.com.cn', env: 'XYSZ_API_URL', type: 'commercial', markets: ['cn'] },
@@ -125,9 +126,6 @@ export const PROVIDER_CREDENTIAL_SPECS: Record<string, readonly CredentialField[
   ],
   tushare: [
     { key: 'token', label: 'field.label.token', placeholder: 'field.placeholder.tushareToken', secret: true },
-  ],
-  akshare: [
-    { key: 'apiUrl', label: 'field.label.apiUrl', placeholder: 'field.placeholder.akshareUrl' },
   ],
   qmt: [
     { key: 'gatewayUrl', label: 'field.label.qmtUrl', placeholder: 'field.placeholder.qmtUrl' },
