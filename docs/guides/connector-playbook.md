@@ -64,7 +64,7 @@ connector-okx 的对应实现段：
 | 1 | baseUrl | rest.ts 头注 | demo/live 同 host 靠头区分 vs 不同 host/路径 |
 | 2 | 签名原语 | signaturePrehash/signPayload/isoTimestamp | prehash 拼接顺序、query 并入 requestPath、时差护栏（>30s 拒） |
 | 3 | 鉴权头 | buildAuthHeaders | 头名、时间戳格式、签名算法各类不同所不同 |
-| 4 | 模拟盘语义 | simulationHeaders() | okx 靠头；独立账号体系则处理 host 差异；无模拟环境锁 env='live' |
+| 4 | 模拟盘语义 | simulationHeaders() | okx 靠头；独立账号体系则处理 host 差异；**上游没有模拟环境就删掉 `env` 字段与 demo\*Ref 槽**，不要留没有读取方的三态配置（本仓 finnhub/fmp/polygon/tushare/ccxt/bybit 先例） |
 | 5 | 端点 + 字段解析 | getTicker/getKlines 等 | K 线字段序可能是开收高低量（tencent 先例，replication §8.4） |
 | 6 | 错误码映射 | mapError + cancelOrder 幂等化 | 撤单「已终态」码视作成功（OKX 51400/51603） |
 | 7 | 单位换算 | normalizeSize/tgtCcy | **quantity 恒为 base 币数**；合约按 ctVal 换算；现货市价单计价币陷阱 |
@@ -116,7 +116,6 @@ connector-okx 的对应实现段：
       name: '@dshtrading/connector-bybit'
       config:
         enabled: false            # 互斥激活默认关（okx 先例）
-        env: demo
         dryRun: true
         liveTrading: false
 ```

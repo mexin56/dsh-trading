@@ -18,7 +18,6 @@ afterAll(() => { testAuthority?.uninstall() })
 function baseConfig(overrides: Partial<Config> = {}): Config {
   return {
     enabled: true,
-    env: 'demo',
     dryRun: true,
     liveTrading: false,
   apiKeyRef: 'BYBIT_API_KEY',

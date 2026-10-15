@@ -16,11 +16,10 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `enabled` | `true` | 是否激活 Polygon 连接器（`src/index.ts:43`）；`false` 时 `apply` 静默退出（`src/index.ts:167`） |
-| `env` | `'demo'` | 运行环境（`src/index.ts:44`）；**当前实现未读取该字段**，`demo`/`live` 无分流效果，见「已知边界」 |
-| `dryRun` | `true` | 默认模拟下单（`src/index.ts:45`）；为真时 `placeOrder` 走本地模拟回执（`src/index.ts:118`） |
-| `liveTrading` | `false` | 是否允许实盘交易（`src/index.ts:46`）；非权威镜像，实盘授权由 `@dshtrading/authority` 的人工签署平面裁定（`src/index.ts:90`） |
-| `apiKeyRef` | `'POLYGON_API_KEY'` | Polygon API Key 的环境变量名（BYOK）（`src/index.ts:47`） |
+| `enabled` | `true` | 是否激活 Polygon 连接器（`src/index.ts:42`）；`false` 时 `apply` 静默退出（`src/index.ts:165`） |
+| `dryRun` | `true` | 默认模拟下单（`src/index.ts:43`）；为真时 `placeOrder` 走本地模拟回执（`src/index.ts:116`） |
+| `liveTrading` | `false` | 是否允许实盘交易（`src/index.ts:44`）；非权威镜像，实盘授权由 `@dshtrading/authority` 的人工签署平面裁定（`src/index.ts:88`） |
+| `apiKeyRef` | `'POLYGON_API_KEY'` | Polygon API Key 的环境变量名（BYOK）（`src/index.ts:45`） |
 
 ## 接线
 
@@ -32,12 +31,12 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
   组内行 id `dsh-trading-us-connector-polygon`（第 97 行），行 config 只写 `enabled/dryRun/liveTrading`（第 100-102 行）。
 - **bundle 依赖**：`packages/us/package.json:35`（`workspace:*`）。
 - **provider 词汇**：`packages/router/src/index.ts:72` 的 `PROVIDER_VOCABULARY` 含 `polygon`；
-  本包导出 `ROUTER_PROVIDER = 'polygon'`（`src/index.ts:157`），`routeAllows` 只在 `us` 市场当前激活
-  provider 为 `polygon` 时激活本实例（`src/index.ts:159-164`）。
+  本包导出 `ROUTER_PROVIDER = 'polygon'`（`src/index.ts:155`），`routeAllows` 只在 `us` 市场当前激活
+  provider 为 `polygon` 时激活本实例（`src/index.ts:157-162`）。
 - **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:34`
   （`{ id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] }`），
   文案见 `src/client/locales.ts:246`（zh）与 `:392`（en），界面显示 `Polygon.io (Massive)`。
-- **服务键**：`tradingUsMarketData`（`src/index.ts:50`）、`tradingUsTrade`（`src/index.ts:51`）。
+- **服务键**：`tradingUsMarketData`（`src/index.ts:48`）、`tradingUsTrade`（`src/index.ts:49`）。
 
 ## 上游端点
 
@@ -54,7 +53,7 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **周期词汇** `1m/5m/15m/30m/1h/4h/1d/1w/1M`（`src/rest.ts:28`），映射到 Polygon
   `multiplier/timespan`：分钟 1/5/15/30，小时 1/4，日/周/月 1 day / 1 week / 1 month
   （`src/rest.ts:30-42`）。**周线与月线是上游原生粒度**（与 connector-fmp 的日线退化不同）。
-  工具参数的 enum 直接用该词汇表（`src/index.ts:197`），表外周期在工具参数校验处即被拒。
+  工具参数的 enum 直接用该词汇表（`src/index.ts:195`），表外周期在工具参数校验处即被拒。
 - **报价是「上一交易日聚合」，不是实时报价**：`getTicker` 打的是 `/prev`（`src/rest.ts:118`），
   返回体 `results[0]` 的 `c/h/l/o/v/t` 即价格与上一交易日成交量；`Ticker.timestamp` 直接取 `row.t`
   （Polygon 给毫秒时间戳，不做秒转毫秒，`src/rest.ts:124-130`）。
@@ -67,32 +66,32 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **错误映射**：上游非 2xx → `TRADING_UPSTREAM_ERROR`，消息带 HTTP 状态与 `statusText`（`src/rest.ts:90-92`）；
   `fetch` 抛错（不可达、响应非 JSON 等）→ `TRADING_NETWORK`（`src/rest.ts:96-100`）。错误载体
   `TradingServiceError` 携带 `code`（`src/rest.ts:17-26`）。
-- 服务类成员用 TS 编译期 `private`（禁 ECMAScript `#`，cordis realm 代理会炸；`src/index.ts:54,90`）。
+- 服务类成员用 TS 编译期 `private`（禁 ECMAScript `#`，cordis realm 代理会炸；`src/index.ts:52,90`）。
 
 ## 能力面
 
-**注册工具**（`apply` 内 `ctx.inject(['tools'])`，`src/index.ts:176-217`，注册前先 `tools.get` 判重）：
+**注册工具**（`apply` 内 `ctx.inject(['tools'])`，`src/index.ts:174-215`，注册前先 `tools.get` 判重）：
 
 | 工具 | 源码 |
 |---|---|
-| `us_get_ticker` | `src/index.ts:182-190` |
-| `us_get_klines` | `src/index.ts:192-205` |
-| `us_get_ticker_details` | `src/index.ts:207-216` |
+| `us_get_ticker` | `src/index.ts:180-188` |
+| `us_get_klines` | `src/index.ts:190-203` |
+| `us_get_ticker_details` | `src/index.ts:205-214` |
 
 **服务方法**：
 
 | 方法 | 有/缺席 | 说明 |
 |---|---|---|
-| `MarketDataService.getTicker` | 有 | `src/index.ts:65-67` → `src/rest.ts:104-131`；底层是 `/prev` 上一交易日聚合 |
-| `MarketDataService.getKlines` | 有 | `src/index.ts:69-71` → `src/rest.ts:133-164` |
-| `MarketDataService.subscribeTicker` | 有 | 快照轮询，`intervalMs` 下限 1000 ms、默认 5000 ms，`dispose()` 清定时器（`src/index.ts:77-85`） |
-| `getDetails`（契约外扩展） | 有 | `src/index.ts:73-75` → `src/rest.ts:166-170`（内部方法名 `getTickerDetails`）；对应工具 `us_get_ticker_details`；上游无 `results` 时回落 `{}`（`src/rest.ts:169`） |
+| `MarketDataService.getTicker` | 有 | `src/index.ts:63-65` → `src/rest.ts:104-131`；底层是 `/prev` 上一交易日聚合 |
+| `MarketDataService.getKlines` | 有 | `src/index.ts:67-69` → `src/rest.ts:133-164` |
+| `MarketDataService.subscribeTicker` | 有 | 快照轮询，`intervalMs` 下限 1000 ms、默认 5000 ms，`dispose()` 清定时器（`src/index.ts:75-83`） |
+| `getDetails`（契约外扩展） | 有 | `src/index.ts:71-73` → `src/rest.ts:166-170`（内部方法名 `getTickerDetails`）；对应工具 `us_get_ticker_details`；上游无 `results` 时回落 `{}`（`src/rest.ts:169`） |
 | `MarketDataService.listInstruments`（可选契约方法，`packages/api/src/index.ts:741`） | **缺席** | 无名册端点实现；`/v3/reference/tickers` 需按符号单取 |
 | `MarketDataService.getFundamentals` / `getTickers`（可选契约方法） | 未实现 | 无对应服务方法；报价批量回落逐只 `getTicker` |
 | `TradeService.getBalance` | 有 | 固定返回 `{ currency: 'USD', available: 100000, total: 100000 }`（`src/rest.ts:172-174`），非真实券商余额 |
-| `TradeService.placeOrder` | 有 | 服务缝三态闸门（`src/index.ts:107-134`）；无工具入口 |
-| `TradeService.cancelOrder` | 有 | 与真实下单同门槛，可抛 `TRADING_LIVE_TRADING_DISABLED`；放行时返回 `{ orderId, status: 'canceled' }`（`src/index.ts:136-146`）；无工具入口 |
-| `TradeService.getPositions` / `getOrders` | 有 | 恒返回 `[]`（`src/index.ts:148-154`） |
+| `TradeService.placeOrder` | 有 | 服务缝三态闸门（`src/index.ts:105-132`）；无工具入口 |
+| `TradeService.cancelOrder` | 有 | 与真实下单同门槛，可抛 `TRADING_LIVE_TRADING_DISABLED`；放行时返回 `{ orderId, status: 'canceled' }`（`src/index.ts:134-144`）；无工具入口 |
+| `TradeService.getPositions` / `getOrders` | 有 | 恒返回 `[]`（`src/index.ts:146-152`） |
 | 盘口 / 分笔 / 主动买盘 | 未实现 | 契约可选方法全缺（`packages/api/src/index.ts:768,774,792`）；见「已知边界」 |
 
 ## 已知边界（源码级，未经网络实测）
@@ -109,8 +108,6 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **无工具层交易面**：本包只注册 3 个行情/资料工具；全仓 `us_place_order` 只出现在 connector-alpaca /
   connector-ibkr / connector-stooq / connector-yahoo。本包 `TradeService` 仅经 `tradingUsTrade`
   服务注入面被调用。
-- **`env` 是死配置**：`src/index.ts:44` 声明并默认 `'demo'`，但 `src/` 内除 `apiKeyRef` 外无任何地方
-  读取它（`src/index.ts:172`、`src/dataplane.ts:29` 都只用 `apiKeyRef`），`demo`/`live` 无分流效果。
 - **K 线窗口在短周期上偏窄**：`from = 今天 - limit × 周期毫秒 × 2`（`src/rest.ts:138`）只是请求下界，
   真实可取根数由上游历史深度与账号权限裁决；`limit` 原样透传，超限由服务端处理（`src/rest.ts:149`）。
 - **未实证项**：`/prev`、`/range`、`/v3/reference/tickers` 的真实响应形态、字段口径、限流与额度表现，
@@ -120,7 +117,7 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 
 - **需自备 API key（BYOK）**：配置只存 ref 名 `POLYGON_API_KEY`；运行期先取
   `tradingMarketRouter.getCredential('polygon')` 的 `apiKey`，缺失时回落同名环境变量
-  （`src/index.ts:170-172`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
+  （`src/index.ts:168-170`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
 - **key 随查询参数出网**：每次请求把 key 以 `apiKey=<key>` 拼进 URL（`src/rest.ts:83`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源（设置页标为 `type: 'commercial'`，
   `packages/client-ui-settings/src/client/trading-settings-controller.ts:34`）。

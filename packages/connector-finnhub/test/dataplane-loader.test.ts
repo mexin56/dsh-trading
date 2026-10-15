@@ -72,11 +72,12 @@ describe('Finnhub 连接器数据面行的 loader 解析面', () => {
   it('用户 patch 行只写 `enabled: true` 时 loader 补全 schema 默认值', () => {
     // Given: us bundle 的行 config（`enabled: true`）
     // When: 按 cordis loader 语义解析行 config
-    // Then: enabled 原样保留、apiKeyRef 取缺省名、env 缺省 demo
+    // Then: enabled 原样保留、apiKeyRef 取缺省名、dryRun 缺省 true；行 config 不含 env（死配置已清理）
     const resolved = resolveConfig(plugin as never, { enabled: true }) as ConfigType
     expect(resolved.enabled).toBe(true)
     expect(resolved.apiKeyRef).toBe('FINNHUB_API_KEY')
-    expect(resolved.env).toBe('demo')
+    expect(resolved.dryRun).toBe(true)
+    expect('env' in resolved).toBe(false)
   })
 
   it('用户宿主挂载该行时 (us, finnhub) 注册进行情注册表', () => {

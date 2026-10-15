@@ -3,7 +3,7 @@
  *
  * 守卫的是**加载路径**，不是包内直调：patch 行只写 `enabled: true`，loader 只认
  * `lib/dataplane.js` 自己导出的 Config 补默认值（cordis resolveConfig）。缺它时行 config
- * 原样传入 → schema 默认值全丢 → apply 读到 undefined：交易面读 config.env 等字段时拿到 undefined，行为落在各服务的兜底上（脆弱契约）
+ * 原样传入 → schema 默认值全丢 → apply 读到 undefined：交易面读 apiKeyRef/secretRef 等字段时拿到 undefined，行为落在各服务的兜底上（脆弱契约）
  */
 import { describe, expect, it } from 'vitest'
 import { resolveConfig, type Context } from '@deepseek-ai/cordis'
@@ -73,11 +73,11 @@ describe('Bybit 连接器数据面行的 loader 解析面', () => {
   it('用户 patch 行只写 `enabled: true` 时 loader 补全 schema 默认值', () => {
     // Given: crypto bundle 的行 config（`enabled: true`）
     // When: 按 cordis loader 语义解析行 config
-    // Then: enabled 原样保留、env 缺省 demo、dryRun 缺省 true
+    // Then: enabled 原样保留、dryRun 缺省 true；行 config 不含 env（死配置已清理）
     const resolved = resolveConfig(plugin as never, { enabled: true }) as ConfigType
     expect(resolved.enabled).toBe(true)
-    expect(resolved.env).toBe('demo')
     expect(resolved.dryRun).toBe(true)
+    expect('env' in resolved).toBe(false)
   })
 
   it('用户宿主挂载该行时 (crypto, bybit) 注册进行情与交易两张注册表 ', () => {

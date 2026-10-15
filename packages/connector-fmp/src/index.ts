@@ -33,7 +33,6 @@ export const name = 'dsh-trading-us-connector-fmp'
 
 export interface Config {
   enabled: boolean
-  env: 'demo' | 'live'
   dryRun: boolean
   liveTrading: boolean
   apiKeyRef: string
@@ -41,7 +40,6 @@ export interface Config {
 
 export const Config: Schema<Config> = Schema.object({
   enabled: Schema.boolean().default(true).description('是否激活 FMP 连接器'),
-  env: Schema.union(['demo', 'live'] as const).default('demo').description('运行环境'),
   dryRun: Schema.boolean().default(true).description('默认模拟下单'),
   liveTrading: Schema.boolean().default(false).description('是否允许实盘交易'),
   apiKeyRef: Schema.string().default('FMP_API_KEY').description('FMP API Key 环境变量名 (BYOK)'),

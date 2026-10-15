@@ -11,7 +11,6 @@ import { BybitTradeService, type Config } from '../src/index.js'
 function bybitTrade(overrides: Partial<Config> = {}): BybitTradeService {
   const config: Config = {
     enabled: true,
-    env: 'demo',
     dryRun: true,
     liveTrading: false,
     apiKeyRef: 'BYBIT_API_KEY',
