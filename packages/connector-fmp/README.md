@@ -35,7 +35,7 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
   provider 为 `fmp` 时激活本实例（`src/index.ts:161-166`）。
 - **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:32`
   （`{ id: 'fmp', label: 'provider.fmp', url: 'https://site.financialmodelingprep.com/developer', env: 'FMP_API_KEY', type: 'commercial', markets: ['us'] }`），
-  文案见 `src/client/locales.ts:244`（zh）与 `:390`（en），界面显示 `FMP (Financial Modeling Prep)`。
+  文案见 `packages/client-ui-settings/src/client/locales.ts:242`（zh）与 `:386`（en），界面显示 `FMP (Financial Modeling Prep)`。
 - **服务键**：`tradingUsMarketData`（`src/index.ts:48`）、`tradingUsTrade`（`src/index.ts:49`）。
 
 ## 上游端点

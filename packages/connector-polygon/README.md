@@ -35,7 +35,7 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
   provider 为 `polygon` 时激活本实例（`src/index.ts:157-162`）。
 - **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:34`
   （`{ id: 'polygon', label: 'provider.polygon', url: 'https://polygon.io', env: 'POLYGON_API_KEY', type: 'commercial', markets: ['us'] }`），
-  文案见 `src/client/locales.ts:246`（zh）与 `:392`（en），界面显示 `Polygon.io (Massive)`。
+  文案见 `packages/client-ui-settings/src/client/locales.ts:244`（zh）与 `:388`（en），界面显示 `Polygon.io (Massive)`。
 - **服务键**：`tradingUsMarketData`（`src/index.ts:48`）、`tradingUsTrade`（`src/index.ts:49`）。
 
 ## 上游端点

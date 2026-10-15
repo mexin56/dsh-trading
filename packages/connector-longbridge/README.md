@@ -62,11 +62,11 @@
   `liveTrading: false`（第 74-77 行）。该行的 `apply` 直接构造行情与交易两个服务
   （`src/index.ts:216-217`），不经注册表。
 - **provider 词汇**：`packages/router/src/index.ts:80`（`PROVIDER_VOCABULARY` 的 `'longbridge'`）。
-- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:45`
+- **设置页显示名**：`packages/client-ui-settings/src/client/trading-settings-controller.ts:46`
   （`PROVIDER_LABELS`：`type: 'commercial'`、`env: 'LONGBRIDGE_APP_KEY'`、`markets: ['hk','us']`）
-  与 `packages/client-ui-settings/src/client/locales.ts:255`（中文 `Longbridge (长桥)`）/
-  第 401 行（英文 `Longbridge`）。凭据表单字段为 `appKey` / `appSecret` / `accessToken`
-  （`trading-settings-controller.ts:142-146`，后两者 `secret: true`）。
+  与 `packages/client-ui-settings/src/client/locales.ts:253`（中文 `Longbridge (长桥)`）/
+  第 397 行（英文 `Longbridge`）。凭据表单字段为 `appKey` / `appSecret` / `accessToken`
+  （`trading-settings-controller.ts:141-143`，后两者 `secret: true`）。
 - **bundle 依赖**：`packages/hk/package.json:33` 的 `@dshtrading/connector-longbridge: workspace:*`。
 - **激活条件**：`routeAllows()` 要求 `enabled` 且
   `tradingMarketRouter.activeProvider('hk') === 'longbridge'`（`src/index.ts:202-207`）。
