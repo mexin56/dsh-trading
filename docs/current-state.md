@@ -18,6 +18,7 @@
 | 桌面壳附着模式（已退役） | 2026-10-07 owner 裁决移除：机器人观测与控制收拢到交易终端内的 @dshtrading/client-ui-bot-gui 插件，桌面壳回归单一本地终端形态；attach-mode/设备凭据模块与两条演练脚本（attach-drill / attach-electron-drill）已删。裁决与替代方案见 [electron desktop note](.agents/notes/implemented/architecture/2026-09-03-electron-desktop-app.md) |
 | 加密永续与 TradFi 永续（Tier 1，只读） | 形态轴 `form`（spot/perp）契约在 `@dshtrading/api`（唯一判据 `instrumentFormOf` / `SWAP_SYMBOL_SUFFIX`）；Binance/OKX/Bybit 名册汇入永续与 TradFi 元数据、行情按 `-SWAP` 分流（CCXT 显式拒绝）；检索面 `instruments_search type=` 与 `/symbols` wire 透传 form/assetClass。OKX 名册 1644（1144 spot + 500 perp）真实网络复核、`SPX`(迷因币 SPX6900) vs `US500` 反例零错标；**Binance/Bybit 的真值已在可达出口补测转正**（2026-10-08）：Binance 名册 2160（1375 spot + 785 perp）、Bybit 1381（528 + 853），20 条判据全过（见下）。**GUI 形态面（P5）**：左栏/自选管理按形态挂徽标（现货不挂标，现货路径零回归）与 crypto 目标市场的形态过滤（本地字典与上游在线联想都过滤）、添加行随形态与资产类别落库、TradFi 合成合约在图表页有明示位（合成合约 ≠ 股票本身、24/7 报价 vs 股票闭市时段）、种子默认首屏保持 14 行全现货。设计与卡拆分见 docs/roadmap/crypto-perp-and-tradfi.md；GUI 落地判据与边界见 [GUI note](.agents/notes/implemented/feature/2026-10-08-crypto-perp-gui-instrument-form.md)（验收证据 `.local/acceptance/crypto-perp-gui-2026-10-08/`，本机不入库）|
 | 合约交易语义与闸门（Tier 2，P7） | OKX：合约下单（张↔币按 ctVal **向下**取整）、杠杆/保证金模式 `crypto_set_leverage`（与下单同门槛）、持仓强平/保证金字段；Binance：`-SWAP` 下单显式 `TRADING_UNSUPPORTED_SYMBOL`。判据：`pnpm --filter @dshtrading/connector-okx test`（test/contract-trading.test.ts：换算向量/闸门矩阵/tdMode 分流/持仓字段）、`pnpm --filter @dshtrading/base test`（test/live-action-gate.test.ts）、`pnpm --filter @dshtrading/connector-binance test`。机制见 [OKX 集成 §9](docs/guides/okx-integration.md) 与 [服务缝闸门 note](.agents/notes/implemented/feature/2026-09-01-service-seam-order-gate.md) |
+| 行情跨源 K 线能力路由（cn/hk 路由在腾讯时「五日」级别不再消失） | 连接器可选自我声明 `klineCapabilities?()`（周期 + 能承接的 `limit` 上限）；桥候选序 = active 在前、其后 `registry.list(market)` 其余按 provider 名升序，**active 声明覆盖请求就永远用 active**，只有 `TRADING_UNSUPPORTED_INTERVAL` 才沿候选序兜底（网络/限流/坏符号一律原样抛）；`/klines` 标注实际供数 `provider`、`/markets` 上报该市场能力并集、`/tickers` 收可选 `provider`（未注册即 400）；客户端 `'5d'` 判据改为能力并集（`1m` 且 `maxBars ≥ FIVE_DAY_KLINE_LIMIT`），跨源时该级别 ticker 同源取价。真实网络证据 [spikes/impl-cross-source-kline-routing/EVIDENCE.md](spikes/impl-cross-source-kline-routing/EVIDENCE.md)（cn `1m/2500` → `provider=eastmoney` 1061 根 / 5 个交易日；cn `1d/750` → `provider=tencent`，零跨源），机制与取舍见 [跨源 K 线能力路由 note](.agents/notes/implemented/feature/2026-10-15-cross-source-kline-capability-routing.md) |
 
 ## 必须知道的 fail-closed 不变量（改代码前先读）
 
@@ -29,6 +30,7 @@
 6. **过期/未知不渲染**；跨源永不混显（数据源会话级单例、每条数据带 sourceId）。
 7. **自动路径上 halt 永不可达**（普通故障止于 reduce_only）；halt 只由带外触发。
 8. **dry-run 是默认且不可被环境变量悄悄关掉**（desk-process 选项白名单里没有任何键能承载下单能力）。
+9. **行情跨源换源只由结构性缺能力触发**：只有 `TRADING_UNSUPPORTED_INTERVAL` 才沿候选序换源；网络/限流/坏符号/交易所错误一律原样抛（不得把「这个源现在答不出」掩盖成「另一个源的数据」），候选耗尽抛最后一个错误；显式指定的 provider 未注册即 400，不静默降级到 active（用户设置是权威）。
 
 ## 未完成 / 硬停（不要自行推进）
 
