@@ -179,7 +179,7 @@ export function apply(ctx: Context, config: Config): void {
 
     register(defineTool({
       name: 'us_get_ticker',
-      description: 'Get the latest trade price and quote for a US stock via Polygon.io API.',
+      description: 'Get the previous trading day close aggregate for a US stock via Polygon.io API (/v2/aggs/ticker/<SYM>/prev). price is the previous session close (adjusted by default) and timestamp is the aggregate window start in Unix milliseconds — not a realtime quote.',
       parameters: { symbol: { type: 'string', required: true, description: 'US stock symbol, e.g. AAPL' } },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args) {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @dshtrading/connector-polygon/rest
  * Polygon.io (Massive) 美股/全球高频 REST 客户端。
  */
@@ -25,9 +25,28 @@ export class TradingServiceError extends Error {
   }
 }
 
+/** 本包声明的周期词汇：Polygon aggregates 的 multiplier/timespan 9 档。 */
 export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'] as const
 
+/** `INTERVAL_VOCABULARY` 的类型面：调用方在断言后即可按穷尽联合处理周期。 */
+export type SupportedInterval = (typeof INTERVAL_VOCABULARY)[number]
+
+/**
+ * 表外周期显式拒绝（fail-closed）：`Interval` 是 15 档规范联合，比本包声明的 9 档宽，
+ * 本包不接受静默降级。断言签名同时把 `interval` 收窄到受支持联合，
+ * 使下游 `switch` 穷尽——漏掉一档映射是编译错误而非运行期回落。
+ */
+export function assertSupportedInterval(interval: Interval): asserts interval is SupportedInterval {
+  if (!(INTERVAL_VOCABULARY as readonly string[]).includes(interval)) {
+    throw new TradingServiceError(
+      'TRADING_UNSUPPORTED_INTERVAL',
+      'Polygon upstream does not serve interval "' + interval + '"; supported: ' + INTERVAL_VOCABULARY.join(', '),
+    )
+  }
+}
+
 export function toPolygonTimespan(interval: Interval): { multiplier: number; timespan: string } {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return { multiplier: 1, timespan: 'minute' }
     case '5m': return { multiplier: 5, timespan: 'minute' }
@@ -42,6 +61,7 @@ export function toPolygonTimespan(interval: Interval): { multiplier: number; tim
 }
 
 export function parseIntervalMs(interval: Interval): number {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return 60 * 1000
     case '5m': return 5 * 60 * 1000
@@ -103,6 +123,9 @@ export class PolygonRestClient {
 
   async getTicker(symbol: string): Promise<Ticker> {
     const sym = normalizeUsSymbol(symbol)
+    // 这是**上一交易日**的收盘聚合：Polygon `/v2/aggs/ticker/<SYM>/prev`（官方语义 Previous Close，
+    // 默认 adjusted=true → c 为复权价）；results[].t 是聚合窗口起点的 Unix 毫秒，
+    // 直接对齐本仓 Ticker.timestamp 的 epoch ms 契约，不做秒→毫秒换算。
     const data = await this.requestJson<{
       ticker: string
       resultsCount: number
@@ -131,6 +154,7 @@ export class PolygonRestClient {
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
+    assertSupportedInterval(interval)
     const sym = normalizeUsSymbol(symbol)
     const { multiplier, timespan } = toPolygonTimespan(interval)
     const stepMs = parseIntervalMs(interval)

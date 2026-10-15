@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @dshtrading/connector-fmp/rest
  * Financial Modeling Prep 美股 REST 客户端（支持行情与基本面）。
  */
@@ -25,9 +25,28 @@ export class TradingServiceError extends Error {
   }
 }
 
-export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'] as const
+/** FMP 上游真实支持的周期：6 个日内档（`/historical-chart`）+ 日线 EOD（`/historical-price-full`）。 */
+export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const
+
+/** `INTERVAL_VOCABULARY` 的类型面：调用方在断言后即可按穷尽联合处理周期。 */
+export type SupportedInterval = (typeof INTERVAL_VOCABULARY)[number]
+
+/**
+ * 表外周期显式拒绝（fail-closed）：`Interval` 是 15 档规范联合，比 FMP 实际上游能力宽，
+ * 本包不接受静默降级到日线。断言签名同时把 `interval` 收窄到受支持联合，
+ * 使下游 `switch` 穷尽——新增/漏掉一档映射是编译错误而非运行期回落到日线。
+ */
+export function assertSupportedInterval(interval: Interval): asserts interval is SupportedInterval {
+  if (!(INTERVAL_VOCABULARY as readonly string[]).includes(interval)) {
+    throw new TradingServiceError(
+      'TRADING_UNSUPPORTED_INTERVAL',
+      'FMP upstream does not serve interval "' + interval + '"; supported: ' + INTERVAL_VOCABULARY.join(', '),
+    )
+  }
+}
 
 export function toFmpInterval(interval: Interval): string {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return '1min'
     case '5m': return '5min'
@@ -35,11 +54,12 @@ export function toFmpInterval(interval: Interval): string {
     case '30m': return '30min'
     case '1h': return '1hour'
     case '4h': return '4hour'
-    default: return '1day'
+    case '1d': return '1day'
   }
 }
 
 export function parseIntervalMs(interval: Interval): number {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return 60 * 1000
     case '5m': return 5 * 60 * 1000
@@ -48,8 +68,6 @@ export function parseIntervalMs(interval: Interval): number {
     case '1h': return 60 * 60 * 1000
     case '4h': return 4 * 60 * 60 * 1000
     case '1d': return 24 * 60 * 60 * 1000
-    case '1w': return 7 * 24 * 60 * 60 * 1000
-    case '1M': return 30 * 24 * 60 * 60 * 1000
   }
 }
 
@@ -119,6 +137,9 @@ export class FmpRestClient {
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
+    // 周期闸门必须在分支判定之前：`toFmpInterval` 只在日内分支被调用，表外周期
+    // （如 1w/1M）会因 isIntraday=false 绕过它、静默落到日线端点。
+    assertSupportedInterval(interval)
     const sym = normalizeUsSymbol(symbol)
     const isIntraday = ['1m', '5m', '15m', '30m', '1h', '4h'].includes(interval)
     const stepMs = parseIntervalMs(interval)

@@ -31,8 +31,8 @@
 | `dryRun` | `true` | 强制模拟：为 true 时即使请求 `dryRun:false` 也只回本地模拟回执（`src/index.ts:144`） |
 | `liveTrading` | `false` | 实盘请求的**非权威镜像**；真实放行需 `@dshtrading/authority` 平面的人工签署授权（`liveTradingEnabled()`，`src/index.ts:137`、`182`） |
 | `appKeyRef` | `'LONGBRIDGE_APP_KEY'` | App Key 的**环境变量名**（BYOK，`src/index.ts:56`） |
-| `appSecretRef` | `'LONGBRIDGE_APP_SECRET'` | App Secret 的环境变量名，用于 HMAC-SHA256 签名（`src/index.ts:57`、`src/rest.ts:130-140`） |
-| `accessTokenRef` | `'LONGBRIDGE_ACCESS_TOKEN'` | Access Token 的环境变量名，进 `authorization` 头（`src/index.ts:58`、`src/rest.ts:123-125`） |
+| `appSecretRef` | `'LONGBRIDGE_APP_SECRET'` | App Secret 的环境变量名，用于 HMAC-SHA256 签名（`src/index.ts:57`、`src/rest.ts:149-159`） |
+| `accessTokenRef` | `'LONGBRIDGE_ACCESS_TOKEN'` | Access Token 的环境变量名，进 `authorization` 头（`src/index.ts:58`、`src/rest.ts:142-144`） |
 
 交易安全三件套在本包的落点：
 
@@ -73,45 +73,56 @@
 
 ## 上游端点
 
-基地址 `process.env.LONGBRIDGE_API_URL || 'https://openapi.longportapp.com'`（`src/rest.ts:104`），
+基地址 `process.env.LONGBRIDGE_API_URL || 'https://openapi.longportapp.com'`（`src/rest.ts:123`），
 也可由 `LongbridgeRestOptions.baseUrl` 直接覆盖。以下是源码里的全部路径（本包没有公开互联网
 以外的第三方回落源）：
 
 | 用途 | 端点 | 源码 |
 |---|---|---|
-| 实时报价 | `GET /v1/quote/realtime?symbol=00700.HK` | `src/rest.ts:165` |
-| K 线 | `GET /v1/quote/candlesticks?symbol=&period=&count=` | `src/rest.ts:201` |
-| 账户资产 | `GET /v1/asset/account` | `src/rest.ts:235` |
-| 持仓 | `GET /v1/trade/stock/position` | `src/rest.ts:269` |
-| 下单 | `POST /v1/trade/order`（`symbol` / `order_type`(MO\|LO) / `side`(Buy\|Sell) / `submitted_quantity` / `submitted_price` / `time_in_force: 'Day'` / `remark?`） | `src/rest.ts:297-309` |
-| 撤单 | `DELETE /v1/trade/order?order_id=` | `src/rest.ts:332-334` |
+| 实时报价 | `GET /v1/quote/realtime?symbol=00700.HK` | `src/rest.ts:184` |
+| K 线 | `GET /v1/quote/candlesticks?symbol=&period=&count=` | `src/rest.ts:221` |
+| 账户资产 | `GET /v1/asset/account` | `src/rest.ts:255` |
+| 持仓 | `GET /v1/trade/stock/position` | `src/rest.ts:289` |
+| 下单 | `POST /v1/trade/order`（`symbol` / `order_type`(MO\|LO) / `side`(Buy\|Sell) / `submitted_quantity` / `submitted_price` / `time_in_force: 'Day'` / `remark?`） | `src/rest.ts:317-329` |
+| 撤单 | `DELETE /v1/trade/order?order_id=` | `src/rest.ts:352-354` |
 
-请求头（`src/rest.ts:117-142`）：`Accept` / `Content-Type` 恒发；`authorization: Bearer <token>`
+请求头（`src/rest.ts:136-161`）：`Accept` / `Content-Type` 恒发；`authorization: Bearer <token>`
 在有 access token 时发；`x-api-key` + `x-timestamp`（`Date.now()`）在有 app key 时发；
-`x-api-signature` **只在 appKey、accessToken 与 appSecret 三者齐备**时发（第 129-141 行）。
+`x-api-signature` **只在 appKey、accessToken 与 appSecret 三者齐备**时发（第 148-160 行）。
 
 ## 周期与契约
 
 - **周期词汇 8 个**：`1m/5m/15m/30m/1h/1d/1w/1M`（`src/rest.ts:24`），到上游的映射是
-  `1m/5m/15m/30m/**60m**/day/week/month`（`src/rest.ts:26-37`）。
-- **映射覆盖不完整且无兜底**：`@dshtrading/api` 的 `Interval` 还含 `3m/2h/4h/6h/8h/12h/3d`
-  （`packages/api/src/index.ts:25-40`），`toLongbridgePeriod`（`src/rest.ts:26-37`）与
-  `parseIntervalMs`（`src/rest.ts:39-50`）的 `switch` **既没有这些 case 也没有 `default`**，
-  会返回 `undefined`。工具面的 enum 已收窄到 8 词汇（`src/index.ts:240`），所以经工具不可达；
-  服务直调可达，后果是请求里出现 `period=undefined`、`closeTime` 为 `NaN`（**该后果未实证**，
-  无测试与网络覆盖）。
-- **符号形态**：`toLongbridgeSymbol`（`src/rest.ts:52-63`）——`00700.HK` 与裸 1–5 位数字都补零
+  `1m/5m/15m/30m/**60m**/day/week/month`（`src/rest.ts:43-55`）。
+- **表外周期显式拒绝**：`@dshtrading/api` 的 `Interval` 有 15 档（`packages/api/src/index.ts:25-40`），
+  本包只服务 8 档。`assertSupportedInterval`（`src/rest.ts:34-41`）是唯一闸门，签名是类型断言
+  `asserts interval is SupportedInterval`（`SupportedInterval` 为词汇表联合，`src/rest.ts:26-27`），
+  所以 `toLongbridgePeriod`（`src/rest.ts:43-55`）与 `parseIntervalMs`（`src/rest.ts:57-69`）过闸门后
+  的 `switch` 对收窄联合穷尽，两条路径都返回 `string` / `number`，表外周期不再产出 `undefined`。
+  拒绝码是 `TRADING_UNSUPPORTED_INTERVAL`，消息为
+  `Longbridge upstream does not serve interval "<interval>"; supported: 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1M`。
+  `getKlines` 在取 period 之前先过闸门（`src/rest.ts:204`），服务直调传表外周期在发出任何请求
+  之前就抛（测试断言出站 URL 数为 0）。工具面的 enum 也只有这 8 个（`src/index.ts:240`）。
+- **为什么不映射 `3m` / `2h` / `4h`**：官方文档有两套互相矛盾的口径。现代口径（objects 页 Period
+  定义表、proto `quote/api.proto`、Node/Rust/Python SDK 枚举、官方 skills 字符串表）共 18 个周期，
+  **含** `3 Minutes` / `Two Hours` / `Four Hours`（字符串 `3m` / `120m` / `240m`）；旧口径（CLI 文档、
+  Go SDK 注释、objects 页 Protobuf 代码块）只承认 `1m/5m/15m/30m/60m/day/week/month/year`。
+  `6h/8h/12h/3d` 在任何口径里都不存在。更关键的是 **K 线在官方 REST 参考里没有登记 HTTP 端点**
+  （官方 39 个登记了 `HTTP URL` 的接口里没有 `/v1/quote/candlesticks`，candlestick 页只给
+  gRPC/protobuf 接口），本包打的这条路径属**文档未载**，「官方文档所述」的 period 字面量在本仓
+  无凭证、未实测。所以本轮不新增映射：本地清晰拒绝优于依赖未实证的上游行为。
+- **符号形态**：`toLongbridgeSymbol`（`src/rest.ts:71-82`）——`00700.HK` 与裸 1–5 位数字都补零
   到 5 位并加 `.HK`；其余只 trim + 大写、**无形态白名单**（美股代码原样透传，与 futu 的
   `normalizeUsSymbol` 不同）。
 - **签名规范**：`generateLongbridgeSignature` 拼 `METHOD\nPATH\ncanonicalHeaders\nsignedHeaders\nbodyHash`
-  后 HMAC-SHA256（`src/rest.ts:65-86`），`signedHeaders` 恒为
-  `authorization;x-api-key;x-timestamp`（第 78 行），body 的 SHA-256 进规范串（第 80 行）。
-- **错误映射**：HTTP 非 2xx → `TRADING_UPSTREAM_ERROR`（`src/rest.ts:147`）；请求抛错 →
-  `TRADING_NETWORK`（第 152-156 行）；行情 `code !== 0` 或空数组 → `TRADING_SYMBOL_NOT_FOUND`
-  （第 168 行）；K 线 `code !== 0` 或没有 `candlesticks` → **返回空数组（静默降级，第 203-205 行）**；
-  资产/持仓/下单/撤单 `code !== 0` → `TRADING_EXCHANGE_ERROR`（第 238、312、337 行）；
-  缺 appKey 或 accessToken（资产与交易面）→ `TRADING_AUTH_FAILED`（第 223、254、290、330 行）。
-- **无本地超时**：`requestJson` 不设 `AbortController`/超时（`src/rest.ts:111-158`），
+  后 HMAC-SHA256（`src/rest.ts:84-105`），`signedHeaders` 恒为
+  `authorization;x-api-key;x-timestamp`（第 97 行），body 的 SHA-256 进规范串（第 99 行）。
+- **错误映射**：HTTP 非 2xx → `TRADING_UPSTREAM_ERROR`（`src/rest.ts:166`）；请求抛错 →
+  `TRADING_NETWORK`（第 171-175 行）；行情 `code !== 0` 或空数组 → `TRADING_SYMBOL_NOT_FOUND`
+  （第 187 行）；K 线 `code !== 0` 或没有 `candlesticks` → **返回空数组（静默降级，第 223-225 行）**；
+  资产/持仓/下单/撤单 `code !== 0` → `TRADING_EXCHANGE_ERROR`（第 258、332、357 行）；
+  缺 appKey 或 accessToken（资产与交易面）→ `TRADING_AUTH_FAILED`（第 243、274、310、350 行）。
+- **无本地超时**：`requestJson` 不设 `AbortController`/超时（`src/rest.ts:130-177`），
   上游无响应时请求没有连接器侧上限（与 futu 的 10 s 不同）。
 - **服务类字段用 TS 编译期 `private`**（禁 ECMAScript `#`，cordis realm 代理会炸）。
 
@@ -153,30 +164,31 @@
 - **未实证项**：全部端点、签名是否被上游接受、真机错误码分布、`code` 字段的实际取值约定，
   均未经真机核对。`spikes/impl-service-seam-gate/NET-VERIFY.md:36` 明确记录未对券商网关做真实下单验证。
 - **`env` 不改变地址**：`env: 'demo'` 只进意图台账作用域（`src/index.ts:122-126`），
-  基地址恒为 `openapi.longportapp.com`（`src/rest.ts:104`）。即实盘放行后，
+  基地址恒为 `openapi.longportapp.com`（`src/rest.ts:123`）。即实盘放行后，
   `env` 仍为 `demo` 的部署也会把订单发往**生产**端点。
 - **`getOrder` 未实现**：`TradeService` 要求它（`packages/api/src/index.ts:839`），
   `LongbridgeTradeService` 没有该方法（`src/index.ts:104-198` 全文无 `getOrder`）。消费方
   按契约调用会得到 `undefined is not a function` 形态的失败——**该运行期后果未实证**。
 - **`getBalance` / `getPositions` 返回形状与契约不符**：`getBalance` 返回
-  `{currency, available, total}`（`src/rest.ts:245-249`），而 `AccountBalance` 是
+  `{currency, available, total}`（`src/rest.ts:265-269`），而 `AccountBalance` 是
   `{asset, free, locked}`（`packages/api/src/index.ts:578-582`）；`getPositions` 每行返回
-  `{symbol, quantity, entryPrice, unrealizedPnl}`（`src/rest.ts:276-281`），而 `Position` 要求
+  `{symbol, quantity, entryPrice, unrealizedPnl}`（`src/rest.ts:296-301`），而 `Position` 要求
   `{symbol, side, size, entryPrice, timestamp}`（`packages/api/src/index.ts:499-520`）。
   消费方按契约字段读会读到 `undefined`（**运行期表现未实证**）。
-- **行情面无凭证也发请求**：`getTicker` / `getKlines` 不做凭证前置检查（`src/rest.ts:160-219`），
+- **行情面无凭证也发请求**：`getTicker` / `getKlines` 不做凭证前置检查（`src/rest.ts:179-239`），
   三凭证缺失时请求照发（只是不带 `authorization` / `x-api-key` / `x-api-signature` 头）。
-  只有资产与交易面在缺凭证时抛 `TRADING_AUTH_FAILED`（`src/rest.ts:222-224`、`253-255`、`289-291`、`329-331`）。
-- **K 线失败静默转空数组**：`code !== 0` 与「确实无数据」在 `getKlines` 里不可区分（`src/rest.ts:203-205`）。
-- **无本地超时**（`src/rest.ts:111-158`）。
-- **未登记周期无显式拒绝**：服务直调传 `4h` 等未映射周期不会抛 `TRADING_UNSUPPORTED_INTERVAL`，
-  而是带 `undefined` 出站（`src/rest.ts:26-37`；工具面已由 enum 收窄，见「周期与契约」）。
+  只有资产与交易面在缺凭证时抛 `TRADING_AUTH_FAILED`（`src/rest.ts:243-245`、`274-276`、`310-312`、`350-352`）。
+- **K 线失败静默转空数组**：`code !== 0` 与「确实无数据」在 `getKlines` 里不可区分（`src/rest.ts:223-225`）。
+- **`candlesticks[].timestamp` 按 Unix 秒解析**：解析处为 `c.timestamp * 1000`（`src/rest.ts:228`）、
+  `closeTime = openTime + stepMs - 1`（第 236 行）。「官方文档所述」所有时间字段用 Unix Timestamp
+  且官方示例为 10 位值，故秒转毫秒与上游口径一致；该口径**未经真机核对**（见「未实证项」）。
+- **无本地超时**（`src/rest.ts:130-177`）。
 - **`getOrders` 恒空**（`src/index.ts:195-197`）：空数组在消费方读作「无挂单」，而不是「本包不支持」。
 - **持仓面有服务、无工具**：`getPositions` 只经 `tradingHkTrade` 服务可达（`src/index.ts:191-193`），
   工具面没有对应的 `hk_get_positions`。
 - **交易面不进交易注册表**：`src/dataplane.ts` 全文件没有 `tradingTradeRegistry`，注册表里没有
   `(hk, longbridge)` 交易条目；读该注册表的消费方看不到本包的交易服务。
-- **`baseUrl` 环境变量在插件路径下被绕过**：`LONGBRIDGE_API_URL`（`src/rest.ts:104`）只在
+- **`baseUrl` 环境变量在插件路径下被绕过**：`LONGBRIDGE_API_URL`（`src/rest.ts:123`）只在
   直连 `LongbridgeRestClient` 且不传 `baseUrl` 时命中；`apply` 传的是
   `{appKey, appSecret, accessToken}`（`src/index.ts:216-217`），不含 `baseUrl`，所以环境变量
   在本路径下确实生效——但 `Config` 里**没有**可配置的基地址字段，改地址只能改环境变量。

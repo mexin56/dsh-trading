@@ -193,7 +193,7 @@ export function apply(ctx: Context, config: Config): void {
 
     register(defineTool({
       name: 'us_get_klines',
-      description: 'Get recent public klines for a US stock via FMP API. Supports 1m/5m/15m/30m/1h/4h/1d/1w/1M.',
+      description: 'Get recent public klines for a US stock via FMP API. Supports 1m/5m/15m/30m/1h/4h/1d; other intervals are rejected with TRADING_UNSUPPORTED_INTERVAL.',
       parameters: {
         symbol: { type: 'string', required: true, description: 'US stock symbol, e.g. AAPL' },
         interval: { type: 'string', enum: INTERVAL_VOCABULARY, default: '1d', description: 'Interval' },

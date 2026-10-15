@@ -1,8 +1,17 @@
+/**
+ * 长桥连接器 REST 层测试：符号归一、周期词汇与映射、签名、行情与交易面。
+ *
+ * 零 mock 纪律：HTTP 面用**注入的 fetchImpl 真实函数**（连接器自带的依赖注入缝
+ * `LongbridgeRestOptions.fetchImpl`，见 `packages/connector-xysz/test/rest.test.ts:1-6`），
+ * 不是通用 mock 工具；断言的是连接器对外契约。
+ */
 import { describe, expect, it } from 'vitest'
 import {
+  assertSupportedInterval,
   generateLongbridgeSignature,
   INTERVAL_VOCABULARY,
   LongbridgeRestClient,
+  parseIntervalMs,
   toLongbridgePeriod,
   toLongbridgeSymbol,
 } from '../src/rest.js'
@@ -40,6 +49,115 @@ describe('LongbridgeRestClient 符号与周期映射', () => {
     expect(toLongbridgePeriod('1h')).toBe('60m')
     expect(toLongbridgePeriod('1d')).toBe('day')
     expect(toLongbridgePeriod('1w')).toBe('week')
+  })
+
+  it('用户读到的 Longbridge 周期词汇表恰好是这 8 档', () => {
+    // Given: 本包声明的 Longbridge K 线周期词汇
+    // When: 读取 INTERVAL_VOCABULARY
+    // Then: 只有 8 档，且不含长桥任何口径下都不存在的周期
+    expect(INTERVAL_VOCABULARY).toEqual(['1m', '5m', '15m', '30m', '1h', '1d', '1w', '1M'])
+    expect(INTERVAL_VOCABULARY as readonly string[]).not.toContain('4h')
+    expect(INTERVAL_VOCABULARY as readonly string[]).not.toContain('3d')
+  })
+
+  it('用户把 8 档周期逐档映射为 Longbridge period', () => {
+    // Given: INTERVAL_VOCABULARY 的 8 档受支持周期
+    // When: 逐档调用 toLongbridgePeriod
+    // Then: 每档都给出确定的上游 period，无 undefined
+    expect(toLongbridgePeriod('1m')).toBe('1m')
+    expect(toLongbridgePeriod('5m')).toBe('5m')
+    expect(toLongbridgePeriod('15m')).toBe('15m')
+    expect(toLongbridgePeriod('30m')).toBe('30m')
+    expect(toLongbridgePeriod('1h')).toBe('60m')
+    expect(toLongbridgePeriod('1d')).toBe('day')
+    expect(toLongbridgePeriod('1w')).toBe('week')
+    expect(toLongbridgePeriod('1M')).toBe('month')
+  })
+
+  it('用户把 8 档周期逐档换算为毫秒步长', () => {
+    // Given: INTERVAL_VOCABULARY 的 8 档受支持周期
+    // When: 逐档调用 parseIntervalMs
+    // Then: 每档都给出确定的正毫秒数，无 NaN
+    expect(parseIntervalMs('1m')).toBe(60 * 1000)
+    expect(parseIntervalMs('5m')).toBe(5 * 60 * 1000)
+    expect(parseIntervalMs('15m')).toBe(15 * 60 * 1000)
+    expect(parseIntervalMs('30m')).toBe(30 * 60 * 1000)
+    expect(parseIntervalMs('1h')).toBe(60 * 60 * 1000)
+    expect(parseIntervalMs('1d')).toBe(24 * 60 * 60 * 1000)
+    expect(parseIntervalMs('1w')).toBe(7 * 24 * 60 * 60 * 1000)
+    expect(parseIntervalMs('1M')).toBe(30 * 24 * 60 * 60 * 1000)
+  })
+
+  it('用户请求表外周期时映射函数逐档显式抛码', () => {
+    // Given: 不属于 8 档词汇表的 7 个 API 周期
+    // When: 逐档调用 toLongbridgePeriod 与 parseIntervalMs
+    // Then: 每一档都抛 TRADING_UNSUPPORTED_INTERVAL，而不是返回 undefined
+    expect(() => toLongbridgePeriod('3m')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('2h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('4h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('6h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('8h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('12h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('3d')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('3m')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('2h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('4h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('6h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('8h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('12h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => parseIntervalMs('3d')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+    expect(() => toLongbridgePeriod('4h')).toThrowError(/does not serve interval "4h"; supported: 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1M/)
+  })
+
+  it('用户直接调用周期闸门时按词汇表放行并拒绝表外周期', () => {
+    // Given: 8 档受支持周期中的代表值与表外值
+    // When: 直接调用 assertSupportedInterval
+    // Then: 表内不抛，表外抛码
+    expect(() => assertSupportedInterval('1m')).not.toThrow()
+    expect(() => assertSupportedInterval('1M')).not.toThrow()
+    expect(() => assertSupportedInterval('4h')).toThrowError(expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }))
+  })
+})
+
+describe('LongbridgeRestClient.getKlines', () => {
+  it('用户直调服务传表外周期时不出网即被拒绝', async () => {
+    // Given: 一个记录全部出站 URL 的注入式 fetch 与表外周期 4h
+    const { impl, urls } = stubFetch([
+      { match: '/v1/quote/candlesticks', body: { code: 0, data: { candlesticks: [] } } },
+    ])
+    const client = new LongbridgeRestClient({ fetchImpl: impl, accessToken: 'token-xyz' })
+    // When: 服务直调 getKlines('00700.HK', '4h')
+    // Then: 抛 TRADING_UNSUPPORTED_INTERVAL，且一个请求都没发出（不降级成 period=undefined）
+    await expect(client.getKlines('00700.HK', '4h')).rejects.toThrowError(
+      expect.objectContaining({ code: 'TRADING_UNSUPPORTED_INTERVAL' }),
+    )
+    expect(urls).toHaveLength(0)
+  })
+
+  it('用户拉取受支持周期的 K 线时按秒转毫秒并算出 closeTime', async () => {
+    // Given: 上游返回 10 位秒级 timestamp 的一根 1h K 线
+    const { impl, urls } = stubFetch([
+      {
+        match: '/v1/quote/candlesticks',
+        body: {
+          code: 0,
+          data: {
+            candlesticks: [
+              { open: '385.0', close: '386.5', high: '387.0', low: '384.5', volume: '12000', timestamp: 1725000000 },
+            ],
+          },
+        },
+      },
+    ])
+    const client = new LongbridgeRestClient({ fetchImpl: impl, accessToken: 'token-xyz' })
+    // When: 拉取 1h K 线
+    const klines = await client.getKlines('00700.HK', '1h')
+    // Then: 请求带 period=60m，时间戳从秒转成毫秒，closeTime 为开盘时刻加一个周期减 1 ms
+    expect(urls[0]).toContain('period=60m')
+    expect(klines).toHaveLength(1)
+    expect(klines[0].openTime).toBe(1725000000000)
+    expect(klines[0].closeTime).toBe(1725000000000 + 60 * 60 * 1000 - 1)
+    expect(klines[0].close).toBe(386.5)
   })
 })
 

@@ -23,7 +23,25 @@ export class TradingServiceError extends Error {
 
 export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '1d', '1w', '1M'] as const
 
+/** `INTERVAL_VOCABULARY` 的类型面：调用方在断言后即可按穷尽联合处理周期。 */
+export type SupportedInterval = (typeof INTERVAL_VOCABULARY)[number]
+
+/**
+ * 周期闸门：`@dshtrading/api` 的 `Interval` 有 15 档，本包只覆盖 8 档，表外 7 档
+ * （3m/2h/4h/6h/8h/12h/3d）显式抛 `TRADING_UNSUPPORTED_INTERVAL`，不静默降级。
+ * 理由：长桥 K 线在本包使用的 HTTP 路径上属文档未载，上游 `period` 接受什么字面量无凭证可测。
+ */
+export function assertSupportedInterval(interval: Interval): asserts interval is SupportedInterval {
+  if (!(INTERVAL_VOCABULARY as readonly string[]).includes(interval)) {
+    throw new TradingServiceError(
+      'TRADING_UNSUPPORTED_INTERVAL',
+      'Longbridge upstream does not serve interval "' + interval + '"; supported: ' + INTERVAL_VOCABULARY.join(', '),
+    )
+  }
+}
+
 export function toLongbridgePeriod(interval: Interval): string {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return '1m'
     case '5m': return '5m'
@@ -37,6 +55,7 @@ export function toLongbridgePeriod(interval: Interval): string {
 }
 
 export function parseIntervalMs(interval: Interval): number {
+  assertSupportedInterval(interval)
   switch (interval) {
     case '1m': return 60 * 1000
     case '5m': return 5 * 60 * 1000
@@ -182,6 +201,7 @@ export class LongbridgeRestClient {
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
+    assertSupportedInterval(interval)
     const { symbol: lbSymbol } = toLongbridgeSymbol(symbol)
     const period = toLongbridgePeriod(interval)
     const stepMs = parseIntervalMs(interval)

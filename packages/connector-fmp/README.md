@@ -40,35 +40,39 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 
 ## 上游端点
 
-基址 `https://financialmodelingprep.com/api/v3`（`src/rest.ts:74`）；API key 以 `apikey=` 查询参数附加（`src/rest.ts:81`）。
+基址 `https://financialmodelingprep.com/api/v3`（`src/rest.ts:92`）；API key 以 `apikey=` 查询参数附加（`src/rest.ts:99`）。
 
 | 用途 | 端点 | 源码 |
 |---|---|---|
-| 报价 | `GET /quote/<SYM>` | `src/rest.ts:103` |
-| 分钟/小时 K 线 | `GET /historical-chart/<1min\|5min\|15min\|30min\|1hour\|4hour>/<SYM>` | `src/rest.ts:128-130` |
-| 日线 K 线 | `GET /historical-price-full/<SYM>?timeseries=<limit>` | `src/rest.ts:147-149` |
-| 公司简介 | `GET /profile/<SYM>` | `src/rest.ts:168` |
-| 标的检索 | `GET /search?query=<query>&limit=10` | `src/rest.ts:174` |
+| 报价 | `GET /quote/<SYM>` | `src/rest.ts:121` |
+| 分钟/小时 K 线 | `GET /historical-chart/<1min\|5min\|15min\|30min\|1hour\|4hour>/<SYM>` | `src/rest.ts:149-151` |
+| 日线 K 线 | `GET /historical-price-full/<SYM>?timeseries=<limit>` | `src/rest.ts:168-170` |
+| 公司简介 | `GET /profile/<SYM>` | `src/rest.ts:189` |
+| 标的检索 | `GET /search?query=<query>&limit=10` | `src/rest.ts:195` |
 
 ## 周期与契约
 
-- **周期词汇** `1m/5m/15m/30m/1h/4h/1d/1w/1M`（`src/rest.ts:28`），分钟/小时映射
-  `1min/5min/15min/30min/1hour/4hour`（`src/rest.ts:30-40`）。工具参数的 enum 直接用该词汇表
-  （`src/index.ts:199`），表外周期在工具参数校验处即被拒。
-- **日内与日线走两条上游路径**：`1m/5m/15m/30m/1h/4h` 走 `/historical-chart`（`src/rest.ts:123,128-130`），
-  **`1d/1w/1M` 全部走 `/historical-price-full` 日线**（`src/rest.ts:147-149`）——因为 `toFmpInterval`
-  的 `default` 分支只产出 `1day`（`src/rest.ts:38`）。因此请求 `1w`/`1M` 拿到的是**日线序列**，
-  只有 `closeTime` 按周/月步长标注（`src/rest.ts:152-162`）；要真周/月线需另接上游端点。
-- **K 线根数与顺序**：日内路径取上游前 `limit` 行再 `reverse()`（上游新到旧，`src/rest.ts:132`）；
-  日线路径 `reverse()` 后取末 `limit` 行（`src/rest.ts:151`）；两条路径都在上游返回非数组时静默返回 `[]`
-  （`src/rest.ts:131,150`）。
-- **符号形态**：`trim()` + 大写，只做规范化、不校验美股形态（`src/rest.ts:56-60`）；空串抛
+- **周期词汇恰为 7 档真实支持集** `1m/5m/15m/30m/1h/4h/1d`（`src/rest.ts:29`）；6 个日内档映射到
+  `1min/5min/15min/30min/1hour/4hour`，日线映射到 `1day`（`src/rest.ts:48-59`）。工具参数的 enum 直接用该
+  词汇表（`src/index.ts:199`），表外周期在工具参数校验处即被拒。
+- **表外周期显式抛 `TRADING_UNSUPPORTED_INTERVAL`，不静默降级**：`assertSupportedInterval` 对不在词汇表内的
+  周期抛码，消息列出受支持集（`src/rest.ts:39-46`）；`toFmpInterval` 与 `parseIntervalMs` 都先过该闸门
+  （`src/rest.ts:49,62`）。规范 `Interval` 是 15 档联合（`packages/api/src/index.ts:25-40`），比 FMP 上游能力宽——
+  `3m/2h/6h/8h/12h/3d/1w/1M` 在本包一律被拒。
+- **`getKlines` 在分支判定之前就过闸门**（`src/rest.ts:140-142`）：`toFmpInterval` 只在日内分支被调用，
+  表外周期若只靠它把关，会因 `isIntraday=false` 绕过并静默落到日线端点。
+- **日内与日线走两条上游路径**：`1m/5m/15m/30m/1h/4h` 走 `/historical-chart`（`src/rest.ts:144,149-151`），
+  `1d` 走 `/historical-price-full` 日线（`src/rest.ts:168-170`）。
+- **K 线根数与顺序**：日内路径取上游前 `limit` 行再 `reverse()`（上游新到旧，`src/rest.ts:153`）；
+  日线路径 `reverse()` 后取末 `limit` 行（`src/rest.ts:172`）；两条路径都在上游返回非数组时静默返回 `[]`
+  （`src/rest.ts:152,171`）。
+- **符号形态**：`trim()` + 大写，只做规范化、不校验美股形态（`src/rest.ts:74-78`）；空串抛
   `TRADING_INVALID_ARGUMENT`。
-- **报价取值**：`/quote` 返回非数组或空数组 → `TRADING_SYMBOL_NOT_FOUND`（`src/rest.ts:104-106`）；
-  取首行，`price` 非 number 时回落 `0`、`volume` 非 number 时回落 `0`（`src/rest.ts:109-110`），
-  `timestamp`（秒）转毫秒、缺失时回落 `Date.now()`（`src/rest.ts:111`）。
-- **错误映射**：上游非 2xx → `TRADING_UPSTREAM_ERROR`（`src/rest.ts:88`）；`fetch` 抛错
-  （不可达、响应非 JSON 等）→ `TRADING_NETWORK`（`src/rest.ts:93-97`）。错误载体
+- **报价取值**：`/quote` 返回非数组或空数组 → `TRADING_SYMBOL_NOT_FOUND`（`src/rest.ts:122-124`）；
+  取首行，`price` 非 number 时回落 `0`、`volume` 非 number 时回落 `0`（`src/rest.ts:127-128`），
+  `timestamp`（秒）转毫秒、缺失时回落 `Date.now()`（`src/rest.ts:129`）。
+- **错误映射**：上游非 2xx → `TRADING_UPSTREAM_ERROR`（`src/rest.ts:106`）；`fetch` 抛错
+  （不可达、响应非 JSON 等）→ `TRADING_NETWORK`（`src/rest.ts:111-115`）。错误载体
   `TradingServiceError` 携带 `code`（`src/rest.ts:17-26`）。
 - 服务类成员用 TS 编译期 `private`（禁 ECMAScript `#`，cordis realm 代理会炸；`src/index.ts:52,94`）。
 
@@ -86,14 +90,14 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 
 | 方法 | 有/缺席 | 说明 |
 |---|---|---|
-| `MarketDataService.getTicker` | 有 | `src/index.ts:63-65` → `src/rest.ts:101-119` |
-| `MarketDataService.getKlines` | 有 | `src/index.ts:67-69` → `src/rest.ts:121-164` |
+| `MarketDataService.getTicker` | 有 | `src/index.ts:63-65` → `src/rest.ts:119-137` |
+| `MarketDataService.getKlines` | 有 | `src/index.ts:67-69` → `src/rest.ts:139-185` |
 | `MarketDataService.subscribeTicker` | 有 | 快照轮询，`intervalMs` 下限 1000 ms、默认 5000 ms，`dispose()` 清定时器（`src/index.ts:79-87`） |
-| `getProfile`（契约外扩展） | 有 | `src/index.ts:71-73` → `src/rest.ts:166-170`；对应工具 `us_get_company_profile`；上游返回空数组时回落 `{}`（`src/rest.ts:169`） |
-| `MarketDataService.listInstruments`（可选契约方法，`packages/api/src/index.ts:741`） | 有 | `src/index.ts:75-77` → `src/rest.ts:172-177`；本包签名多收一个可选 `query`，返回 `{ symbol, name }` 行而非 `InstrumentRef`；无 query 时直接返回 `[]`；**未注册工具** |
+| `getProfile`（契约外扩展） | 有 | `src/index.ts:71-73` → `src/rest.ts:187-191`；对应工具 `us_get_company_profile`；上游返回空数组时回落 `{}`（`src/rest.ts:190`） |
+| `MarketDataService.listInstruments`（可选契约方法，`packages/api/src/index.ts:741`） | 有 | `src/index.ts:75-77` → `src/rest.ts:193-198`；本包签名多收一个可选 `query`，返回 `{ symbol, name }` 行而非 `InstrumentRef`；无 query 时直接返回 `[]`；**未注册工具** |
 | `MarketDataService.getFundamentals` / `getTickers`（可选契约方法） | 未实现 | 无对应服务方法；报价批量回落逐只 `getTicker` |
 | 新闻 / 盘口 / 分笔 | 未实现 | 本包无对应服务方法与工具（新闻面见 `@dshtrading/kit-us` 的 `us_get_news`） |
-| `TradeService.getBalance` | 有 | 固定返回 `{ currency: 'USD', available: 100000, total: 100000 }`（`src/rest.ts:179-181`），非真实券商余额 |
+| `TradeService.getBalance` | 有 | 固定返回 `{ currency: 'USD', available: 100000, total: 100000 }`（`src/rest.ts:200-202`），非真实券商余额 |
 | `TradeService.placeOrder` | 有 | 服务缝三态闸门（`src/index.ts:109-136`）；无工具入口 |
 | `TradeService.cancelOrder` | 有 | 与真实下单同门槛，可抛 `TRADING_LIVE_TRADING_DISABLED`；放行时返回 `{ orderId, status: 'canceled' }`（`src/index.ts:138-148`）；无工具入口 |
 | `TradeService.getPositions` / `getOrders` | 有 | 恒返回 `[]`（`src/index.ts:150-156`） |
@@ -101,18 +105,20 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 
 ## 已知边界（源码级，未经网络实测）
 
-- **rest 层是 sim stub**：`placeOrder` 恒返回 `dryRun: true` 的模拟回执（`src/rest.ts:183-195`）、
-  `getBalance` 恒 100000（`src/rest.ts:179-181`）；
+- **rest 层是 sim stub**：`placeOrder` 恒返回 `dryRun: true` 的模拟回执（`src/rest.ts:204-216`）、
+  `getBalance` 恒 100000（`src/rest.ts:200-202`）；
   `.agents/notes/implemented/feature/2026-09-01-service-seam-order-gate.md` 第 20 行把本包 rest 层记为
   「模拟 stub」。因此闸门 ③ 即使放行，也不会产生真实券商成交。
-- **`1w`/`1M` 不是真周/月线**：上游路径退化为日线（`src/rest.ts:123,147-149`），只有 `closeTime`
-  按 7 天/30 天步长标注（`src/rest.ts:42-54,152-162`）。周期语义与返回粒度不一致是本包已知偏差。
+- **`1w`/`1M` 已显式拒绝，不再退化为日线**：FMP 上游只有 6 个日内档与日线 EOD，没有原生周/月端点
+  （官方文档所述，本仓未出网实测），官方 how-to 教客户端从日线 resample——本包不做 resample。
+  `assertSupportedInterval` 对表外周期抛 `TRADING_UNSUPPORTED_INTERVAL`（`src/rest.ts:39-46`），
+  `getKlines` 在发出任何请求之前就拦下（`src/rest.ts:142`）。受支持集内，上游给什么粒度本包就标注什么粒度。
 - **无工具层交易面**：本包只注册 3 个行情/资料工具；全仓 `us_place_order` 只出现在 connector-alpaca /
   connector-ibkr / connector-stooq / connector-yahoo。本包 `TradeService` 仅经 `tradingUsTrade`
   服务注入面被调用。
-- **报价缺字段静默回落 0**：`price`/`volume` 非 number 时填 `0` 而不报错（`src/rest.ts:109-110`），
+- **报价缺字段静默回落 0**：`price`/`volume` 非 number 时填 `0` 而不报错（`src/rest.ts:127-128`），
   调用方无法区分「真 0」与「字段缺失」。
-- **检索恒带 `limit=10`**：`/search` 硬编码 `limit=10`（`src/rest.ts:174`），无法取更多候选。
+- **检索恒带 `limit=10`**：`/search` 硬编码 `limit=10`（`src/rest.ts:195`），无法取更多候选。
 - **未实证项**：报价 / K 线 / 简介 / 检索端点的真实响应形态、字段口径、限流与额度表现，本仓均无出网证据。
 
 ## 合规记录
@@ -120,13 +126,13 @@ Financial Modeling Prep 商业数据源美股连接器（`us` 市场，BYOK）�
 - **需自备 API key（BYOK）**：配置只存 ref 名 `FMP_API_KEY`；运行期先取
   `tradingMarketRouter.getCredential('fmp')` 的 `apiKey`，缺失时回落同名环境变量
   （`src/index.ts:172-174`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
-- **key 随查询参数出网**：每次请求把 key 以 `apikey=<key>` 拼进 URL（`src/rest.ts:81`），会进入上游访问
+- **key 随查询参数出网**：每次请求把 key 以 `apikey=<key>` 拼进 URL（`src/rest.ts:99`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源，设置页把该源标为 `type: 'commercial'`
   （`packages/client-ui-settings/src/client/trading-settings-controller.ts:32`）。
 - **免费额度与再分发边界以 FMP 服务条款为准**：本仓不缓存、不再分发任何行情或公司资料数据。
   `docs/guides/connectors-guide.md` 第 34 行列有一句免费额度描述——该数字来自文档而非源码或 spike，
   本仓未复验，**一律以 FMP 官方条款为准**。
-- **公司简介按上游原样透传**：`/profile` 返回首行对象即返回（`src/rest.ts:166-170`），不做字段筛选、不落盘。
+- **公司简介按上游原样透传**：`/profile` 返回首行对象即返回（`src/rest.ts:187-191`），不做字段筛选、不落盘。
 
 ## 出网验证
 
@@ -150,5 +156,5 @@ console.log(JSON.stringify(await client.getProfile('AAPL')))
 "
 ```
 
-未设 `FMP_API_KEY` 时 URL 不会附加 `apikey`（`src/rest.ts:81`），请求照发、由上游裁决，
-非 2xx 一律映射为 `TRADING_UPSTREAM_ERROR`（`src/rest.ts:87-89`）。
+未设 `FMP_API_KEY` 时 URL 不会附加 `apikey`（`src/rest.ts:99`），请求照发、由上游裁决，
+非 2xx 一律映射为 `TRADING_UPSTREAM_ERROR`（`src/rest.ts:105-107`）。

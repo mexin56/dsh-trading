@@ -40,31 +40,41 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 
 ## 上游端点
 
-基址 `https://api.polygon.io`（`src/rest.ts:76`）；API key 以 `apiKey=` 查询参数附加（`src/rest.ts:83`）。
+基址 `https://api.polygon.io`（`src/rest.ts:96`）；API key 以 `apiKey=` 查询参数附加（`src/rest.ts:103`）。
 
 | 用途 | 端点 | 源码 |
 |---|---|---|
-| 报价（上一交易日聚合） | `GET /v2/aggs/ticker/<SYM>/prev` | `src/rest.ts:118` |
-| K 线 | `GET /v2/aggs/ticker/<SYM>/range/<multiplier>/<timespan>/<from>/<to>?limit=<limit>&sort=asc` | `src/rest.ts:149` |
-| 标的资料 | `GET /v3/reference/tickers/<SYM>` | `src/rest.ts:168` |
+| 报价（上一交易日收盘聚合，默认 `adjusted=true` 复权；`t` 为聚合窗口起点 Unix 毫秒） | `GET /v2/aggs/ticker/<SYM>/prev` | `src/rest.ts:141` |
+| K 线 | `GET /v2/aggs/ticker/<SYM>/range/<multiplier>/<timespan>/<from>/<to>?limit=<limit>&sort=asc` | `src/rest.ts:173` |
+| 标的资料 | `GET /v3/reference/tickers/<SYM>` | `src/rest.ts:192` |
 
 ## 周期与契约
 
-- **周期词汇** `1m/5m/15m/30m/1h/4h/1d/1w/1M`（`src/rest.ts:28`），映射到 Polygon
+- **周期词汇** `1m/5m/15m/30m/1h/4h/1d/1w/1M`（`src/rest.ts:29`），映射到 Polygon
   `multiplier/timespan`：分钟 1/5/15/30，小时 1/4，日/周/月 1 day / 1 week / 1 month
-  （`src/rest.ts:30-42`）。**周线与月线是上游原生粒度**（与 connector-fmp 的日线退化不同）。
-  工具参数的 enum 直接用该词汇表（`src/index.ts:195`），表外周期在工具参数校验处即被拒。
-- **报价是「上一交易日聚合」，不是实时报价**：`getTicker` 打的是 `/prev`（`src/rest.ts:118`），
+  （`src/rest.ts:48-61`）。**周线与月线是上游原生粒度**（与 connector-fmp 的日线退化不同）。
+  `toPolygonTimespan` / `parseIntervalMs` 先过 `assertSupportedInterval`（`src/rest.ts:39-46`）：
+  与 connector-xysz 同**错误码与消息风格**，但签名不同——xysz 那支是 `: void`
+  （`packages/connector-xysz/src/rest.ts:34`），本包是类型断言
+  `asserts interval is SupportedInterval`，把 `interval` 收窄到 9 档联合，使下游 `switch` 穷尽、
+  不留产出 `undefined` 的路径。**表外周期（`3m/2h/6h/8h/12h/3d`）显式抛
+  `TRADING_UNSUPPORTED_INTERVAL`**；`getKlines` 顶部同样先过闸
+  （`src/rest.ts:157`），表外周期在发请求之前就抛。工具参数的 enum 直接用该词汇表
+  （`src/index.ts:195`），表外周期在工具参数校验处即被拒。
+- **报价是「上一交易日聚合」，不是实时报价**：`getTicker` 打的是 `/prev`（`src/rest.ts:141`），
   返回体 `results[0]` 的 `c/h/l/o/v/t` 即价格与上一交易日成交量；`Ticker.timestamp` 直接取 `row.t`
-  （Polygon 给毫秒时间戳，不做秒转毫秒，`src/rest.ts:124-130`）。
-- **K 线窗口**：`to = 今天`、`from = 今天 - limit × 周期毫秒 × 2`，都是 `YYYY-MM-DD`（`src/rest.ts:137-138`），
-  `limit` 原样透传给上游（`src/rest.ts:149`）；`results` 缺失或非数组时静默返回 `[]`（`src/rest.ts:151-153`），
-  `closeTime = t + 周期 - 1 ms`（`src/rest.ts:162`）。
-- **符号形态**：`trim()` + 大写，只做规范化、不校验美股形态（`src/rest.ts:58-62`）；空串抛
+  （`src/rest.ts:147-153`）。已核对官方字段定义：`/prev` = Previous Close，返回**上一交易日**的
+  OHLC 聚合，默认 `adjusted=true` → `c` 是**复权**价；`results[].t` 是聚合窗口起点的 **Unix 毫秒**，
+  与本仓 `Ticker.timestamp` 的 epoch ms 契约一致，**无需秒→毫秒换算**。该语义已写进
+  `us_get_ticker` 的工具描述（`src/index.ts:182`），工具不再暗示实时报价。
+- **K 线窗口**：`to = 今天`、`from = 今天 - limit × 周期毫秒 × 2`，都是 `YYYY-MM-DD`（`src/rest.ts:161-162`），
+  `limit` 原样透传给上游（`src/rest.ts:173`）；`results` 缺失或非数组时静默返回 `[]`（`src/rest.ts:175-177`），
+  `closeTime = t + 周期 - 1 ms`（`src/rest.ts:186`）。
+- **符号形态**：`trim()` + 大写，只做规范化、不校验美股形态（`src/rest.ts:78-82`）；空串抛
   `TRADING_INVALID_ARGUMENT`。
-- **报价取值**：`results` 缺失或空数组 → `TRADING_SYMBOL_NOT_FOUND`（`src/rest.ts:120-122`）。
-- **错误映射**：上游非 2xx → `TRADING_UPSTREAM_ERROR`，消息带 HTTP 状态与 `statusText`（`src/rest.ts:90-92`）；
-  `fetch` 抛错（不可达、响应非 JSON 等）→ `TRADING_NETWORK`（`src/rest.ts:96-100`）。错误载体
+- **报价取值**：`results` 缺失或空数组 → `TRADING_SYMBOL_NOT_FOUND`（`src/rest.ts:143-145`）。
+- **错误映射**：上游非 2xx → `TRADING_UPSTREAM_ERROR`，消息带 HTTP 状态与 `statusText`（`src/rest.ts:110-112`）；
+  `fetch` 抛错（不可达、响应非 JSON 等）→ `TRADING_NETWORK`（`src/rest.ts:114-120`）。错误载体
   `TradingServiceError` 携带 `code`（`src/rest.ts:17-26`）。
 - 服务类成员用 TS 编译期 `private`（禁 ECMAScript `#`，cordis realm 代理会炸；`src/index.ts:52,90`）。
 
@@ -82,13 +92,13 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 
 | 方法 | 有/缺席 | 说明 |
 |---|---|---|
-| `MarketDataService.getTicker` | 有 | `src/index.ts:63-65` → `src/rest.ts:104-131`；底层是 `/prev` 上一交易日聚合 |
-| `MarketDataService.getKlines` | 有 | `src/index.ts:67-69` → `src/rest.ts:133-164` |
+| `MarketDataService.getTicker` | 有 | `src/index.ts:63-65` → `src/rest.ts:124-154`；底层是 `/prev` 上一交易日收盘聚合 |
+| `MarketDataService.getKlines` | 有 | `src/index.ts:67-69` → `src/rest.ts:156-188`（顶部过周期闸，`src/rest.ts:157`） |
 | `MarketDataService.subscribeTicker` | 有 | 快照轮询，`intervalMs` 下限 1000 ms、默认 5000 ms，`dispose()` 清定时器（`src/index.ts:75-83`） |
-| `getDetails`（契约外扩展） | 有 | `src/index.ts:71-73` → `src/rest.ts:166-170`（内部方法名 `getTickerDetails`）；对应工具 `us_get_ticker_details`；上游无 `results` 时回落 `{}`（`src/rest.ts:169`） |
+| `getDetails`（契约外扩展） | 有 | `src/index.ts:71-73` → `src/rest.ts:190-194`（内部方法名 `getTickerDetails`）；对应工具 `us_get_ticker_details`；上游无 `results` 时回落 `{}`（`src/rest.ts:193`） |
 | `MarketDataService.listInstruments`（可选契约方法，`packages/api/src/index.ts:741`） | **缺席** | 无名册端点实现；`/v3/reference/tickers` 需按符号单取 |
 | `MarketDataService.getFundamentals` / `getTickers`（可选契约方法） | 未实现 | 无对应服务方法；报价批量回落逐只 `getTicker` |
-| `TradeService.getBalance` | 有 | 固定返回 `{ currency: 'USD', available: 100000, total: 100000 }`（`src/rest.ts:172-174`），非真实券商余额 |
+| `TradeService.getBalance` | 有 | 固定返回 `{ currency: 'USD', available: 100000, total: 100000 }`（`src/rest.ts:196-198`），非真实券商余额 |
 | `TradeService.placeOrder` | 有 | 服务缝三态闸门（`src/index.ts:105-132`）；无工具入口 |
 | `TradeService.cancelOrder` | 有 | 与真实下单同门槛，可抛 `TRADING_LIVE_TRADING_DISABLED`；放行时返回 `{ orderId, status: 'canceled' }`（`src/index.ts:134-144`）；无工具入口 |
 | `TradeService.getPositions` / `getOrders` | 有 | 恒返回 `[]`（`src/index.ts:146-152`） |
@@ -96,10 +106,16 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 
 ## 已知边界（源码级，未经网络实测）
 
-- **报价语义是上一交易日**：底层打 `/v2/aggs/ticker/<SYM>/prev`（`src/rest.ts:118`），
-  所以 `price` 是上一交易日收盘聚合、`volume` 是上一交易日成交量，不能当盘中最新价用。
-- **rest 层是 sim stub**：`placeOrder` 恒返回 `dryRun: true` 的模拟回执（`src/rest.ts:176-188`）、
-  `getBalance` 恒 100000（`src/rest.ts:172-174`）；
+- **报价语义是上一交易日收盘聚合**：底层打 `/v2/aggs/ticker/<SYM>/prev`（`src/rest.ts:141`），
+  所以 `price` 是上一交易日收盘聚合、默认 `adjusted=true` 的复权价，`volume` 是上一交易日成交量，
+  不能当盘中最新价用。该语义已由 `us_get_ticker` 的工具描述显式声明（`src/index.ts:182`），
+  工具面不再暗示实时报价；`timestamp` 是聚合窗口起点的 Unix 毫秒，不需要换算。
+  **未改端点的理由**（官方文档所述，本仓未出网实测）：免费 Basic 档下实时快照
+  `/v2/snapshot/...`、`/v2/last/trade`、`/v2/last/nbbo` 全部 Not included；延迟档从 Starter $29
+  起（15 分钟延迟），`/v2/last/trade` 需 Developer $79，NBBO 需 Advanced $199；且这些端点的
+  时间字段是纳秒（需 `/1e6` 换算）。本机无 `POLYGON_API_KEY`，替换端点也拿不到真实响应证据。
+- **rest 层是 sim stub**：`placeOrder` 恒返回 `dryRun: true` 的模拟回执（`src/rest.ts:200-212`）、
+  `getBalance` 恒 100000（`src/rest.ts:196-198`）；
   `.agents/notes/implemented/feature/2026-09-01-service-seam-order-gate.md` 第 20 行把本包 rest 层记为
   「模拟 stub」。因此闸门 ③ 即使放行，也不会产生真实券商成交。
 - **盘口未接**：`spikes/impl-orderbook-ticks/EVIDENCE.md` 第 32 行记明 us 盘口（含 polygon）未实现，
@@ -108,8 +124,8 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **无工具层交易面**：本包只注册 3 个行情/资料工具；全仓 `us_place_order` 只出现在 connector-alpaca /
   connector-ibkr / connector-stooq / connector-yahoo。本包 `TradeService` 仅经 `tradingUsTrade`
   服务注入面被调用。
-- **K 线窗口在短周期上偏窄**：`from = 今天 - limit × 周期毫秒 × 2`（`src/rest.ts:138`）只是请求下界，
-  真实可取根数由上游历史深度与账号权限裁决；`limit` 原样透传，超限由服务端处理（`src/rest.ts:149`）。
+- **K 线窗口在短周期上偏窄**：`from = 今天 - limit × 周期毫秒 × 2`（`src/rest.ts:162`）只是请求下界，
+  真实可取根数由上游历史深度与账号权限裁决；`limit` 原样透传，超限由服务端处理（`src/rest.ts:173`）。
 - **未实证项**：`/prev`、`/range`、`/v3/reference/tickers` 的真实响应形态、字段口径、限流与额度表现，
   本仓均无出网证据。
 
@@ -118,13 +134,13 @@ Polygon.io（Massive）商业数据源美股连接器（`us` 市场，BYOK），
 - **需自备 API key（BYOK）**：配置只存 ref 名 `POLYGON_API_KEY`；运行期先取
   `tradingMarketRouter.getCredential('polygon')` 的 `apiKey`，缺失时回落同名环境变量
   （`src/index.ts:168-170`；数据面行同法，`src/dataplane.ts:29`）。本仓不内置、不落库、不打印 key。
-- **key 随查询参数出网**：每次请求把 key 以 `apiKey=<key>` 拼进 URL（`src/rest.ts:83`），会进入上游访问
+- **key 随查询参数出网**：每次请求把 key 以 `apiKey=<key>` 拼进 URL（`src/rest.ts:103`），会进入上游访问
   日志与进程环境可见范围。上游是商业注册制数据源（设置页标为 `type: 'commercial'`，
   `packages/client-ui-settings/src/client/trading-settings-controller.ts:34`）。
 - **免费额度与再分发边界以 Polygon.io 服务条款为准**：本仓不缓存、不再分发任何行情或标的资料数据。
   `docs/guides/connectors-guide.md` 第 36 行列有一句免费计划额度描述——该数字来自文档而非源码或 spike，
   本仓未复验，**一律以 Polygon.io 官方条款为准**。
-- **标的资料按上游原样透传**：`/v3/reference/tickers` 的 `results` 对象直接返回（`src/rest.ts:166-170`），
+- **标的资料按上游原样透传**：`/v3/reference/tickers` 的 `results` 对象直接返回（`src/rest.ts:190-194`），
   不做字段筛选、不落盘。
 
 ## 出网验证
@@ -149,5 +165,5 @@ console.log(JSON.stringify(await client.getTickerDetails('AAPL')))
 "
 ```
 
-未设 `POLYGON_API_KEY` 时 URL 不会附加 `apiKey`（`src/rest.ts:83`），请求照发、由上游裁决，
-非 2xx 一律映射为 `TRADING_UPSTREAM_ERROR`（`src/rest.ts:90-92`）。
+未设 `POLYGON_API_KEY` 时 URL 不会附加 `apiKey`（`src/rest.ts:103`），请求照发、由上游裁决，
+非 2xx 一律映射为 `TRADING_UPSTREAM_ERROR`（`src/rest.ts:110-112`）。
