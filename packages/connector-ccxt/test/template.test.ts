@@ -1,7 +1,8 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   CcxtRestClient,
   INTERVAL_VOCABULARY,
+  KLINE_EXCHANGES,
   normalizeSymbol,
   SUPPORTED_EXCHANGES,
 } from '../src/rest.js'
@@ -38,7 +39,9 @@ describe('CcxtRestClient 符号与周期映射', () => {
     expect(SUPPORTED_EXCHANGES).toContain('binance')
     expect(SUPPORTED_EXCHANGES).toContain('bybit')
     expect(SUPPORTED_EXCHANGES).toContain('okx')
-    expect(SUPPORTED_EXCHANGES).toContain('gateio')
+    // 登记面 = 实现面：未实现所名不再登记（gateio 等未登记所名在请求前结构化拒绝）
+    expect(SUPPORTED_EXCHANGES).toEqual(['binance', 'okx', 'bybit'])
+    expect(KLINE_EXCHANGES).toEqual(['binance'])
   })
 })
 

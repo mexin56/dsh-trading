@@ -1,11 +1,10 @@
-﻿/**
+/**
  * @dshtrading/connector-ccxt/rest
  * CCXT 跨所加密通用 REST 客户端。
  */
 
 import {
   instrumentFormOf,
-  type AccountBalance,
   type Interval,
   type Kline,
   type Order,
@@ -28,17 +27,39 @@ export class TradingServiceError extends Error {
 
 export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'] as const
 
-export const SUPPORTED_EXCHANGES = [
-  'binance',
-  'okx',
-  'bybit',
-  'gateio',
-  'kucoin',
-  'kraken',
-  'coinbase',
-  'bitfinex',
-  'htx',
-] as const
+/**
+ * 登记的所名 = 本包真有直连分支的所名（ticker 面三条）。
+ *
+ * 此前这里登记 9 个所名、却只有 bybit/okx 两个具名分支，其余 6 个静默落 Binance 兜底 URL
+ * （选 kraken 拿到 Binance 的报价）。现在未登记所名在**任何 fetch 之前**结构化拒绝
+ * （见 notImplementedError）；真要加所是另一张卡的事（补分支，而不是放宽登记）。
+ */
+export const SUPPORTED_EXCHANGES = ['binance', 'okx', 'bybit'] as const
+
+/** K 线面的实现分支只有一条（Binance）：单独一份登记，免得被 ticker 的三所误读。 */
+export const KLINE_EXCHANGES = ['binance'] as const
+
+/** 数据面方法名（拒绝文案按面区分）。 */
+type DataSurface = 'ticker' | 'klines'
+
+const IMPLEMENTED_EXCHANGES: Record<DataSurface, readonly string[]> = {
+  ticker: SUPPORTED_EXCHANGES,
+  klines: KLINE_EXCHANGES,
+}
+
+const UNIMPLEMENTED_HINT: Record<DataSurface, string> = {
+  ticker: 'ticker has three implemented direct branches (binance/okx/bybit): use one of them, or the dedicated per-exchange packages @dshtrading/connector-okx / @dshtrading/connector-bybit.',
+  klines: 'klines have a single implemented branch (binance): use exchange=binance.',
+}
+
+/** 未实现所名的统一拒绝构造：两处调用点共用，禁止各自复制文案。 */
+function notImplementedError(surface: DataSurface, exchange: string): TradingServiceError {
+  return new TradingServiceError(
+    'TRADING_NOT_IMPLEMENTED',
+    `CCXT connector has no ${surface} branch for exchange "${exchange}" (implemented: ${IMPLEMENTED_EXCHANGES[surface].join(', ')}); `
+      + `zero network requests were made. ${UNIMPLEMENTED_HINT[surface]}`,
+  )
+}
 
 /**
  * 现货符号归一化（本轮 CCXT 面只做现货）。
@@ -101,6 +122,8 @@ export class CcxtRestClient {
 
   async getTicker(symbol: string, exchange: string = this.exchange): Promise<Ticker> {
     const sym = normalizeSymbol(symbol)
+    // 登记面 = 实现面：未登记所名在任何 fetch 之前结构化拒绝（此前静默落 Binance 兜底）。
+    if (!(SUPPORTED_EXCHANGES as readonly string[]).includes(exchange)) throw notImplementedError('ticker', exchange)
     if (exchange === 'bybit') {
       const url = `https://api.bybit.com/v5/market/tickers?category=spot&symbol=${sym}`
       const res = await this.requestJson<{ result?: { list?: Array<{ symbol: string; lastPrice: string; volume24h: string }> } }>(url)
@@ -127,6 +150,8 @@ export class CcxtRestClient {
       }
     }
 
+    // 入口守卫（SUPPORTED_EXCHANGES）已收窄到这里：能走到此处的只可能是 binance，
+    // 不存在「未实现所名静默落 Binance」的兜底分支。
     const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`
     const data = await this.requestJson<{ symbol: string; lastPrice: string; volume: string; closeTime: number }>(url)
     return {
@@ -139,6 +164,9 @@ export class CcxtRestClient {
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100, exchange: string = this.exchange): Promise<Kline[]> {
     const sym = normalizeSymbol(symbol)
+    // K 线只有 Binance 一条分支：非 binance 所名在 fetch 之前拒绝，
+    // 不再「形态上接收 exchange、实现上忽略它恒打 Binance」
+    if (!(KLINE_EXCHANGES as readonly string[]).includes(exchange)) throw notImplementedError('klines', exchange)
     const url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`
     const data = await this.requestJson<Array<[number, string, string, string, string, string, number]>>(url)
     if (!Array.isArray(data)) return []
@@ -151,10 +179,6 @@ export class CcxtRestClient {
       volume: parseFloat(r[5]),
       closeTime: r[6],
     }))
-  }
-
-  async getBalance(): Promise<AccountBalance> {
-    return { currency: 'USDT', available: 100000, total: 100000 }
   }
 
   async placeOrder(_creds: unknown, req: OrderRequest): Promise<Order> {
@@ -177,4 +201,4 @@ export class CcxtRestClient {
   }
 }
 
-export type { AccountBalance, Interval, Kline, Order, Position, Ticker }
+export type { Interval, Kline, Order, Position, Ticker }
