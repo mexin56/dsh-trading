@@ -58,5 +58,7 @@ Status: implemented
 - 六包测试 121 例通过（finnhub 15 / fmp 15 / polygon 14 / bybit 40 / ccxt 19 / tushare 18）；
   两处数据面 loader 用例改为断言 `'env' in resolved === false`，把「行 config 不再含 env」
   钉在 loader 解析路径上，而不是只钉在类型面。
+- 落地归属：本记录同批提交覆盖 finnhub / fmp / polygon / bybit 四包；ccxt 的同一移除见
+  `ff66b83c`，tushare 的同一移除随该包 dataplane 惰性凭证切片提交。
 - 全仓仍有 7 个包声明 `env`（okx / alpaca / template / ibkr / tiger / longbridge / qmt），
   逐个核实均有读取方，不在本次范围。
