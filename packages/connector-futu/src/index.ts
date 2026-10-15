@@ -26,7 +26,6 @@ import type {
   OrderRequest,
   Position,
   Ticker,
-  TradeFill,
   TradeService,
 } from '@dshtrading/api'
 import {
@@ -240,8 +239,20 @@ export class FutuTradeService extends Service implements TradeService {
     }
   }
 
+  /**
+   * 私有账户读面未实现（本包只有资金一格真实读路径 `getBalance`，没有持仓读路径）：
+   * 必需方法必须显式拒绝。base 的账户工具与 GUI 桥把同一注册面当「交易所账户真值」
+   * 消费——返回空数组会被读成「没有持仓」，而契约语义是 TRADING_NOT_IMPLEMENTED（不可用）。
+   * 可选方法 getBalances/listTradeFills 直接缺席，由消费方按「可选方法缺席」处理
+   * （见 packages/api/src/index.ts 的 TradeService 注释）。
+   */
   async getPositions(): Promise<Position[]> {
-    return []
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'Futu TradeService.getPositions is not implemented: this connector has no private-account read path for positions '
+        + '(only funds are readable, via /api/trd/get-funds). '
+        + 'That means "not available", NOT "no positions".',
+    )
   }
 
   /** 挂单列表（桥的 `/api/trd/get-orders`）。`symbol` 给定时按标的过滤。 */
@@ -325,30 +336,17 @@ export class FutuTradeService extends Service implements TradeService {
     return this.client.cancelOrder(await this.getCredentials(), orderId) as unknown as void
   }
 
-  async getBalances(): Promise<AccountBalance[]> {
-    try {
-      const b = await this.client.getBalance(await this.getCredentials())
-      return [b]
-    } catch {
-      return []
-    }
-  }
-
-  async listTradeFills(_symbol?: string, _limit?: number): Promise<TradeFill[]> {
-    return []
-  }
-
-  async getOrder(symbol: string, id: string): Promise<Order> {
-    return {
-      id,
-      symbol,
-      side: 'buy',
-      type: 'limit',
-      status: 'new',
-      quantity: 0,
-      dryRun: false,
-      timestamp: Date.now(),
-    }
+  /**
+   * 私有账户读面未实现（本包只有资金一格真实读路径 `getBalance`，没有单笔订单读路径）：
+   * 与 getPositions 同一条裁决——必需方法显式拒绝，不编造状态为 new 的占位订单。
+   */
+  async getOrder(_symbol: string, _id: string): Promise<Order> {
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'Futu TradeService.getOrder is not implemented: this connector has no private-account read path for a single order '
+        + '(only the open-order snapshot is readable, via /api/trd/get-orders). '
+        + 'That means "not available", NOT "order not found".',
+    )
   }
 }
 

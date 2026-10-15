@@ -4,7 +4,6 @@
  */
 
 import type {
-  AccountBalance,
   Interval,
   Kline,
   Order,
@@ -58,22 +57,29 @@ export function parseIntervalMs(interval: Interval): number {
 export interface TushareRestOptions {
   baseUrl?: string
   token?: string
+  /** 惰性凭证源：每次请求解析（设置中心凭证优先、env 兜底由调用方组装，见 `createTokenProvider`）。 */
+  tokenProvider?: (() => string | undefined) | undefined
   fetchImpl?: typeof fetch
 }
 
 export class TushareRestClient {
   readonly baseUrl: string
   private readonly token?: string
+  private readonly tokenProvider?: (() => string | undefined) | undefined
   private readonly fetchImpl: typeof fetch
 
   constructor(options: TushareRestOptions = {}) {
     this.baseUrl = options.baseUrl ?? 'http://api.tushare.pro'
     this.token = options.token
+    this.tokenProvider = options.tokenProvider
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch
   }
 
   private async requestApi<T>(apiName: string, params: Record<string, unknown> = {}, fields?: string): Promise<T[]> {
-    if (!this.token) {
+    // 凭证在每次请求处解析（tokenProvider 优先，静态 token 供直调兼容）：
+    // 设置中心写入晚于插件 apply、或运行中改 Key，下次请求即生效。
+    const token = this.tokenProvider?.() ?? this.token
+    if (!token) {
       throw new TradingServiceError(
         'TRADING_CREDENTIALS_MISSING',
         'Tushare token missing. Please set TUSHARE_TOKEN in environment or credentials.',
@@ -82,7 +88,7 @@ export class TushareRestClient {
 
     const payload = {
       api_name: apiName,
-      token: this.token,
+      token,
       params,
       fields: fields ?? '',
     }
@@ -224,10 +230,6 @@ export class TushareRestClient {
     return items.length > 0 ? items[0] : {}
   }
 
-  async getBalance(): Promise<AccountBalance> {
-    return { currency: 'CNY', available: 1000000, total: 1000000 }
-  }
-
   async placeOrder(_creds: unknown, req: OrderRequest): Promise<Order> {
     const tsCode = toTushareCode(req.symbol)
     return {
@@ -248,4 +250,4 @@ export class TushareRestClient {
   }
 }
 
-export type { AccountBalance, Interval, Kline, Order, Position, Ticker }
+export type { Interval, Kline, Order, Position, Ticker }

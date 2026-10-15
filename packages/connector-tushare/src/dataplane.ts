@@ -1,6 +1,6 @@
 ﻿import type { Context } from '@deepseek-ai/cordis'
 import type { MarketDataService } from '@dshtrading/api'
-import { TushareMarketDataService, TRADING_CN_MARKET_DATA_KEY, Config } from './index.js'
+import { TushareMarketDataService, TRADING_CN_MARKET_DATA_KEY, Config, createTokenProvider } from './index.js'
 
 export const inject: string[] = []
 
@@ -26,13 +26,16 @@ const MARKET = 'cn'
 
 export function apply(ctx: Context, config: Config = withDefaults(undefined)): void {
   if (!config.enabled) return
-  const token = process.env[config.tokenRef]
+  // 凭证与主入口共用 `createTokenProvider`（设置中心 router 凭证优先、env 兜底），且惰性到
+  // 每次请求：修复「设置页填了 Token 但宿主面数据行用不到」——settings 用户层加载/修改
+  // 晚于本行 apply 亦生效（hithink/jin10 同款，2026-09-12 实证根因）。
+  const tokenProvider = createTokenProvider(ctx, config.tokenRef)
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
-    new TushareMarketDataService(ctx, { token })
+    new TushareMarketDataService(ctx, { tokenProvider })
     return
   }
   const inner = ctx.isolate(TRADING_CN_MARKET_DATA_KEY)
-  const service = new TushareMarketDataService(inner, { token })
+  const service = new TushareMarketDataService(inner, { tokenProvider })
   ctx.effect(() => registry.register(MARKET, ROUTER_PROVIDER, service))
 }

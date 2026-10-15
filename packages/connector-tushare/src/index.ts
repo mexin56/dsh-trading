@@ -9,7 +9,6 @@ import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import Schema from '@deepseek-ai/schemastery'
 import type {
-  AccountBalance,
   Disposable,
   Interval,
   Kline,
@@ -33,7 +32,6 @@ export const name = 'dsh-trading-cn-connector-tushare'
 
 export interface Config {
   enabled: boolean
-  env: 'demo' | 'live'
   dryRun: boolean
   liveTrading: boolean
   tokenRef: string
@@ -41,7 +39,6 @@ export interface Config {
 
 export const Config: Schema<Config> = Schema.object({
   enabled: Schema.boolean().default(true).description('是否激活 Tushare 连接器'),
-  env: Schema.union(['demo', 'live'] as const).default('demo').description('运行环境'),
   dryRun: Schema.boolean().default(true).description('默认模拟下单'),
   liveTrading: Schema.boolean().default(false).description('是否允许实盘交易'),
   tokenRef: Schema.string().default('TUSHARE_TOKEN').description('Tushare Pro Token 环境变量名 (BYOK)'),
@@ -100,10 +97,6 @@ export class TushareTradeService extends Service implements TradeService {
     this.config = options.config
   }
 
-  async getBalance(): Promise<AccountBalance> {
-    return this.client.getBalance()
-  }
-
   async placeOrder(order: OrderRequest): Promise<Order> {
     // 服务缝闸门（P0 · 铁律 #3 修订版 [S4]）：三态检查下推到服务实现内第一步——
     // 绕过工具层直调本服务（动态包宿主半等）同样 fail-closed；工具层闸门保留（双保险）。
@@ -145,12 +138,28 @@ export class TushareTradeService extends Service implements TradeService {
     return this.client.cancelOrder(undefined, orderId)
   }
 
-  async getPositions(): Promise<Position[]> {
-    return []
+  /**
+   * 账户读面不可用（Tushare 是行情数据服务，本连接器从来没有账户通道）：
+   * 必需方法必须显式拒绝。base 的账户工具与 GUI 桥把同一注册面当「账户真值」消费——
+   * 返回常量余额、空数组或编造订单会被读成「余额充足」「没有持仓」「订单存在」，
+   * 而契约语义是 TRADING_NOT_IMPLEMENTED（不可用）。rest 层的 `placeOrder` /
+   * `cancelOrder` 只是本地合成回执，不构成账户通道；非契约方法 getBalance / getOrders
+   * 直接缺席，由消费方按「方法缺席」处理（见 packages/api/src/index.ts 的 TradeService 注释）。
+   */
+  async getOrder(_symbol: string, _id: string): Promise<Order> {
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'Tushare TradeService.getOrder is not implemented: Tushare is a market-data service and this connector has no trading-account channel. '
+        + 'That means "not available", NOT "order not found".',
+    )
   }
 
-  async getOrders(): Promise<Order[]> {
-    return []
+  async getPositions(): Promise<Position[]> {
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'Tushare TradeService.getPositions is not implemented: Tushare is a market-data service and this connector has no trading-account channel. '
+        + 'That means "not available", NOT "no positions".',
+    )
   }
 }
 
@@ -163,15 +172,30 @@ export function routeAllows(ctx: Context, config: Config, market: string): boole
   return router.activeProvider(market) === ROUTER_PROVIDER
 }
 
+interface RouterCredentialSource {
+  getCredential?(provider: string): Record<string, string> | undefined
+}
+
+/**
+ * 惰性凭证源（主入口与 dataplane 行共用同一份）：设置中心
+ * `dshtrading.credentials.tushare.token`（router getCredential）优先、`process.env[tokenRef]`
+ * 兜底，**每次请求解析** —— settings 用户层加载/修改晚于插件 apply 也生效。
+ * `tokenRef` 语义不变：仍是指向环境变量名的 BYOK 引用，凭证值本身只经 ref 与设置中心。
+ */
+export function createTokenProvider(ctx: Context, tokenRef: string): () => string | undefined {
+  return () => {
+    const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as RouterCredentialSource | undefined
+    return router?.getCredential?.(ROUTER_PROVIDER)?.token || process.env[tokenRef]
+  }
+}
+
 export function apply(ctx: Context, config: Config): void {
   if (!config.enabled) return
   if (!routeAllows(ctx, config, 'cn')) return
 
-  const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as { getCredential?(p: string): Record<string, string> | undefined } | undefined
-  const creds = router?.getCredential?.(ROUTER_PROVIDER)
-  const token = creds?.token || process.env[config.tokenRef]
-  const marketData = new TushareMarketDataService(ctx, { token })
-  const trade = new TushareTradeService(ctx, { token , config })
+  const tokenProvider = createTokenProvider(ctx, config.tokenRef)
+  const marketData = new TushareMarketDataService(ctx, { tokenProvider })
+  const trade = new TushareTradeService(ctx, { tokenProvider, config })
 
   ctx.inject(['tools'], (ctx) => {
     const tools = ctx.tools as unknown as { register(d: unknown): void; get(n: string): unknown }

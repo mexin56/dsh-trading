@@ -187,8 +187,20 @@ export class IbkrTradeService extends Service implements TradeService {
     return this.client.getPositions()
   }
 
-  async getOrders(): Promise<Order[]> {
-    return []
+  /**
+   * 缺单笔订单查询端点：本包已有真实私有读面（getBalance / getPositions 转发网关
+   * ledger 查询），但没有按 (symbol, id) 取单的网关调用，也没有对应工具；而
+   * TradeService 把 getOrder 列为必选方法（packages/api/src/index.ts:839）。
+   * 编造订单或用空数组都会把「不可用」读成「订单不存在」，契约语义只能是
+   * TRADING_NOT_IMPLEMENTED。可选方法 getBalances/listOpenOrders/listTradeFills
+   * 直接缺席，由消费方按「可选方法缺席」处理。
+   */
+  async getOrder(_symbol: string, _id: string): Promise<Order> {
+    throw new TradingServiceError(
+      'TRADING_NOT_IMPLEMENTED',
+      'IBKR TradeService.getOrder is not implemented: this connector has no single-order status lookup against the gateway ledger. '
+        + 'That means "not available", NOT "order not found".',
+    )
   }
 }
 
