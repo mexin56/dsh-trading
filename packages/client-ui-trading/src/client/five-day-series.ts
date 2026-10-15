@@ -12,11 +12,12 @@
  *
  * 四条不变量：
  * 1. 该级别是**纯客户端视图**——'5d' 不属于 @dshtrading/api 的 Interval 联合
- *    （连接器不认识这个词汇），取数永远是 `fetchKlines(market, symbol, '1m', n)`
- *    加本地按交易日分组。
- * 2. 能力驱动：只有当前路由数据源能诚实提供 5 交易日 1m 时才允许出现该级别
- *    （见 fiveDayCapability，事实来源 spikes/impl-five-day-1m-probe/EVIDENCE.md）。
- *    不可得即不出现，绝不裁剪/复制数据冒充五个交易日。
+ *    （连接器不认识这个词汇），取数永远是 `fetchKlinesFrom(market, symbol, '1m', n)`
+ *    （与 fetchKlines 同一条路径，另拿本次实际供数的 provider）加本地按交易日分组。
+ * 2. 能力驱动：只有该市场声明的能力并集能诚实提供 5 交易日 1m 时才允许出现该级别
+ *    （见 fiveDayCapability：判据是桥上报的 klineCapabilities 并集，不再按路由白名单，
+ *    事实来源 spikes/impl-five-day-1m-probe/EVIDENCE.md）。不可得即不出现，绝不裁剪/
+ *    复制数据冒充五个交易日。
  * 3. 无副作用：本模块只做纯计算，localStorage/DOM/网络都不碰。
  * 4. 取数不随档位变：显示窗口是纯截取（fiveDayDisplayRange），永远不为档位换请求
  *    ——5 个交易日的 1m 已经在手上，N 段只是它的尾部切片。
@@ -24,7 +25,7 @@
  * x 轴拼接：lightweight-charts 的横轴是「一根 bar 一个槽位」，相邻槽位之间没有
  * 时间距离——隔夜与午休空档天然被压缩掉。日界由 fiveDayDayStarts 显式标出。
  */
-import type { Kline, MarketId } from './types.ts'
+import type { Kline, KlineCapability, MarketId } from './types.ts'
 import { MARKET_TIMEZONE, marketLocalDay, marketLocalMinute } from './market-time.ts'
 import { MARKET_INTERVALS } from './store.ts'
 
@@ -51,47 +52,60 @@ export const FIVE_DAY_KLINE_LIMIT = 2500
  */
 export const FIVE_DAY_RESYNC_MS = 60_000
 
-/** 该级别可能可得的市场（真实可得性还看当前路由 provider）。 */
+/** 该级别可能可得的市场（真实可得性还看该市场声明的能力并集）。 */
 export const FIVE_DAY_MARKETS: readonly MarketId[] = ['us', 'cn', 'hk']
 
 /**
- * 能力三态：yes = 当前路由能诚实提供 5 交易日 1m；no = 该路由结构性不可得；
- * unknown = provider 尚未取到（不能据此判定不可得——按 unknown 保留记忆中的
- * 级别，等 provider 到位后再定）。
+ * 能力三态：yes = 能力并集能诚实提供 5 交易日 1m；no = 结构性不可得；
+ * unknown = 桥还没上报能力并集（不能据此判定不可得——按 unknown 保留记忆中的
+ * 级别，等能力到位后再定）。
  */
 export type FiveDayCapability = 'yes' | 'no' | 'unknown'
 
-/** (市场, 路由 provider) → 是否可得 5 交易日 1m。 */
-const CAPABLE_ROUTES: ReadonlyArray<readonly [MarketId, string]> = [
-  ['us', 'yahoo'],      // chart 1m range=7d：2730 根 / 7 个会话，≥5 ✓
-  ['cn', 'eastmoney'],  // trends2 ndays=5：1205 根 / 5 个交易日 ✓（历史开价由连接器用前收盘重建）
-  ['hk', 'eastmoney'],  // trends2 ndays=5：1655 根 / 5 个交易日 ✓
-]
-
 /**
- * 当前路由能否诚实提供 5 交易日 1m。tencent 路由（cn/hk 默认）只有 800 根
- * m1 ≈ 3.3 个交易日且无翻页；crypto/futures/global 结构性不足（上游单请求
- * 300/100/当日分时）——这些一律 no，胶囊不出现。
+ * 能力并集能否诚实提供 5 交易日 1m。判据只看「有没有声明的源给出
+ * interval='1m' 且 maxBars ≥ FIVE_DAY_KLINE_LIMIT」——并集是**跨源**的：当前路由
+ * 缺这份能力时，同市场另一个已注册源（如东财 trends2 ndays=5 的 1205/1655 根）
+ * 会供数，路由本身（tencent/yahoo/…）不再是判据。crypto/futures/global 结构性
+ * 不足（上游单请求 300/100/当日分时）——一律 no，胶囊不出现。
  */
-export function fiveDayCapability(market: MarketId, provider: string | undefined): FiveDayCapability {
+export function fiveDayCapability(market: MarketId, capabilities: readonly KlineCapability[] | undefined): FiveDayCapability {
   if (!FIVE_DAY_MARKETS.includes(market)) return 'no'
-  if (provider === undefined || provider === '') return 'unknown'
-  return CAPABLE_ROUTES.some(([routeMarket, routeProvider]) => routeMarket === market && routeProvider === provider)
-    ? 'yes'
-    : 'no'
+  if (capabilities === undefined) return 'unknown'
+  return capabilities.some(cap => cap.interval === '1m' && cap.maxBars >= FIVE_DAY_KLINE_LIMIT) ? 'yes' : 'no'
 }
 
 /**
- * 该市场当前路由下的图表级别列表（'5d' 紧跟 '1d'，与日 K/分钟级别平级）。
- * 不可得的市场/路由原样返回连接器级别集——胶囊不出现，且不渲染任何假数据。
+ * 该市场能力并集下的图表级别列表（'5d' 紧跟 '1d'，与日 K/分钟级别平级）。
+ * 不可得的市场原样返回连接器级别集——胶囊不出现，且不渲染任何假数据。
  */
-export function chartIntervals(market: MarketId, provider: string | undefined): string[] {
+export function chartIntervals(market: MarketId, capabilities: readonly KlineCapability[] | undefined): string[] {
   const base = MARKET_INTERVALS[market] ?? ['1d']
-  if (fiveDayCapability(market, provider) !== 'yes') return [...base]
+  if (fiveDayCapability(market, capabilities) !== 'yes') return [...base]
   const index = base.indexOf('1d')
   const next = [...base]
   next.splice(index < 0 ? next.length : index + 1, 0, FIVE_DAY_INTERVAL)
   return next
+}
+
+/**
+ * 五日级别 ticker 的取数源：bar 序列来自显式且与当前 active 不同的源时，该级别的
+ * 价格也向同一源取（不把两个源的价与量混进同一根 bar）；否则 undefined = 沿用现行
+ * （向当前 active 取价，不为此多发一个请求）。bar 来源未知时不猜。
+ */
+export function fiveDayTickerProvider(barProvider: string | undefined, activeProvider: string | undefined): string | undefined {
+  if (barProvider === undefined || barProvider === activeProvider) return undefined
+  return barProvider
+}
+
+/**
+ * 该 ticker 能否合并进当前 bar 序列（withTickerBar）：两端解析出的源一致才合并。
+ * 任一端未知（provider 未取到 / 桥未标注供数源）时维持现行合并行为——「还没问到」
+ * 不等于「不同源」。
+ */
+export function tickerBarMergeable(barSource: string | undefined, tickerSource: string | undefined): boolean {
+  if (barSource === undefined || tickerSource === undefined) return true
+  return barSource === tickerSource
 }
 
 /**

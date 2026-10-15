@@ -21,7 +21,7 @@
  * @module @dshtrading/connector-yahoo/rest
  */
 
-import type { Interval, Kline, Ticker, TradingErrorCode } from '@dshtrading/api'
+import type { Interval, Kline, KlineCapability, Ticker, TradingErrorCode } from '@dshtrading/api'
 
 /* ------------------------------------------------------------------ */
 /* 错误载体（api 包词汇的运行时映射，与 connector-stooq 同构）                */
@@ -85,6 +85,32 @@ export const INTERVAL_VOCABULARY: readonly string[] = [...INTERVAL_TO_YAHOO.keys
 
 export function isSupportedInterval(value: Interval): boolean {
   return INTERVAL_TO_YAHOO.has(value)
+}
+
+/**
+ * 能承接的请求深度上限 = 桥的 K 线参数闸门（packages/bot-api MAX_KLINE_LIMIT = 2500）：
+ * 上游没有 limit 语义（窗口由 range= 决定，本客户端只在返回后按 limit 截尾），故闸门内的
+ * 任何 limit 都被诚实承接、返回根数以该周期的取数窗口（RANGE_BY_INTERVAL）为界。
+ */
+export const YAHOO_KLINE_MAX_BARS = 2500
+
+/**
+ * 1m 的实测窗口深度 = 2730 根（chart/AAPL|MSFT?interval=1m&range=7d → 2730 根非空 bar，
+ * 覆盖 7 个会话，2026-10-05..10-13；窗口超出即上游 422「Only 8 days worth of 1m
+ * granularity data are allowed」）——见 spikes/impl-five-day-1m-probe/EVIDENCE.md §5。
+ */
+export const YAHOO_ONE_MINUTE_MAX_BARS = 2730
+
+/**
+ * K 线能力声明（api 可选契约 klineCapabilities）：周期集 = INTERVAL_TO_YAHOO 的键。
+ * 深度只有 1m 有实测值（窗口型端点，上表 2730 根的原始证据），其余周期声明承接闸门
+ * ——它们的窗口根数随市场与交易日数浮动，本客户端代码里没有可报的实测数字，不据印象编。
+ */
+export function yahooKlineCapabilities(): KlineCapability[] {
+  return [...INTERVAL_TO_YAHOO].map(([interval]) => ({
+    interval,
+    maxBars: interval === '1m' ? YAHOO_ONE_MINUTE_MAX_BARS : YAHOO_KLINE_MAX_BARS,
+  }))
 }
 
 /** 每个 interval 的默认取数窗口（1m 上限 7 天；日线给足近三年——服务层再按 limit 截尾）。 */
@@ -264,6 +290,11 @@ export class YahooRestClient {
       )
     }
     return result
+  }
+
+  /** K 线能力声明（api 可选契约）：周期集与深度口径见 yahooKlineCapabilities。 */
+  klineCapabilities(): readonly KlineCapability[] {
+    return yahooKlineCapabilities()
   }
 
   /**

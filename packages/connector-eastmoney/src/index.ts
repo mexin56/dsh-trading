@@ -11,6 +11,7 @@ import type {
   Disposable,
   Interval,
   Kline,
+  KlineCapability,
   MarketDataService,
   SouthboundHoldingHistory,
   Ticker,
@@ -79,6 +80,14 @@ export class EastmoneyMarketDataService extends Service implements MarketDataSer
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
     return this.client.getKlines(symbol, interval, limit)
+  }
+
+  /**
+   * K 线能力声明（api 可选契约，2026-10-15 跨源 K 线路由）：cn/hk 实例同集——1m 走 trends2
+   * 五日窗口、5m 及以上走 kline/get，两条通道覆盖同一个周期面（口径见 rest.ts）。
+   */
+  klineCapabilities(): readonly KlineCapability[] {
+    return this.client.klineCapabilities()
   }
 
   async listInstruments(query?: string): Promise<Array<{ symbol: string; name: string }>> {

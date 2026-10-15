@@ -9,9 +9,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  ensureMarketProviders, marketProviderOf, marketProviderSnapshot, publishMarketProviders,
+  ensureMarketProviders, marketCapabilitiesOf, marketCapabilitySnapshot, marketProviderOf,
+  marketProviderSnapshot, publishMarketProviders,
 } from '../src/client/market-providers.ts'
 import type { MarketInfo } from '../src/client/types.ts'
+import { fiveDayCapability } from '../src/client/five-day-series.ts'
 
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -91,5 +93,49 @@ describe('市场 provider 缓存', () => {
     expect(observation.requests).toBe(0)
     expect(marketProviderOf('cn')).toBe('tencent')
     expect(marketProviderOf('hk')).toBe('tencent')
+  })
+})
+
+describe('市场 kline 能力并集缓存', () => {
+  it('用户的 A 股 active 是腾讯时，能力并集里仍有东财声明的 1m/2500 根', () => {
+    // Given 桥上报的 cn 行：provider 是腾讯，能力并集同时含腾讯的 800 根与东财的 2500 根
+    publishMarketProviders([{
+      id: 'cn',
+      provider: 'tencent',
+      klineCapabilities: [{ interval: '1m', maxBars: 800 }, { interval: '1m', maxBars: 2500 }],
+    }])
+
+    // When/Then provider 表语义不变，能力表按市场落位；cn 因此仍能出五日级别
+    expect(marketProviderOf('cn')).toBe('tencent')
+    expect(marketCapabilitiesOf('cn')).toEqual([{ interval: '1m', maxBars: 800 }, { interval: '1m', maxBars: 2500 }])
+    expect(fiveDayCapability('cn', marketCapabilitiesOf('cn'))).toBe('yes')
+    // 行里没有能力声明的市场在能力表里缺席（读侧按 unknown 处理，不是不可得）
+    expect(marketCapabilitiesOf('us')).toBeUndefined()
+    expect(fiveDayCapability('us', marketCapabilitiesOf('us'))).toBe('unknown')
+  })
+
+  it('用户的市场只有 1m/800 根声明时能力表照实反映，五日级别判为不可得', () => {
+    // Given 只声明腾讯式 800 根 1m 的市场
+    publishMarketProviders([{ id: 'hk', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 800 }] }])
+
+    // When/Then 能力表不粉饰：五日判定为 no（胶囊不出现，也不取数）
+    expect(marketCapabilitiesOf('hk')).toEqual([{ interval: '1m', maxBars: 800 }])
+    expect(fiveDayCapability('hk', marketCapabilitiesOf('hk'))).toBe('no')
+  })
+
+  it('用户遇到能力声明变化时快照跟着换新（订阅者据此重渲染），内容等价则不换', () => {
+    // Given 能力表当前快照
+    publishMarketProviders([{ id: 'cn', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 800 }] }])
+    const before = marketCapabilitySnapshot()
+
+    // When 只改能力声明（provider 不变）发布新的一份
+    publishMarketProviders([{ id: 'cn', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 2500 }] }])
+
+    // Then 快照换新（useSyncExternalStore 才会通知），再次发布等价内容则引用稳定
+    expect(marketCapabilitySnapshot()).not.toBe(before)
+    expect(marketCapabilitySnapshot().cn).toEqual([{ interval: '1m', maxBars: 2500 }])
+    const stable = marketCapabilitySnapshot()
+    publishMarketProviders([{ id: 'cn', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 2500 }] }])
+    expect(marketCapabilitySnapshot()).toBe(stable)
   })
 })

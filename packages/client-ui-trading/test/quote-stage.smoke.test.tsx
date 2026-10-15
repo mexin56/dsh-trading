@@ -15,17 +15,21 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor, act } from '@testing-library/react'
-import type { DerivativesData, DerivativesHistory } from '../src/client/types.ts'
+import type { DerivativesData, DerivativesHistory, Kline, MarketInfo } from '../src/client/types.ts'
+
+/** 图表每帧实际收到的序列（五日级别的合流判定从这里读）。 */
+const chart = vi.hoisted(() => ({ frames: [] as readonly Kline[][] }))
 
 // TvChart 依赖 lightweight-charts（canvas 族 API 在 jsdom 不可用）：冒烟只关心
-// QuoteStage 自身的渲染与交互编排，图表区以桩替代。
+// QuoteStage 自身的渲染与交互编排，图表区以桩替代（顺带记录喂进来的 bars）。
 vi.mock('../src/client/TvChart.tsx', () => ({
-  TvChart: () => null,
+  TvChart: (props: { bars?: readonly Kline[] }) => { chart.frames.push(props.bars ?? []); return null },
   toBar: (k: unknown) => k,
 }))
 
 import { presetDefinitions } from '@dshtrading/indicators'
 import { indicators } from '../src/client/indicator-registry.ts'
+import { publishMarketProviders } from '../src/client/market-providers.ts'
 import { QuoteStage } from '../src/client/QuoteStage.tsx'
 import { DerivativesStage } from '../src/client/DerivativesStage.tsx'
 import { DerivativesPane } from '../src/client/DerivativesPane.tsx'
@@ -47,7 +51,7 @@ afterEach(() => {
 })
 
 function quoteStageProps(
-  market: 'crypto' | 'us' | 'global',
+  market: 'crypto' | 'us' | 'cn' | 'hk' | 'global',
   instrument?: { symbol: string; assetClass?: 'crypto' | 'equity' | 'commodity' | 'index' },
   instances: ChartState['instances'] = [],
   /** 适用范围写入记录器（手动收集，测试棘轮禁用 vi.* 通用 mock）。 */
@@ -374,6 +378,280 @@ describe('QuoteStage 行情轮询预算（global 按需取数）', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
       // Then 常驻轮询照旧推进（每分钟十余拍）
       expect(bridge.calls.length).toBeGreaterThan(afterMount + 5)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+})
+
+/**
+ * 五日级别的能力跨源接线（2026-10-14 owner 裁决）：胶囊的出现判定读桥上报的能力
+ * 并集（不再按路由白名单），跨源时该级别的价格也向供数源取，且只在同源时才合并进
+ * 最后一根 bar。桥用真实 Response 缝记录请求（契约化假件，不用通用 mock 工具），
+ * 图表实际收到的序列由上面的 TvChart 桩回读。
+ */
+describe('QuoteStage 五日级别的能力跨源接线', () => {
+  const SYMBOL = '600519.SH'
+  const INTERVAL_KEY = 'dshtrading.interval.cn'
+  /** ticker 价与最后一根 bar 的收盘价刻意不同，合流与否一眼可辨。 */
+  const TICKER_PRICE = 99
+  const LAST_BAR_CLOSE = 21
+  /** 东财式（撑满 5 个交易日）与腾讯式（三日多）两份能力声明。 */
+  const CN_FULL_CAPABILITY: MarketInfo[] = [{ id: 'cn', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 2500 }] }]
+  const CN_THIN_CAPABILITY: MarketInfo[] = [{ id: 'cn', provider: 'tencent', klineCapabilities: [{ interval: '1m', maxBars: 800 }] }]
+
+  function cnBar(openTime: number, close: number): Kline {
+    return { openTime, open: close, high: close + 1, low: close - 1, close, volume: 100, closeTime: openTime + 60_000 }
+  }
+
+  /** A股两个交易日（本地 2026-09-08 / 09-09）各 2 根 1m。 */
+  const CN_KLINES: Kline[] = [
+    cnBar(Date.UTC(2026, 8, 8, 2, 0), 10),
+    cnBar(Date.UTC(2026, 8, 8, 2, 1), 11),
+    cnBar(Date.UTC(2026, 8, 9, 2, 0), 20),
+    cnBar(Date.UTC(2026, 8, 9, 2, 1), LAST_BAR_CLOSE),
+  ]
+
+  function jsonResponse(payload: unknown): Response {
+    return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+
+  /**
+   * 记录桥请求的真实 fetch 缝（沿用本文件既有的记录桩手法）。holdCrossSourceTicker
+   * 给定时，带 provider 的聚焦标的 ticker 响应挂起，直到测试显式放行。
+   */
+  function recordBridge(options: { provider?: string; holdCrossSourceTicker?: Promise<void> }): { calls: string[]; restore: () => void } {
+    const calls: string[] = []
+    const original = globalThis.fetch
+    globalThis.fetch = (async (input: unknown): Promise<Response> => {
+      const url = String(input)
+      calls.push(url)
+      if (url.includes('/dshtrading/api/klines')) {
+        return jsonResponse({ klines: CN_KLINES, ...(options.provider === undefined ? {} : { provider: options.provider }) })
+      }
+      if (url.includes('/dshtrading/api/tickers')) {
+        if (options.holdCrossSourceTicker !== undefined && url.includes(`symbols=${SYMBOL}`) && url.includes('provider=')) {
+          await options.holdCrossSourceTicker
+        }
+        return jsonResponse({ tickers: { [SYMBOL]: { ok: true, ticker: { symbol: SYMBOL, price: TICKER_PRICE, prevClose: 10, changePercent: 1, timestamp: 1 } } } })
+      }
+      return new Response('{}', { status: 500 })
+    }) as typeof fetch
+    return { calls, restore: () => { globalThis.fetch = original } }
+  }
+
+  /** 只看聚焦标的的 ticker 请求（大盘指数轮询打的是别的 symbols）。 */
+  function symbolTickerCalls(calls: readonly string[]): string[] {
+    return calls.filter(url => url.includes('/dshtrading/api/tickers') && url.includes(`symbols=${SYMBOL}`))
+  }
+
+  /** 图表最后一帧的最后一根收盘价（合流与否的观测点）。 */
+  function lastChartClose(): number | undefined {
+    const frame = chart.frames[chart.frames.length - 1] ?? []
+    return frame[frame.length - 1]?.close
+  }
+
+  /** 级别胶囊条的文本（t 直出词典 key）。 */
+  function intervalTabs(view: { container: HTMLElement }): string {
+    return view.container.querySelector('[aria-label="interval"]')?.textContent ?? ''
+  }
+
+  /** 内存版 localStorage 假件（jsdom 默认原点下该全局不可用）：棘轮禁用 vi.* 通用
+   *  mock，这里手写契约假件并按用例隔离，用完还原全局。 */
+  let storageDescriptor: PropertyDescriptor | undefined
+
+  beforeEach(() => {
+    chart.frames.length = 0
+    storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const backing = new Map<string, string>()
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      writable: true,
+      value: {
+        getItem: (key: string) => backing.get(key) ?? null,
+        setItem: (key: string, value: string) => { backing.set(key, value) },
+        removeItem: (key: string) => { backing.delete(key) },
+      },
+    })
+  })
+
+  afterEach(() => {
+    if (storageDescriptor === undefined) delete (globalThis as { localStorage?: unknown }).localStorage
+    else Object.defineProperty(globalThis, 'localStorage', storageDescriptor)
+  })
+
+  it('用户的 A 股靠并集里的东财声明撑满 5 个交易日时，五日胶囊出现且记忆不被改写', async () => {
+    // Given cn 的 active 路由是腾讯、能力并集里有 1m/2500 根，且上次记住的级别是 5d
+    const bridge = recordBridge({ provider: 'eastmoney' })
+    publishMarketProviders(CN_FULL_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 挂载并等首帧取数结算
+      const view = render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+
+      // Then 胶囊里出现 '5d'、记忆保持 5d、且按该级别的口径真的取了数
+      expect(intervalTabs(view)).toContain('interval.5d')
+      expect(localStorage.getItem(INTERVAL_KEY)).toBe('5d')
+      expect(bridge.calls.some(url => url.includes('/klines') && url.includes('interval=1m') && url.includes('limit=2500'))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户的能力并集还没上报时，五日胶囊不出现但记忆里的级别不被丢弃', async () => {
+    // Given markets 行里没有任何能力声明（桥未上报，不是「无能力」）
+    const bridge = recordBridge({ provider: 'eastmoney' })
+    publishMarketProviders([{ id: 'cn', provider: 'tencent' }])
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 挂载并等首帧结算
+      const view = render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+
+      // Then 胶囊不出现、记忆原样保留、五日取数不发生（日K参考照常）
+      expect(intervalTabs(view)).not.toContain('interval.5d')
+      expect(localStorage.getItem(INTERVAL_KEY)).toBe('5d')
+      expect(bridge.calls.some(url => url.includes('/klines') && url.includes('interval=1m'))).toBe(false)
+      expect(bridge.calls.some(url => url.includes('/klines') && url.includes('interval=1d'))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户的市场只声明 1m/800 根（三日多）时，五日胶囊不出现且记忆回落为日K', async () => {
+    // Given 能力并集最大只有 800 根 1m
+    const bridge = recordBridge({ provider: 'eastmoney' })
+    publishMarketProviders(CN_THIN_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 挂载并等首帧结算
+      const view = render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+
+      // Then 胶囊不出现、记忆被回落守卫改写成 1d、没有按五日口径取过数
+      expect(intervalTabs(view)).not.toContain('interval.5d')
+      expect(localStorage.getItem(INTERVAL_KEY)).toBe('1d')
+      expect(bridge.calls.some(url => url.includes('/klines') && url.includes('interval=1m'))).toBe(false)
+      expect(bridge.calls.some(url => url.includes('/klines') && url.includes('interval=1d'))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户的五日 bar 来自非 active 的源时，该级别的价格向同一源取并与 bar 合流', async () => {
+    // Given cn 的 active 是腾讯、五日取数由东财供数（响应里标明 provider=eastmoney）
+    const bridge = recordBridge({ provider: 'eastmoney' })
+    publishMarketProviders(CN_FULL_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 挂载后推过一拍 5s ticker 轮询
+      render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+
+      // Then 该级别的 ticker 请求带 provider=eastmoney（且只有聚焦标的这条带）
+      const symbolTickers = symbolTickerCalls(bridge.calls)
+      expect(symbolTickers.length).toBeGreaterThan(0)
+      expect(symbolTickers[symbolTickers.length - 1]).toContain('provider=eastmoney')
+      expect(bridge.calls.filter(url => url.includes('/tickers') && url.includes('provider=')).every(url => url.includes(`symbols=${SYMBOL}`))).toBe(true)
+      // 同源合流：图表最后一根收盘价被该源的价格推进（原始最后一根是 21）
+      expect(lastChartClose()).toBe(TICKER_PRICE)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户的五日 bar 与 active 同源时不多发 ticker 请求，也不带 provider', async () => {
+    // Given 五日 bar 的供数源就是 active 路由（腾讯）
+    const bridge = recordBridge({ provider: 'tencent' })
+    publishMarketProviders(CN_FULL_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 挂载结算后推过一拍 5s ticker 轮询
+      render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      const before = symbolTickerCalls(bridge.calls).length
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+      const after = symbolTickerCalls(bridge.calls)
+
+      // Then 一拍仍只有一条请求（不为跨源判定多打一次），且不带 provider
+      expect(after.length - before).toBe(1)
+      expect(after.every(url => !url.includes('provider='))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户切回日K后才收到跨源 ticker 的报价时，不把它合并进当前 bar', async () => {
+    // Given 五日 bar 由东财供数，且东财的 ticker 响应挂在途中（尚未落地）
+    let release = (): void => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const bridge = recordBridge({ provider: 'eastmoney', holdCrossSourceTicker: held })
+    publishMarketProviders(CN_FULL_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      const view = render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+
+      // When 用户切回日K（当前 bar 序列改由 active 的腾讯供数）后才收到东财的价
+      const dayTab = Array.from(view.container.querySelectorAll('[aria-label="interval"] button'))
+        .find(button => button.textContent === 'interval.1d')
+      fireEvent.click(dayTab as HTMLElement)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      const closeBefore = lastChartClose()
+      await act(async () => { release(); await vi.advanceTimersByTimeAsync(1) })
+
+      // Then 东财的价没有混进腾讯的 bar（头部报价照常走 ticker，不影响序列）
+      expect(closeBefore).toBe(LAST_BAR_CLOSE)
+      expect(lastChartClose()).toBe(closeBefore)
+      expect(lastChartClose()).not.toBe(TICKER_PRICE)
+    } finally {
+      vi.useRealTimers()
+      bridge.restore()
+    }
+  })
+
+  it('用户从五日切回日K后 ticker 请求不再带 provider（只有五日级别跨源时带）', async () => {
+    // Given cn 的 active 是腾讯、五日取数由东财供数
+    const bridge = recordBridge({ provider: 'eastmoney' })
+    publishMarketProviders(CN_FULL_CAPABILITY)
+    localStorage.setItem(INTERVAL_KEY, '5d')
+    vi.useFakeTimers()
+    try {
+      // When 五日级别推过一拍 ticker 轮询
+      const view = render(<QuoteStage {...quoteStageProps('cn', { symbol: SYMBOL })} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+      const fiveDayTick = symbolTickerCalls(bridge.calls).at(-1) ?? ''
+
+      // Then 这一拍带 provider=eastmoney（与 bar 同源）
+      expect(fiveDayTick).toContain('provider=eastmoney')
+
+      // When 用户切回日K再推一盘
+      const dayTab = Array.from(view.container.querySelectorAll('[aria-label="interval"] button'))
+        .find(button => button.textContent === 'interval.1d')
+      fireEvent.click(dayTab as HTMLElement)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+
+      // Then 日K级别的 ticker 走 active 路由，不带 provider
+      const dayTick = symbolTickerCalls(bridge.calls).at(-1) ?? ''
+      expect(dayTick).not.toContain('provider=')
+      expect(dayTick).not.toBe(fiveDayTick)
     } finally {
       vi.useRealTimers()
       bridge.restore()

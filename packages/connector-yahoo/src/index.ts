@@ -21,7 +21,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import Schema from '@deepseek-ai/schemastery'
-import type { Disposable, Interval, Kline, MarketDataService, Ticker } from '@dshtrading/api'
+import type { Disposable, Interval, Kline, KlineCapability, MarketDataService, Ticker } from '@dshtrading/api'
 import {
   INTERVAL_VOCABULARY,
   type YahooRestOptions,
@@ -84,6 +84,15 @@ export class YahooMarketDataService extends Service implements MarketDataService
   getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]> {
     // limit 截尾归 REST 客户端（单一实现处，2026-10-14）：本层只做透传。
     return this.client.getKlines(symbol, interval, limit)
+  }
+
+  /**
+   * K 线能力声明（api 可选契约，2026-10-15 跨源 K 线路由）：周期集 = Yahoo chart 的受支持
+   * 子集；深度只有 1m 有实测值（2730 根 = range=7d 原窗口），其余周期声明承接闸门
+   * （口径与证据见 rest.ts 的 yahooKlineCapabilities）。
+   */
+  klineCapabilities(): readonly KlineCapability[] {
+    return this.client.klineCapabilities()
   }
 
   subscribeTicker(symbol: string, cb: (ticker: Ticker) => void, options?: SubscribeTickerOptions): Disposable {

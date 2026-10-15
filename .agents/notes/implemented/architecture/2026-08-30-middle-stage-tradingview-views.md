@@ -37,7 +37,8 @@ Status: implemented
   图表下方指标读数行（悬停跟随、色同序列）。
 - **实时口径**：K 线取数统一进 `usePoll`（挂载/换标的/换周期立即触发 +
   30s resync——唯五日级别例外，见下条，取 60s；后台标签页冻结的既有语义保留）；
-  ticker 5s 轮询把价格尾随合并进最后一根 K 线（`withTickerBar`，无变化返回原数组避免无效重算），蜡烛/成交量
+  ticker 5s 轮询把价格尾随合并进最后一根 K 线（`withTickerBar`，无变化返回原数组避免无效重算；
+  五日级别跨源时改由同源的 ticker 合并，见下条），蜡烛/成交量
   走 `series.update()` 尾部增量（保留用户视窗），30s resync 兜底校正开高低/量。
   蜡烛/成交量只在 `dataKey`（market:symbol:interval）变化或头部时间位移时才
   `setData` + `fitContent`；指标序列主图按组 diff、副图按激活顺序整组重建
@@ -45,17 +46,23 @@ Status: implemented
 - **五日级别（客户端视图级别 `'5d'`，2026-10-14）**：与日 K/分钟级别平级的胶囊，
   成交量按「同分钟量比」分档着色，显示窗口由滚轮档位决定（1..5 个交易日，默认 1）。
   四条机制：
-  1. **能力驱动出现**：只有当前路由能诚实提供 5 交易日 1m 时才出现——`us`+`yahoo`
-     （chart 1m range=7d ≈ 2730 根 / 7 个会话）、`cn`/`hk`+`eastmoney`（trends2
-     ndays=5，cn≈1205 / hk≈1655 根；历史交易日开价由连接器用前一根收盘重建，属派生值）。
-     `crypto`（OKX 单请求 300 根）、`futures`（上游仅当日分时）、`global`（金十 1m
-     最多 300 根且无 5 日历史）、`cn`/`hk` 走 `tencent`（m1 单请求 800 根 ≈ 3.3 个
-     交易日，超限静默降到 320 根）一律不出现，也不渲染任何替代/裁剪数据。事实来源
-     `spikes/impl-five-day-1m-probe/EVIDENCE.md`。provider 取自 `market-providers.ts`
-     的市场级缓存（`GET /dshtrading/api/markets` 的 `MarketInfo.provider`，sidebar
-     拉到后发布、在途请求去重），不按标的探测。
+  1. **能力驱动出现**：判据是 `GET /dshtrading/api/markets` 上报的 `klineCapabilities`
+     **并集**（该市场全部已注册源的自我声明；存在 `1m` 且 `maxBars ≥ 2500` 才出现），
+     与当前路由无关——并集是跨源的：`cn`/`hk` 即便路由落在 `tencent`（公开端点对 1m
+     结构性拒绝、港股连分钟线都没有）也照样出现，因为东财 dataplane 与它同市场同时
+     注册、`trends2 ndays=5` 能诚实给 5 个交易日（实测 cn 1061 / hk 1421 根；历史交易日
+     开价由连接器用前一根收盘重建，属派生值）。`crypto`（OKX 单请求 300 根）、`futures`
+     （上游仅当日分时）、`global`（金十 1m 最多 300 根且无 5 日历史）结构性地不出现，
+     也不渲染任何替代/裁剪数据；能力并集尚未上报按 `unknown` 处理（保留记忆、不判不可得）。
+     事实来源 `spikes/impl-five-day-1m-probe/EVIDENCE.md` 与
+     `spikes/impl-cross-source-kline-routing/EVIDENCE.md`；跨源解析机制（能力声明形态、
+     桥的候选序与错误码兜底、`/markets` 并集与 `/klines` 的 `provider` 标注）见
+     [cross-source-kline-capability-routing](../feature/2026-10-15-cross-source-kline-capability-routing.md)。
+     provider 与能力同取自 `market-providers.ts` 的市场级缓存（`GET /dshtrading/api/markets`，
+     sidebar 拉到后发布、在途请求去重），不按标的探测。
   2. **纯客户端计算**（`five-day-series.ts`，纯函数）：取数恒为
-     `fetchKlines(market, symbol, '1m', 2500)`，再按 `market-time.ts` 的市场时区
+     `fetchKlinesFrom(market, symbol, '1m', 2500)`（与 `fetchKlines` 同一条路径，另取响应
+     标注的**实际供数** provider），再按 `market-time.ts` 的市场时区
      分组取最近 5 个交易日。**比较窗口与显示窗口分开**：比较窗口恒为这 5 个交易日
      （量比分档的前值范围），显示窗口是滚轮档位 N ∈ 1..5（`FIVE_DAY_DEFAULT_DAYS`
      = 1），只决定图上画最近几段——档位不参与量比计算，否则 N=1 时当日没有任何前值，
@@ -98,10 +105,13 @@ Status: implemented
      色值以本表为唯一事实来源，见 [volume-tier-indicator-generalization](2026-10-14-volume-tier-indicator-generalization.md)）；
      成交量指标 `vol` 消费的档位通道见 [volume-indicator-and-bar-aux-channel](2026-10-14-volume-indicator-and-bar-aux-channel.md)。
   4. **节奏与记忆**：该级别重取 60s（一次约 1200-1950 根，30s 全量重取等于把上游配额
-     翻倍），盘中最新一根仍由既有 ticker 5s 合并推进；级别记忆读回按「市场是否属于
-     五日级别可能可得族」接受 `'5d'`，路由明确不可得时由守卫回落到 `1d` 并改写记忆
-     （provider 未取到时按 unknown 不动，不把「还没问到」当成「不可得」）。切级别后
-     旧级别数据在途期间按 `klinesInterval` 标记丢弃，日 K 不会被当成 1m 分组。
+     翻倍），盘中最新一根仍由既有 ticker 5s 合并推进；但该级别的 bar 来自**非 active** 的
+     源时（按能力跨源兜底），它的 ticker 也向同一 `provider` 取（`/tickers?provider=`），
+     且只在两端同源时才合并进最后一根（合流判定在 ticker 响应回来当刻按当时的序列来源，
+     避免在途的跨源报价落进切级别后的序列）。级别记忆读回按「市场是否属于五日级别可能
+     可得族」接受 `'5d'`，能力并集明确不可得时由守卫回落到 `1d` 并改写记忆（能力尚未
+     上报时按 unknown 不动，不把「还没问到」当成「不可得」）。切级别后旧级别数据在途
+     期间按 `klinesInterval` 标记丢弃，日 K 不会被当成 1m 分组。
 - **中栏舞台化**：`QuotePane` 改挂 `MiddleStage`——中栏视图注册表
   （`MIDDLE_VIEWS`：行情 | 量化）+ 顶部切换条，活动视图互斥挂载（切走即卸载，
   视图态由 store/localStorage 承接，`dshtrading.stage.v1`）；`WorkflowView`

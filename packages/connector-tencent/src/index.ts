@@ -26,7 +26,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import Schema from '@deepseek-ai/schemastery'
-import type { ActiveBuySnapshot, Disposable, Interval, Kline, MarketDataService, Orderbook, StockFundamentals, Ticker } from '@dshtrading/api'
+import type { ActiveBuySnapshot, Disposable, Interval, Kline, KlineCapability, MarketDataService, Orderbook, StockFundamentals, Ticker } from '@dshtrading/api'
 import {
   INTERVAL_VOCABULARY,
   type TencentMarket,
@@ -138,6 +138,14 @@ export class TencentMarketDataService extends Service implements MarketDataServi
 
   getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]> {
     return this.client.getKlines(symbol, interval, limit)
+  }
+
+  /**
+   * K 线能力声明（api 可选契约，2026-10-15 跨源 K 线路由）：透传 REST 客户端的本市场口径
+   * （hk 实例不含 5m/30m；深度 = 单请求上限 800）。
+   */
+  klineCapabilities(): readonly KlineCapability[] {
+    return this.client.klineCapabilities()
   }
 
   listInstruments(query?: string): Promise<Array<{ symbol: string; name: string; pinyin?: string }>> {

@@ -45,8 +45,10 @@ export async function fetchMarkets(): Promise<MarketInfo[]> {
 }
 
 /** Batched tickers; per-symbol outcomes are independent (bad codes don't sink the batch). */
-export async function fetchTickers(market: MarketId, symbols: string[]): Promise<Record<string, TickerOutcome>> {
+export async function fetchTickers(market: MarketId, symbols: string[], provider?: string): Promise<Record<string, TickerOutcome>> {
   const query = new URLSearchParams({ market, symbols: symbols.join(',') })
+  // 只在显式指定源时带上：未注册的源由桥以 400 拒绝，不静默换源。
+  if (provider !== undefined && provider !== '') query.set('provider', provider)
   const wire = await getJson<{ tickers: Record<string, TickerOutcome> }>(`/dshtrading/api/tickers?${query.toString()}`)
   return wire.tickers ?? {}
 }
@@ -55,6 +57,18 @@ export async function fetchKlines(market: MarketId, symbol: string, interval: st
   const query = new URLSearchParams({ market, symbol, interval, limit: String(limit) })
   const wire = await getJson<{ klines: Kline[] }>(`/dshtrading/api/klines?${query.toString()}`)
   return Array.isArray(wire.klines) ? wire.klines : []
+}
+
+/**
+ * 与 fetchKlines 同一条路径，另外回报**本次实际供数的 provider slug**（桥未标注时
+ * 缺席）。只给需要知道「这根 bar 是谁给的」的路径用（五日级别的跨源合流判定）；
+ * fetchKlines 的签名与返回值保持不动，策略/契约依赖它只拿 bar 序列。
+ */
+export async function fetchKlinesFrom(market: MarketId, symbol: string, interval: string, limit: number): Promise<{ klines: Kline[]; provider?: string }> {
+  const query = new URLSearchParams({ market, symbol, interval, limit: String(limit) })
+  const wire = await getJson<{ klines: Kline[]; provider?: string }>(`/dshtrading/api/klines?${query.toString()}`)
+  const klines = Array.isArray(wire.klines) ? wire.klines : []
+  return typeof wire.provider === 'string' && wire.provider !== '' ? { klines, provider: wire.provider } : { klines }
 }
 
 /**

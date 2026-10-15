@@ -15,9 +15,12 @@
  * - Issue #65：提供 /holdings 七个端点 + /fx 端点（统一资产台账，契约 §3/§4）。
  * - 2026-10-13：提供 /active-buy 端点（cn 主动买盘日频文件序列 + 可选当日 live，只读）。
  * - 2026-10-13：提供 /southbound-holdings 端点（港股通持股副图；按能力跨 provider 解析）。
+ * - 2026-10-15：/klines 按连接器声明的 K 线能力跨源解析取数源（active 结构性缺该周期/深度
+ *   时才换源，只有 TRADING_UNSUPPORTED_INTERVAL 触发兜底），wire 标注实际供数 provider；
+ *   /markets 上报同市场能力并集；/tickers 支持显式 provider（未注册即 400）。
  */
 import { instrumentFormOf } from '@dshtrading/api'
-import type { ActiveBuySnapshot, AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, SouthboundHoldingHistory, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
+import type { ActiveBuySnapshot, AccountBalance, DerivativesData, DerivativesHistory, FundamentalsPackage, InstrumentAssetClass, InstrumentForm, InstrumentRef, Interval, Kline, KlineCapability, MacroCalendarEntry, MacroRateEntry, MarketDataService, NewsAggregator, NewsItem, Order, Orderbook, OrderRequest, Position, PredictionFeed, PredictionMeeting, SouthboundHoldingHistory, StockFundamentals, Ticker, TradeFill, TradeService, TradeTick } from '@dshtrading/api'
 import { aggregateNews as aggregateCnNews, fetchCnFundamentalsPackage } from '@dshtrading/kit-cn'
 import { aggregateNews as aggregateHkNews, fetchHkFundamentalsPackage } from '@dshtrading/kit-hk'
 import { aggregateNews as aggregateUsNews, fetchUsFundamentalsPackage } from '@dshtrading/kit-us'
@@ -185,7 +188,7 @@ export function createBridgeHost(services: {
     },
     getTradeService: market => services.tradeRegistry?.active(market)?.service,
     activeProvider: market => services.registry?.active(market)?.provider ?? services.router?.activeProvider(market),
-    // 注册表本体透传（2026-10-13）：southboundHoldings 需要 active + list 两条路径。
+    // 注册表本体透传（2026-10-13）：southboundHoldings / klines / tickers 需要 active + list 两条路径。
     marketRegistry: services.registry,
     customIndicatorsStore: services.customIndicatorsStore ?? createMemoryCustomIndicatorStore(),
     chartActivationsStore: services.chartActivationsStore ?? createMemoryChartActivationStore(),
@@ -227,9 +230,10 @@ export interface BridgeHost {
   /** 该市场当前激活的 provider slug（router 设置；可能 undefined）。 */
   activeProvider(market: MarketId): string | undefined
   /**
-   * 行情服务注册表本体（可选，2026-10-13 港股通持股副图）：southboundHoldings 按
-   * 能力跨 provider 解析时需要 registry.active + registry.list，而非仅 getMarketService
-   * 解析出的那一个。createBridgeHost 已接线；字面量宿主/旧宿主缺席 → 只认 active 路径。
+   * 行情服务注册表本体（可选，2026-10-13 港股通持股副图）：southboundHoldings 与
+   * klines/tickers 按能力跨 provider 解析时需要 registry.active + registry.list，
+   * 而非仅 getMarketService 解析出的那一个（markets 的 klineCapabilities 并集也取自
+   * list）。createBridgeHost 已接线；字面量宿主/旧宿主缺席 → 只认 active 路径。
    */
   marketRegistry?: MarketDataRegistryLike | undefined
   /** 自定义指标存储（可选）。 */
@@ -281,9 +285,22 @@ export interface BridgeHost {
   guiApproval?: GuiApprovalSeat | undefined
 }
 
+/** 一条 kline 能力声明（wire 形状；client 半按同一份契约消费）。 */
+export interface KlineCapabilityWire {
+  interval: string
+  maxBars: number
+}
+
 export interface MarketInfoWire {
   id: MarketId
   provider?: string
+  /**
+   * 该市场**全部注册项**声明的 (周期, 深度) 并集（同 interval 取 maxBars 最大值）。
+   * 判据是「该市场能不能取到某 (周期, 深度)」，与当前路由无关——路由切换不该让级别
+   * 在客户端消失（真去取时由跨源解析兜住）。无任何声明时字段缺席：缺席 = 未声明，
+   * 不给空数组冒充「无能力」。
+   */
+  klineCapabilities?: readonly KlineCapabilityWire[]
 }
 
 export type TickerOutcome =
@@ -310,6 +327,12 @@ export interface TickersWire {
 
 export interface KlinesWire {
   klines: Kline[]
+  /**
+   * 本次**实际供数**的 provider slug（2026-10-15 跨源 K 线路由）。跨源后仍是真实来源：
+   * 消费方拿它判断「这根 bar 来自哪个源」（如与 ticker 合流前比对来源），不得用它回推路由设置。
+   * 解析不到 slug 时省略（老宿主/字面量宿主没有注册表可问）——缺席 ≠ 用了 active。
+   */
+  provider?: string
 }
 
 export interface SymbolInfoWire {
@@ -376,6 +399,24 @@ type ActiveBuyCapableService = MarketDataService & {
 /** 能力探测（鸭子类型）：只认真正实现了可选方法的服务，缺席/非函数一律不算。 */
 function hasActiveBuySnapshot(service: MarketDataService | undefined): service is ActiveBuyCapableService {
   return typeof (service as { getActiveBuySnapshot?: unknown } | undefined)?.getActiveBuySnapshot === 'function'
+}
+
+/**
+ * 读取一个服务的 K 线能力声明（可选方法）。方法缺席、返回值非数组、条目形状不合格
+ * 一律按「未声明」处理——缺席的语义是「没声明」，不是「不支持」，故这里不替连接器
+ * 补默认值，也不把畸形声明当成拒绝。
+ */
+function klineCapabilitiesOf(service: MarketDataService | undefined): readonly KlineCapability[] {
+  const declared = typeof service?.klineCapabilities === 'function' ? service.klineCapabilities() : undefined
+  if (!Array.isArray(declared)) return []
+  return declared.filter(cap =>
+    typeof cap?.interval === 'string' && Number.isInteger(cap.maxBars) && cap.maxBars > 0)
+}
+
+/** 一次 K 线取数的候选：服务本体 + provider slug（老宿主路径问不到 slug 时缺席）。 */
+interface KlineSourceCandidate {
+  provider?: string
+  service: MarketDataService
 }
 
 export interface DerivativesWire {
@@ -774,28 +815,66 @@ export class TradingBridge {
 
   constructor(private readonly host: BridgeHost) {}
 
-  /** 已安装（有行情服务）的市场清单 + 当前 provider slug。 */
+  /**
+   * 已安装（有行情服务）的市场清单 + 当前 provider slug + 该市场声明的 K 线能力并集。
+   * 能力并集取自**全部注册项**（不是 active 一项）：它回答的是「这个市场能不能取到某
+   * (周期, 深度)」，与当前路由无关——跨源解析会兜住路由缺的那部分（见 klines）。
+   */
   markets(): MarketsWire {
     const markets: MarketInfoWire[] = []
     for (const id of MARKET_IDS) {
       if (this.host.getMarketService(id) === undefined) continue
       const provider = this.host.activeProvider(id)
-      markets.push(provider === undefined ? { id } : { id, provider })
+      const klineCapabilities = this.#marketKlineCapabilities(id)
+      markets.push({
+        id,
+        ...(provider === undefined ? {} : { provider }),
+        ...(klineCapabilities.length === 0 ? {} : { klineCapabilities }),
+      })
     }
     return { markets }
   }
 
-  /** 批量报价：逐 symbol 独立成功/失败（一个坏代码不拖垮整批）。 */
-  async tickers(market: string, symbols: string[]): Promise<TickersWire> {
+  /**
+   * 该市场全部注册项声明的能力并集：同 interval 取 maxBars 最大值。
+   * 顺序 = 注册项遍历顺序下的「interval 首次出现序」，不按词汇表重排——api 词汇表新增
+   * 周期时，这里不该因为不认识它而把该周期从并集里丢掉。注册表缺席（老宿主）→ 空并集。
+   */
+  #marketKlineCapabilities(market: MarketId): KlineCapabilityWire[] {
+    const union = new Map<string, number>()
+    for (const entry of this.host.marketRegistry?.list?.(market) ?? []) {
+      for (const cap of klineCapabilitiesOf(entry.service)) {
+        union.set(cap.interval, Math.max(union.get(cap.interval) ?? 0, cap.maxBars))
+      }
+    }
+    return [...union].map(([interval, maxBars]) => ({ interval, maxBars }))
+  }
+
+  /**
+   * 批量报价：逐 symbol 独立成功/失败（一个坏代码不拖垮整批）。
+   * provider 显式指定取数源时必须命中该市场**已注册项**；未命中或注册表缺席 → 400
+   * （不静默降级到 active——用户显式指定的源是权威）。未给 provider 时维持现行 active
+   * 解析与批量语义（MAX_SYMBOLS 闸门、逐符号信封都不变）。
+   */
+  async tickers(market: string, symbols: string[], provider?: string): Promise<TickersWire> {
     if (!isMarketId(market)) throw new BridgeProtocolError(400, `unknown market ${JSON.stringify(market)}`)
     const unique = [...new Set(symbols.map(symbol => symbol.trim()).filter(Boolean))]
     if (unique.length === 0) throw new BridgeProtocolError(400, 'tickers: symbols is required')
     if (unique.length > MAX_SYMBOLS) {
       throw new BridgeProtocolError(400, `tickers: too many symbols (${unique.length} > ${MAX_SYMBOLS})`)
     }
-    const service = this.host.getMarketService(market)
+    const service = provider === undefined ? this.host.getMarketService(market) : this.#requireRegisteredService(market, provider)
     if (service === undefined) throw new BridgeProtocolError(400, `market ${market} is not installed`)
     return { tickers: await this.fetchTickerOutcomes(service, unique) }
+  }
+
+  /** 按 provider slug 解析同市场已注册行情服务；未注册/注册表缺席 → 400（绝不静默换源）。 */
+  #requireRegisteredService(market: MarketId, provider: string): MarketDataService {
+    const entry = this.host.marketRegistry?.list?.(market)?.find(item => item.provider === provider)
+    if (entry === undefined) {
+      throw new BridgeProtocolError(400, `tickers: provider ${JSON.stringify(provider)} is not a registered source of market ${market}`)
+    }
+    return entry.service
   }
 
   /** 单只取数：成败各自成信封，错误码取自连接器抛出的 TradingError。 */
@@ -843,7 +922,17 @@ export class TradingBridge {
     return tickers
   }
 
-  /** K 线：透传 interval（连接器自行校验各自支持集）。 */
+  /**
+   * K 线：按能力跨源解析取数源（2026-10-15 冻结契约，规则见 #resolveKlinesSources）。
+   *
+   * 参数闸门不变（interval 照旧透传、limit 限 1..MAX_KLINE_LIMIT、不截断返回）；
+   * 变化只在「谁来供数」与 wire 上的 provider 标注：
+   *   - 选中源抛 TRADING_UNSUPPORTED_INTERVAL（结构性不支持该周期）→ 沿候选序试下一个
+   *     未试过的候选，不论它是否声明（声明只是预判，错误码才是事实）；
+   *   - 其它任何错误码（网络/限流/坏符号/交易所错误）**一律原样抛、绝不换源**：换源必须
+   *     只由结构性缺能力触发，不能把「这个源现在答不出」掩盖成「另一个源的数据」；
+   *   - 候选耗尽 → 原样抛最后一个错误（绝不返回空序列冒充「无数据」）。
+   */
   async klines(market: string, symbol: string, interval: string, rawLimit: string | null): Promise<KlinesWire> {
     if (!isMarketId(market)) throw new BridgeProtocolError(400, `unknown market ${JSON.stringify(market)}`)
     const trimmed = symbol.trim()
@@ -852,10 +941,63 @@ export class TradingBridge {
     if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0 || limit > MAX_KLINE_LIMIT)) {
       throw new BridgeProtocolError(400, `klines: limit must be an integer in 1..${MAX_KLINE_LIMIT}`)
     }
-    const service = this.host.getMarketService(market)
-    if (service === undefined) throw new BridgeProtocolError(400, `market ${market} is not installed`)
-    const klines = await service.getKlines(trimmed, interval as Interval, limit)
-    return { klines }
+    const candidates = this.#resolveKlinesSources(market, interval as Interval, limit)
+    if (candidates.length === 0) throw new BridgeProtocolError(400, `market ${market} is not installed`)
+    let lastError: unknown = undefined
+    for (const candidate of candidates) {
+      try {
+        const klines = await candidate.service.getKlines(trimmed, interval as Interval, limit)
+        return candidate.provider === undefined ? { klines } : { klines, provider: candidate.provider }
+      } catch (error) {
+        if (errorPayload(error).code !== 'TRADING_UNSUPPORTED_INTERVAL') throw error
+        lastError = error
+      }
+    }
+    throw lastError
+  }
+
+  /**
+   * K 线候选序（冻结）：active 在最前，其后 registry.list(market) 的**其余项**按 provider 名
+   * 升序（与 #resolveSouthboundService 同口径）。active 缺席（路由指向未注册的 provider 或市场
+   * 未安装）→ 空候选，调用方照旧 400「is not installed」：用户设置是权威，不为它换源。
+   * 注册表/list 缺席（老宿主）→ 只有 active 一项，行为与改动前一致。
+   */
+  #klineCandidates(market: MarketId): KlineSourceCandidate[] {
+    const registry = this.host.marketRegistry
+    const registered = registry?.active?.(market)
+    const activeService = registered?.service ?? this.host.getMarketService(market)
+    if (activeService === undefined) return []
+    const candidates: KlineSourceCandidate[] = [
+      registered === undefined ? { service: activeService } : { provider: registered.provider, service: activeService },
+    ]
+    const rest = [...(registry?.list?.(market) ?? [])]
+      .filter(entry => entry.service !== activeService)
+      .sort((a, b) => (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0))
+    for (const entry of rest) candidates.push({ provider: entry.provider, service: entry.service })
+    return candidates
+  }
+
+  /**
+   * K 线取数解析：返回「先本次选择、后其余候选」的候选序——运行时兜底只需顺序走完它，
+   * 就等价于「沿候选序继续试下一个未试过的候选」。
+   *
+   * 选择规则（确定性，不看质量/速度）：
+   *   (a) active 的声明覆盖请求（有该 interval，且 limit 缺省或 maxBars >= limit）→ active；
+   *   (b) 否则取候选序里第一个声明覆盖的候选；
+   *   (c) 无任何声明覆盖 → active（未声明路径，结构性不足交给错误码兜底）。
+   * 不变量：active 有能力就永远用 active——跨源只在 active 结构性缺能力时发生。
+   */
+  #resolveKlinesSources(market: MarketId, interval: Interval, limit: number | undefined): KlineSourceCandidate[] {
+    const candidates = this.#klineCandidates(market)
+    if (candidates.length <= 1) return candidates
+    const covers = (candidate: KlineSourceCandidate): boolean =>
+      klineCapabilitiesOf(candidate.service).some(cap =>
+        cap.interval === interval && (limit === undefined || cap.maxBars >= limit))
+    const active = candidates[0] as KlineSourceCandidate
+    if (covers(active)) return candidates
+    const chosen = candidates.find((candidate, index) => index > 0 && covers(candidate))
+    if (chosen === undefined) return candidates
+    return [chosen, ...candidates.filter(candidate => candidate !== chosen)]
   }
 
   /** 动态标的全集（带 30min 进程内缓存；未实现或异常静默回落空列表）。 */
@@ -2348,7 +2490,9 @@ export async function dispatchBridgeRequest(
       case '/tickers': {
         const market = search.get('market') ?? ''
         const symbols = (search.get('symbols') ?? '').split(',')
-        return { status: 200, payload: await bridge.tickers(market, symbols) }
+        // provider 可选：空值/缺省 = 没指定源（维持 active 解析），非空值必须命中已注册项。
+        const provider = search.get('provider')
+        return { status: 200, payload: await bridge.tickers(market, symbols, provider === null || provider === '' ? undefined : provider) }
       }
       case '/klines': {
         const market = search.get('market') ?? ''
