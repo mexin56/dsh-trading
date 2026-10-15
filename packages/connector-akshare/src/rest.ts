@@ -23,6 +23,42 @@ export class TradingServiceError extends Error {
 
 export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '1d', '1w', '1M'] as const
 
+/**
+ * K 线周期 → 东财 kline/get 的 klt 周期码 + 单根时长。
+ *
+ * klt 与同打 push2his kline/get 的 connector-eastmoney 同一张表（该包 `mapIntervalToKlt`）；
+ * stepMs 是 K 线覆盖时长，用于 closeTime = openTime + stepMs - 1——分钟线不再按日线加满一天，
+ * 周/月线也必须长于 2 天，否则 packages/indicators 的 klineTradingDay 会把周 K 当成单日 K。
+ */
+const KLINES_INTERVAL_SPEC: Readonly<Record<string, { readonly klt: string; readonly stepMs: number }>> = {
+  '5m': { klt: '5', stepMs: 5 * 60_000 },
+  '15m': { klt: '15', stepMs: 15 * 60_000 },
+  '30m': { klt: '30', stepMs: 30 * 60_000 },
+  '1h': { klt: '60', stepMs: 60 * 60_000 },
+  '1d': { klt: '101', stepMs: 24 * 60 * 60_000 },
+  '1w': { klt: '102', stepMs: 7 * 24 * 60 * 60_000 },
+  '1M': { klt: '103', stepMs: 30 * 24 * 60 * 60_000 },
+}
+
+/** 本包 K 线真实可服务的周期（`INTERVAL_VOCABULARY` 的严格子集：1m 不在其中）。 */
+export const SUPPORTED_KLINES_INTERVALS: readonly string[] = Object.keys(KLINES_INTERVAL_SPEC)
+
+/**
+ * 周期 → klt 与时长；映射表外的周期在发请求前显式拒绝（`TRADING_UNSUPPORTED_INTERVAL`），
+ * 不静默按日线返回。`1m` 也在拒绝之列：kline/get 的 klt=1 只回当日（`lmt` 被上游忽略，
+ * connector-eastmoney/src/rest.ts 实测），本包没有 trends2 分时通道，取不到多日 1m 序列。
+ */
+export function resolveKlinesInterval(interval: Interval): { readonly klt: string; readonly stepMs: number } {
+  const spec = KLINES_INTERVAL_SPEC[interval]
+  if (spec === undefined) {
+    throw new TradingServiceError(
+      'TRADING_UNSUPPORTED_INTERVAL',
+      `AkShare/Eastmoney klines do not serve interval "${String(interval)}"; supported: ${SUPPORTED_KLINES_INTERVALS.join(', ')}`,
+    )
+  }
+  return spec
+}
+
 export function toEastmoneySecid(symbol: string): { secid: string; canonical: string } {
   const clean = symbol.trim().toUpperCase()
   let code = clean
@@ -74,16 +110,13 @@ function quotePriceScale(decimalDigits: unknown): number {
 }
 
 export interface AkshareRestOptions {
-  apiUrl?: string
   fetchImpl?: typeof fetch
 }
 
 export class AkshareRestClient {
-  readonly apiUrl: string
   private readonly fetchImpl: typeof fetch
 
   constructor(options: AkshareRestOptions = {}) {
-    this.apiUrl = options.apiUrl ?? (process.env.AKSHARE_API_URL || 'http://127.0.0.1:8080')
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch
   }
 
@@ -141,8 +174,9 @@ export class AkshareRestClient {
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
+    // 周期先于任何请求解析：不支持的周期在这里抛错，绝不落日线。
+    const { klt, stepMs } = resolveKlinesInterval(interval)
     const { secid } = toEastmoneySecid(symbol)
-    const klt = interval === '5m' ? '5' : interval === '15m' ? '15' : interval === '30m' ? '30' : interval === '1h' ? '60' : '101'
     const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&klt=${klt}&fqt=1&lmt=${limit}&fields2=f51,f52,f53,f54,f55,f56`
     const res = await this.requestJson<{ data?: { klines?: string[] } }>(url)
     if (!res.data?.klines) return []
@@ -157,7 +191,7 @@ export class AkshareRestClient {
         high: parseFloat(parts[3]),
         low: parseFloat(parts[4]),
         volume: parseFloat(parts[5]),
-        closeTime: openTime + 86400000 - 1,
+        closeTime: openTime + stepMs - 1,
       }
     })
   }

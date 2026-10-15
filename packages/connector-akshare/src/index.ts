@@ -1,6 +1,7 @@
 /**
  * @dshtrading/connector-akshare
- * AkShare A 股宏观与量化另类数据插件（提供 tradingCnMarketData 与行业资金流工具）。
+ * 包名取 AkShare，实现面是东方财富公开 REST 直连（push2 / push2his）：
+ * 提供 tradingCnMarketData 行情服务与 3 个 cn_* 工具，无交易通道。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,6 +19,7 @@ import {
   AkshareRestClient,
   type AkshareRestOptions,
   INTERVAL_VOCABULARY,
+  SUPPORTED_KLINES_INTERVALS,
 } from './rest.js'
 
 export * from './rest.js'
@@ -26,12 +28,10 @@ export const name = 'dsh-trading-cn-connector-akshare'
 
 export interface Config {
   enabled: boolean
-  apiUrl?: string
 }
 
 export const Config: Schema<Config> = Schema.object({
   enabled: Schema.boolean().default(true).description('是否激活 AkShare 连接器'),
-  apiUrl: Schema.string().default('http://127.0.0.1:8080').description('AkShare 本地 RPC/HTTP 服务地址'),
 })
 
 export const TRADING_CN_MARKET_DATA_KEY = 'tradingCnMarketData'
@@ -84,7 +84,7 @@ export function apply(ctx: Context, config: Config): void {
   if (!config.enabled) return
   if (!routeAllows(ctx, config, 'cn')) return
 
-  const marketData = new AkshareMarketDataService(ctx, { apiUrl: config.apiUrl })
+  const marketData = new AkshareMarketDataService(ctx)
 
   ctx.inject(['tools'], (ctx) => {
     const tools = ctx.tools as unknown as { register(d: unknown): void; get(n: string): unknown }
@@ -107,7 +107,12 @@ export function apply(ctx: Context, config: Config): void {
       description: 'Get recent public klines for an A-share stock via AkShare/Eastmoney API.',
       parameters: {
         symbol: { type: 'string', required: true, description: 'A-share stock symbol, e.g. 600519.SH' },
-        interval: { type: 'string', enum: INTERVAL_VOCABULARY, default: '1d', description: 'Interval' },
+        interval: {
+          type: 'string',
+          enum: INTERVAL_VOCABULARY,
+          default: '1d',
+          description: `Interval (Eastmoney kline/get serves ${SUPPORTED_KLINES_INTERVALS.join('/')}; 1m and other values are rejected with TRADING_UNSUPPORTED_INTERVAL)`,
+        },
         limit: { type: 'integer', default: 100, description: 'Limit' },
       },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },

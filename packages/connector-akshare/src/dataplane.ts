@@ -28,10 +28,10 @@ export function apply(ctx: Context, config: Config = withDefaults(undefined)): v
   if (!config.enabled) return
   const registry = resolveMarketDataRegistry(ctx)
   if (registry === undefined) {
-    new AkshareMarketDataService(ctx, { apiUrl: config.apiUrl })
+    new AkshareMarketDataService(ctx)
     return
   }
   const inner = ctx.isolate(TRADING_CN_MARKET_DATA_KEY)
-  const service = new AkshareMarketDataService(inner, { apiUrl: config.apiUrl })
+  const service = new AkshareMarketDataService(inner)
   ctx.effect(() => registry.register(MARKET, ROUTER_PROVIDER, service))
 }

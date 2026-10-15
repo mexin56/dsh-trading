@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   AkshareRestClient,
   INTERVAL_VOCABULARY,
+  SUPPORTED_KLINES_INTERVALS,
   toEastmoneySecid,
+  type Interval,
 } from '../src/rest.js'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -30,10 +32,101 @@ describe('AkshareRestClient 符号与周期映射', () => {
     expect(toEastmoneySecid('000001')).toEqual({ secid: '0.000001', canonical: '000001.SZ' })
   })
 
-  it('支持的 interval 词汇', () => {
+  it('用户对照周期词汇表与真实可服务的子集，看到 1m 只在词汇表里', () => {
+    // Given: 工具枚举用的规范 interval 词汇表（`src/index.ts` 的 enum）
+    // When: 与本包 K 线实际可服务的周期清单对照
+    // Then: 词汇表含 1m，可服务子集不含 1m，且覆盖 5m 到月线七档
     expect(INTERVAL_VOCABULARY).toContain('1m')
-    expect(INTERVAL_VOCABULARY).toContain('5m')
-    expect(INTERVAL_VOCABULARY).toContain('1d')
+    expect(SUPPORTED_KLINES_INTERVALS).not.toContain('1m')
+    expect(SUPPORTED_KLINES_INTERVALS).toEqual(
+      expect.arrayContaining(['5m', '15m', '30m', '1h', '1d', '1w', '1M']),
+    )
+  })
+})
+
+/** kline/get 响应行：时间,开,收,高,低,量（日线时间无时分，分钟线带 `HH:mm`）。 */
+function klineRow(time: string): string {
+  return `${time},1280.00,1285.47,1290.00,1279.00,21865`
+}
+
+describe('AkshareRestClient.getKlines 周期与 closeTime', () => {
+  it('用户请求周线/月线时拿到 klt=102/103 的周期码，而不是静默的日线', async () => {
+    // Given: 上游按 klt 回同一行（旧实现 1w/1M 都发 klt=101，静默返日线）
+    const weekly = stubFetch([{ match: 'klt=102', body: { data: { klines: [klineRow('2026-10-09')] } } }])
+    const monthly = stubFetch([{ match: 'klt=103', body: { data: { klines: [klineRow('2026-09-30')] } } }])
+
+    // When: 用户分别请求周线与月线
+    const weekBars = await new AkshareRestClient({ fetchImpl: weekly.impl }).getKlines('600519.SH', '1w', 1)
+    const monthBars = await new AkshareRestClient({ fetchImpl: monthly.impl }).getKlines('600519.SH', '1M', 1)
+
+    // Then: 请求打在各自的 klt 上并解析出一根 K 线
+    expect(weekly.urls[0]).toContain('klt=102')
+    expect(monthly.urls[0]).toContain('klt=103')
+    expect(weekBars).toHaveLength(1)
+    expect(monthBars).toHaveLength(1)
+    expect(weekBars[0]?.close).toBe(1285.47)
+  })
+
+  it('用户请求 5m 与 1d 时 klt 按时段分派，closeTime 是各自周期的末尾', async () => {
+    // Given: 上游对 klt=5 回一根 09:35 分钟线、对 klt=101 回一根日线
+    const intraday = stubFetch([{ match: 'klt=5', body: { data: { klines: [klineRow('2026-10-14 09:35')] } } }])
+    const daily = stubFetch([{ match: 'klt=101', body: { data: { klines: [klineRow('2026-10-14')] } } }])
+
+    // When: 用户分别请求 5m 与 1d
+    const minuteBar = (await new AkshareRestClient({ fetchImpl: intraday.impl }).getKlines('600519.SH', '5m', 1))[0]
+    const dailyBar = (await new AkshareRestClient({ fetchImpl: daily.impl }).getKlines('600519.SH', '1d', 1))[0]
+
+    // Then: 5m 覆盖 5 分钟（旧实现按日线加满一天），1d 仍覆盖一天
+    expect(intraday.urls[0]).toContain('klt=5')
+    expect(minuteBar!.closeTime - minuteBar!.openTime).toBe(5 * 60_000 - 1)
+    expect(dailyBar!.closeTime - dailyBar!.openTime).toBe(24 * 60 * 60_000 - 1)
+  })
+
+  it('用户请求周线时 closeTime 覆盖整周，供指标库识别跨日周期', async () => {
+    // Given: 上游 klt=102 回一根周期末交易日 2026-10-09 的周线
+    const { impl } = stubFetch([{ match: 'klt=102', body: { data: { klines: [klineRow('2026-10-09')] } } }])
+
+    // When: 用户请求 1w
+    const bar = (await new AkshareRestClient({ fetchImpl: impl }).getKlines('600519.SH', '1w', 1))[0]
+
+    // Then: 跨度是 7 天减 1 毫秒（packages/indicators 以「跨度 ≥ 2 天」判周/月 K）
+    expect(bar!.closeTime - bar!.openTime).toBe(7 * 24 * 60 * 60_000 - 1)
+  })
+
+  it('用户请求词汇表外的周期（3m/2h/3d）时本地抛 TRADING_UNSUPPORTED_INTERVAL 且不发请求', async () => {
+    // Given: 会记录每次请求的假 fetch（任何出网都会被记进 urls）
+    const { impl, urls } = stubFetch([])
+    const client = new AkshareRestClient({ fetchImpl: impl })
+
+    // When: 用户请求词汇表外的周期
+    const outcomes = await Promise.all(
+      (['3m', '2h', '3d'] as Interval[]).map((interval) =>
+        client.getKlines('600519.SH', interval, 1).catch((err: unknown) => err as { code?: string; message?: string }),
+      ),
+    )
+
+    // Then: 三个周期都抛 TRADING_UNSUPPORTED_INTERVAL，且一个请求都没发出
+    expect(outcomes.map((o) => o.code)).toEqual([
+      'TRADING_UNSUPPORTED_INTERVAL',
+      'TRADING_UNSUPPORTED_INTERVAL',
+      'TRADING_UNSUPPORTED_INTERVAL',
+    ])
+    expect(outcomes[0]?.message).toContain('3m')
+    expect(urls).toEqual([])
+  })
+
+  it('用户请求 1m 时本地拒绝而不是拿当日分时冒充多日序列', async () => {
+    // Given: 会记录每次请求的假 fetch
+    const { impl, urls } = stubFetch([])
+
+    // When: 用户请求 1m（上游 kline/get klt=1 只回当日，本包无 trends2 分时通道）
+    const outcome = await new AkshareRestClient({ fetchImpl: impl })
+      .getKlines('600519.SH', '1m', 100)
+      .catch((err: unknown) => err as { code?: string })
+
+    // Then: 本地拒绝，不发请求
+    expect(outcome).toMatchObject({ code: 'TRADING_UNSUPPORTED_INTERVAL' })
+    expect(urls).toEqual([])
   })
 })
 

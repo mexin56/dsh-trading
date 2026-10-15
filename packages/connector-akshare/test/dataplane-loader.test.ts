@@ -3,7 +3,7 @@
  *
  * 守卫的是**加载路径**，不是包内直调：patch 行只写 `enabled: true`，loader 只认
  * `lib/dataplane.js` 自己导出的 Config 补默认值（cordis resolveConfig）。缺它时行 config
- * 原样传入 → schema 默认值全丢 → apply 读到 undefined：行情服务读 config.apiUrl 时拿到 undefined，本地 RPC 地址落到自带兜底
+ * 原样传入 → schema 默认值全丢 → apply 读到 undefined（`enabled` 为假即整行静默不激活）
  */
 import { describe, expect, it } from 'vitest'
 import { resolveConfig, type Context } from '@deepseek-ai/cordis'
@@ -69,13 +69,13 @@ describe('AkShare 连接器数据面行的 loader 解析面', () => {
     expect(dataplane.inject).toEqual([])
   })
 
-  it('用户 patch 行只写 `enabled: true` 时 loader 补全 schema 默认值', () => {
+  it('用户 patch 行只写 `enabled: true` 时 loader 按 schema 解析出该键', () => {
     // Given: cn bundle 的行 config（`enabled: true`）
     // When: 按 cordis loader 语义解析行 config
-    // Then: enabled 原样保留、apiUrl 取 schema 缺省地址
+    // Then: enabled 原样保留，且 schema 不再补出 apiUrl 之类的死配置键
     const resolved = resolveConfig(plugin as never, { enabled: true }) as ConfigType
     expect(resolved.enabled).toBe(true)
-    expect(resolved.apiUrl).toBe('http://127.0.0.1:8080')
+    expect(Object.keys(resolved)).toEqual(['enabled'])
   })
 
   it('用户宿主挂载该行时 (cn, akshare) 注册进行情注册表', () => {
@@ -93,7 +93,7 @@ describe('AkShare 连接器数据面行的 loader 解析面', () => {
   it('用户手工构造 ctx 且不传 config 时按 schema 默认值挂载而不崩', () => {
     // Given: 单测/第三方宿主直接 apply 不传 config（loader 不参与补默认值）
     // When: 挂载数据面行
-    // Then: 按 schema 默认值（enabled=true、缺省 apiUrl）注册行情服务
+    // Then: 按 schema 默认值（enabled=true）注册行情服务
     const { ctx, market, trade } = registryCtx()
     expect(() => dataplane.apply(ctx)).not.toThrow()
     expect(market.map((r) => `${r.market}/${r.provider}`)).toEqual(['cn/akshare'])

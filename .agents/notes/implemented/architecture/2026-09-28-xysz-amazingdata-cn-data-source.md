@@ -15,7 +15,7 @@ Status: implemented
 ## Decision
 
 采用**两段式：SDK 封装服务（Python）+ 连接器（TypeScript）**，与既有的
-\`connector-akshare\`（连本地 \`AKSHARE_API_URL\` 服务）、\`connector-qmt\`
+\`connector-qmt\`
 （连本地 MiniQMT 网关桥）同构——凡上游是有状态 SDK / 本地网关，就走「本地 REST 桥」模式。
 
 **第一段：\`xysz-api\`（FastAPI 封装，部署在局域网 Ubuntu 机器）**
@@ -67,7 +67,7 @@ Status: implemented
   没有公开 REST 端点可直连；上游协议由 tgw 客户端封装。
 - **在连接器里按调用起 Python 子进程跑 SDK 脚本**：否决。每次调用都要重新登录
   （登录是秒级且上游有 \`UsedWeekFlow\` 计数），且进程生命周期、错误传播、并发都难控——
-  长驻单例登录的封装服务是正确形态（akshare/qmt 桥先例同向）。
+  长驻单例登录的封装服务是正确形态（qmt 桥先例同向）。
 - **把券商凭据放进连接器 Config（BYOK ref）**：否决。凭据属于 SDK 会话而非连接器调用
   语义；放连接器侧会让每次工具调用都需要凭据解析与重登录。留在封装服务（\`.env\` 权限
   600）与既有「桥服务持上游凭据」模式一致。
