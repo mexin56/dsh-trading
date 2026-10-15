@@ -30,11 +30,14 @@ Status: implemented
   （`resolveConfig` 补行 config）驱动**真**连接器 dataplane 模块，用鸭式注册表收集
   `register(market, provider, service)`，断言四个 provider 的登记项等于实际注册面、futu 的
   `env` 是其 Config 的键、每条 `markets` 非空。守卫是行为级（改宽 markets 即红），不是字面量快照。
-- CCXT 所名面按 fail-closed 收窄（不补齐六所分支）：`SUPPORTED_EXCHANGES` =
+- CCXT 所名面按 fail-closed 收窄（本卡不补齐六所分支）：`SUPPORTED_EXCHANGES` =
   `['binance','okx','bybit']`（ticker 面），新增 `KLINE_EXCHANGES = ['binance']`；
   `getTicker` / `getKlines` 在 `normalizeSymbol` 之后、任何 fetch 之前对未实现所名抛
   `TRADING_NOT_IMPLEMENTED`（文案点名所名、列出实现面、明说零网络请求）；两个工具的
   `exchange` 枚举改挂这两份登记，`description` 去掉「100+」。
+  **同日后续变更已补齐六条直连分支并撤掉 K 线的 `exchange` 形参**（登记面扩到九所），
+  见 [ccxt 九所 ticker 分支](../feature/2026-10-15-ccxt-nine-exchange-ticker-branches.md)；
+  本卡确立的 fail-closed 机制与「登记面 = 实现面」判据不变，只是登记面随后变宽。
 - 新增 `packages/connector-ccxt/test/exchange-registry-fail-closed.test.ts`：拒绝路径零请求、
   binance/okx/bybit 各打自己主机（补上此前无单测的 okx 分支）、工具枚举与登记面逐字相等。
 
@@ -58,7 +61,10 @@ Status: implemented
 - `crypto_get_ticker` 传 `kraken`/`gateio`/… 得到 `TRADING_NOT_IMPLEMENTED` 且零出网，不再
   返回 Binance 报价；`crypto_get_klines` 传 binance 以外的所名同样结构化拒绝（此前静默忽略
   `exchange` 恒打 Binance）。
-- 未实现（各属另开的卡）：六所直连分支与 K 线按所切换；futu 设置页凭据表单仍是 `host`/`port`
+- 本卡的「未实现」项之一已由同日后续变更补齐：六所（gateio/kucoin/kraken/coinbase/bitfinex/htx）
+  直连分支已实现、K 线的 `exchange` 形参已撤掉，见
+  [ccxt 九所 ticker 分支](../feature/2026-10-15-ccxt-nine-exchange-ticker-branches.md)。
+- 仍未实现（各属另开的卡）：K 线按所切换；futu 设置页凭据表单仍是 `host`/`port`
   而 Config 只有 `gatewayUrl`；ccxt 设置页存着 `CCXT_API_KEY`/`CCXT_API_SECRET` 占位而连接器
   不读任何凭证。`ProviderMeta.env` 的语义仍是「环境变量名或配置项名」，未做类型区分。
 - 证据：`pnpm --filter @dshtrading/client-ui-settings test`（14 例通过）、

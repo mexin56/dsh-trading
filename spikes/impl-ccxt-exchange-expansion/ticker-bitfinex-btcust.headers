@@ -1,0 +1,17 @@
+HTTP/2 200 
+date: Thu, 15 Oct 2026 01:55:41 GMT
+content-type: application/json; charset=utf-8
+content-length: 96
+server: cloudflare
+x-frame-options: sameorigin
+x-xss-protection: 1; mode=block
+referrer-policy: same-origin
+x-download-options: noopen
+x-content-type-options: nosniff
+strict-transport-security: max-age=31536000; includeSubdomains;
+x-permitted-cross-domain-policies: none
+last-modified: Thu, 15 Oct 2026 01:55:41 GMT
+accept-ranges: bytes
+cf-cache-status: EXPIRED
+cf-ray: a4ab33f868c46037-SJC
+

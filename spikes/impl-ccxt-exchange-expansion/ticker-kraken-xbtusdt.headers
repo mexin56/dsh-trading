@@ -1,0 +1,21 @@
+HTTP/2 200 
+date: Thu, 15 Oct 2026 01:55:39 GMT
+content-type: application/json
+content-length: 301
+cf-ray: a4ab33eedfeb2ed1-SJC
+cf-cache-status: HIT
+accept-ranges: bytes
+age: 0
+cache-control: max-age=2, public
+last-modified: Thu, 15 Oct 2026 01:55:39 GMT
+server: cloudflare
+x-trace-id: 0ab2b9f801a13d45af60000dbec7c718
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+vary: accept-encoding
+x-content-type-options: nosniff
+oz4c5h_fzt98-pad: 49RMqTxtOPt4G*EQdpotKA*RYi4R^U_Gs|
+referrer-policy: strict-origin-when-cross-origin
+x-proxy: gateway
+set-cookie: facade-lang=en-us; Path=/; Domain=kraken.com; Max-Age=2592000; SameSite=Lax; Secure
+set-cookie: __cf_bm=c2BYyK0DIf.Nx_nuEvePh51rQM2oCDGDyJfYamEgIGU-1792029339.9765918-1.0.1.1-kJssPiex29oy91Ccamf4GyV9f.BQ47.cpfOz40npR0oeTSLRscf.mmEqAcVNKhUf.YKkIOEWau7FM9UY42nhVSYko8X9orFQWO8B0CfZHr0GKjs6P3xI6RsepYvA6c63; HttpOnly; SameSite=None; Secure; Path=/; Domain=kraken.com; Expires=Thu, 15 Oct 2026 02:25:39 GMT
+

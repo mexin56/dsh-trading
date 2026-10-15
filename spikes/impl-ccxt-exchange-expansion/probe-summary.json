@@ -1,0 +1,421 @@
+{
+  "probe": "ccxt-nine-exchange-ticker-and-klines",
+  "capturedAt": "2026-10-15T02:04:52.404Z",
+  "repo": {
+    "headSha": "c3bdb9b4f23313ab33e08830b71071f7c0d3ae64",
+    "fingerprints": {
+      "packages/connector-ccxt/src/rest.ts": "381ab9ff55ef4ddfdf0e2a83c452d5766d2811a8",
+      "packages/connector-ccxt/src/index.ts": "6c209a760ad20a258631df4395ceb3948f2e87a7"
+    },
+    "statusPorcelainLines": 51
+  },
+  "connector": {
+    "restTsPath": "packages/connector-ccxt/src/rest.ts",
+    "supportedExchanges": [
+      "binance",
+      "okx",
+      "bybit",
+      "gateio",
+      "kucoin",
+      "kraken",
+      "coinbase",
+      "bitfinex",
+      "htx"
+    ],
+    "klineExchanges": [
+      "binance"
+    ],
+    "symbol": "BTCUSDT"
+  },
+  "egress": {
+    "selectorGroup": "Proxies",
+    "mihomoSocket": "/var/run/clash-verge-service/users/501/verge-mihomo.sock",
+    "selectorOriginal": "US",
+    "selectorInWindow": "SG",
+    "selectorRestored": "US",
+    "expectedDefaultExitIp": "216.195.208.136",
+    "ipifyPlainBefore": "216.195.208.136",
+    "ipifyPlainInWindow": "188.253.121.148",
+    "ipifyProxyInWindow": "188.253.121.148",
+    "ipifyPlainAfterRestore": "216.195.208.136",
+    "proxyUrl": "http://127.0.0.1:7890",
+    "plainMeasurement": "node:https agent:false（每次新建连接，排除 keep-alive 复用假阴性）",
+    "proxyMeasurement": "globalThis.fetch + { proxy } 显式代理",
+    "windowExchanges": [
+      "binance",
+      "bybit"
+    ],
+    "defaultExitExchanges": [
+      "okx",
+      "gateio",
+      "kucoin",
+      "kraken",
+      "coinbase",
+      "bitfinex",
+      "htx"
+    ]
+  },
+  "counts": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0
+  },
+  "judgements": [
+    {
+      "id": "egress.default-exit",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "默认出口实测 216.195.208.136（期望 216.195.208.136）"
+    },
+    {
+      "id": "ticker.okx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT",
+      "detail": "price=81552.7 volume=6441.11662476 symbol=BTCUSDT ts=1792029893461",
+      "observed": {
+        "price": 81552.7,
+        "volume": 6441.11662476,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029893461,
+        "urls": [
+          "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        ]
+      }
+    },
+    {
+      "id": "ticker.gateio",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT",
+      "detail": "price=81537.6 volume=10090.540895 symbol=BTCUSDT ts=1792029895288",
+      "observed": {
+        "price": 81537.6,
+        "volume": 10090.540895,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029895288,
+        "urls": [
+          "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT"
+        ]
+      }
+    },
+    {
+      "id": "ticker.kucoin",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT",
+      "detail": "price=81556.6 volume=6424.016579461342 symbol=BTCUSDT ts=1792029896025",
+      "observed": {
+        "price": 81556.6,
+        "volume": 6424.016579461342,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029896025,
+        "urls": [
+          "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT"
+        ]
+      }
+    },
+    {
+      "id": "ticker.kraken",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT",
+      "detail": "price=81541.9 volume=124.85765033 symbol=BTCUSDT ts=1792029896658",
+      "observed": {
+        "price": 81541.9,
+        "volume": 124.85765033,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029896658,
+        "urls": [
+          "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT"
+        ]
+      }
+    },
+    {
+      "id": "ticker.coinbase",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/ticker",
+      "detail": "price=81545.9 volume=28.04946057 symbol=BTCUSDT ts=1792029897278",
+      "observed": {
+        "price": 81545.9,
+        "volume": 28.04946057,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029897278,
+        "urls": [
+          "https://api.exchange.coinbase.com/products/BTC-USDT/ticker"
+        ]
+      }
+    },
+    {
+      "id": "ticker.bitfinex",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api-pub.bitfinex.com/v2/ticker/tBTCUST",
+      "detail": "price=81532 volume=787.49682495 symbol=BTCUSDT ts=1792029897982",
+      "observed": {
+        "price": 81532,
+        "volume": 787.49682495,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029897982,
+        "urls": [
+          "https://api-pub.bitfinex.com/v2/ticker/tBTCUST"
+        ]
+      }
+    },
+    {
+      "id": "ticker.htx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.htx.com/market/detail/merged?symbol=btcusdt",
+      "detail": "price=81537.3 volume=3089.232323646486 symbol=BTCUSDT ts=1792029898887",
+      "observed": {
+        "price": 81537.3,
+        "volume": 3089.232323646486,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029898887,
+        "urls": [
+          "https://api.htx.com/market/detail/merged?symbol=btcusdt"
+        ]
+      }
+    },
+    {
+      "id": "negative.unregistered-slug.ticker",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "code=TRADING_NOT_IMPLEMENTED requests=0",
+      "observed": {
+        "code": "TRADING_NOT_IMPLEMENTED",
+        "requests": 0,
+        "message": "CCXT connector has no ticker branch for exchange \"bitstamp\" (implemented: binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx); zero network requests were made. ticker has nine implemented direct branches (binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx): use one of them, or the dedicated per-exchange packages @dshtrading/connector-binance / @dshtrading/connector-okx / @dshtrading/connector-bybit."
+      }
+    },
+    {
+      "id": "negative.unregistered-slug.klines",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "code=TRADING_NOT_IMPLEMENTED requests=0",
+      "observed": {
+        "code": "TRADING_NOT_IMPLEMENTED",
+        "requests": 0,
+        "message": "CCXT connector has no klines branch for exchange \"bitstamp\" (implemented: binance); zero network requests were made. klines have a single implemented branch (binance): set the connector defaultExchange to binance, or use @dshtrading/connector-binance."
+      }
+    },
+    {
+      "id": "negative.okx-default-exchange.klines",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "code=TRADING_NOT_IMPLEMENTED requests=0",
+      "observed": {
+        "code": "TRADING_NOT_IMPLEMENTED",
+        "requests": 0,
+        "message": "CCXT connector has no klines branch for exchange \"okx\" (implemented: binance); zero network requests were made. klines have a single implemented branch (binance): set the connector defaultExchange to binance, or use @dshtrading/connector-binance."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.BTCJPY",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCJPY\" into base+quote: supported quote suffixes are USDT, USDC, USD, EUR, TRY, BRL, BTC, ETH (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.counter-mechanism-live",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "默认出口七所共发出 7 次请求（计数包装确实在工作）",
+      "observed": {
+        "requests": 7
+      }
+    },
+    {
+      "id": "egress.window-open",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "detail": "selector=SG proxy 出口=188.253.121.148（plain 同刻=188.253.121.148）"
+    },
+    {
+      "id": "ticker.binance",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+      "detail": "price=81541.27 volume=18895.09848 symbol=BTCUSDT ts=1792029900012",
+      "observed": {
+        "price": 81541.27,
+        "volume": 18895.09848,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029900012,
+        "urls": [
+          "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"
+        ]
+      }
+    },
+    {
+      "id": "ticker.bybit",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT",
+      "detail": "price=81539.4 volume=9939.035717 symbol=BTCUSDT ts=1792029900673",
+      "observed": {
+        "price": 81539.4,
+        "volume": 9939.035717,
+        "symbol": "BTCUSDT",
+        "timestamp": 1792029900673,
+        "urls": [
+          "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT"
+        ]
+      }
+    },
+    {
+      "id": "klines.binance.BTCUSDT.1d",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5",
+      "detail": "5 根，收盘价 83773.12/81850/83169/81682.01/81541.27，openTime 1791676800000–1792022400000",
+      "observed": {
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82988.35,
+            "high": 84199,
+            "low": 82804.65,
+            "close": 83773.12,
+            "volume": 6963.51092,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83773.12,
+            "high": 84352,
+            "low": 81750.09,
+            "close": 81850,
+            "volume": 13529.90112,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81850.01,
+            "high": 84168,
+            "low": 81033.66,
+            "close": 83169,
+            "volume": 14784.0627,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83169.01,
+            "high": 84146.72,
+            "low": 81444.42,
+            "close": 81682.01,
+            "volume": 18307.57283,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81682.02,
+            "high": 81938.96,
+            "low": 81398.37,
+            "close": 81541.27,
+            "volume": 1807.01071,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5"
+        ]
+      }
+    },
+    {
+      "id": "egress.restored",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "selector=US（原 US）默认出口实测 216.195.208.136"
+    }
+  ],
+  "requestTrace": [
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/ticker",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/ticker/tBTCUST",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.htx.com/market/detail/merged?symbol=btcusdt",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5",
+      "status": 200
+    }
+  ],
+  "exitCode": 0
+}

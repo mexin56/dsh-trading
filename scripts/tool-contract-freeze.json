@@ -458,12 +458,6 @@
         "name": "limit",
         "type": "integer",
         "required": false
-      },
-      {
-        "name": "exchange",
-        "type": "string",
-        "required": false,
-        "enum": true
       }
     ],
     "outputForm": "object"

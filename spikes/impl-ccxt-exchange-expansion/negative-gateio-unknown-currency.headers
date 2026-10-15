@@ -1,0 +1,13 @@
+HTTP/2 400 
+date: Thu, 15 Oct 2026 01:57:05 GMT
+content-type: application/json
+content-length: 62
+server: openresty
+x-request-id: 
+x-gate-ratelimit-requests-remain: 198
+x-gate-ratelimit-limit: 200
+x-gate-ratelimit-reset-timestamp: 1792029425
+x-out-time: 1792029425375874
+x-gate-trace-id: 6ad032f1a71592258a42ce3ad8ce2d77
+x-in-time: 1792029425372723
+

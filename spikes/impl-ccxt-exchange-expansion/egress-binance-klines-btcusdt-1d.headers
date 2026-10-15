@@ -1,0 +1,28 @@
+HTTP/1.1 200 Connection established
+
+HTTP/2 200 
+content-type: application/json;charset=UTF-8
+content-length: 923
+date: Thu, 15 Oct 2026 01:56:13 GMT
+server: nginx
+vary: Accept-Encoding
+x-mbx-uuid: 4bffde66-fe49-4a26-8532-911fada22c3f
+x-mbx-used-weight: 12
+x-mbx-used-weight-1m: 12
+x-xss-protection: 1; mode=block
+x-content-security-policy: default-src 'self'
+x-webkit-csp: default-src 'self'
+cache-control: no-cache, no-store, must-revalidate
+pragma: no-cache
+expires: 0
+strict-transport-security: max-age=31536000; includeSubdomains
+access-control-allow-origin: *
+access-control-allow-methods: GET, HEAD, OPTIONS
+content-security-policy: default-src 'self'
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-cache: Miss from cloudfront
+via: 1.1 b62dcf579674d1758cbe507a9f0f1cee.cloudfront.net (CloudFront)
+x-amz-cf-pop: SIN2-P3
+x-amz-cf-id: 87Yq33wX4GDA6hwO7QL_0jQXJRXvzaIRGjaBA9a8ZgffF7HRQmyt8w==
+

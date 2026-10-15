@@ -1,0 +1,19 @@
+HTTP/2 200 
+date: Thu, 15 Oct 2026 01:55:48 GMT
+content-type: application/json
+content-length: 39
+set-cookie: facade-lang=en-us; Path=/; Domain=kraken.com; Max-Age=2592000; SameSite=Lax; Secure
+set-cookie: __cf_bm=e8Sq3TYCfqzf7s3cPKlzywp74sPH5EQTPxIZTgFidyo-1792029347.8719292-1.0.1.1-a5kENLsEMNRMgSdLFU2uJitTG6haxIu4XEjkheDMG9hTUi_Ro7WyayEy9Mz8_Odd_YnN7Aj_QtMBMDSYqNxRkLLmCxT37tBMkF0MO3AE4aS_gRdOhqisM3Uoj_Fl94KG; HttpOnly; SameSite=None; Secure; Path=/; Domain=kraken.com; Expires=Thu, 15 Oct 2026 02:25:48 GMT
+set-cookie: _cfuvid=HGSlQAeF2ih.32163UNmyH5MjBdndSkDzEGtldk5iFA-1792029347.8719292-1.0.1.1-EQsP0RFZmPw2WJ5SQkrzEUzQSpOflGn.2PHHVr4E5x4; HttpOnly; SameSite=None; Secure; Path=/; Domain=kraken.com
+cf-ray: a4ab34203c144900-SJC
+cf-cache-status: BYPASS
+cache-control: no-store
+server: cloudflare
+x-trace-id: 0ab2b9f801a13d45d07a000dbf0c6818
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+vary: accept-encoding
+x-content-type-options: nosniff
+ct9euivthc-pad: neI|g_RWH0ts_3zm7OPWdnJ.EC-qn7tG
+referrer-policy: strict-origin-when-cross-origin
+x-proxy: gateway
+

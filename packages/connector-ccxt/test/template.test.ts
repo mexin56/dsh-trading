@@ -39,8 +39,9 @@ describe('CcxtRestClient 符号与周期映射', () => {
     expect(SUPPORTED_EXCHANGES).toContain('binance')
     expect(SUPPORTED_EXCHANGES).toContain('bybit')
     expect(SUPPORTED_EXCHANGES).toContain('okx')
-    // 登记面 = 实现面：未实现所名不再登记（gateio 等未登记所名在请求前结构化拒绝）
-    expect(SUPPORTED_EXCHANGES).toEqual(['binance', 'okx', 'bybit'])
+    // 登记面 = 实现面：九所各有 ticker 直连分支；未登记所名（bitstamp 等）在请求前结构化拒绝
+    expect(SUPPORTED_EXCHANGES).toEqual(['binance', 'okx', 'bybit', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx'])
+    // K 线登记只剩一种用途：客户端默认所名的守卫（形参面的 exchange 已撤掉）
     expect(KLINE_EXCHANGES).toEqual(['binance'])
   })
 })
