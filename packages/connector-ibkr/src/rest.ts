@@ -33,6 +33,17 @@ export function normalizeUsSymbol(raw: string): string {
   return clean
 }
 
+/** 把上游回包压成一行摘要，只用于错误消息；超长截断，避免整页响应灌进日志。 */
+function summarizePayload(value: unknown, max = 200): string {
+  let text: string
+  try {
+    text = JSON.stringify(value) ?? String(value)
+  } catch {
+    text = String(value)
+  }
+  return text.length > max ? `${text.slice(0, max)}...(truncated)` : text
+}
+
 export interface IbkrRestOptions {
   gatewayUrl?: string
   accountId?: string
@@ -73,70 +84,57 @@ export class IbkrRestClient {
 
   async getTicker(symbol: string): Promise<Ticker> {
     const sym = normalizeUsSymbol(symbol)
-    try {
-      const data = await this.requestJson<Array<{ conid?: number; 31?: string; 84?: string; 86?: string }>>(
-        `/iserver/marketdata/snapshot?symbols=${encodeURIComponent(sym)}&fields=31,84,86`,
+    // 行情面零跨源回落：网关失败就失败，绝不改打公共源兜底（旧实现的 Yahoo 回退分支已删除）。
+    const data = await this.requestJson<unknown>(
+      `/iserver/marketdata/snapshot?symbols=${encodeURIComponent(sym)}&fields=31,84,86`,
+    )
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `IBKR getTicker ${sym}: gateway snapshot carries no row (${summarizePayload(data)})`,
       )
-      if (Array.isArray(data) && data.length > 0) {
-        const row = data[0]
-        const price = parseFloat(row['31'] || '0')
-        return {
-          symbol: sym,
-          price,
-          timestamp: Date.now(),
-        }
-      }
-    } catch {
-      // 离线/未连接网关时回退公共源
-      const res = await this.fetchImpl(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`)
-      const d = await res.json() as { chart?: { result?: Array<{ meta?: { regularMarketPrice?: number } }> } }
-      const price = d.chart?.result?.[0]?.meta?.regularMarketPrice ?? 0
-      return {
-        symbol: sym,
-        price,
-        timestamp: Date.now(),
-      }
     }
 
-    return { symbol: sym, price: 0, timestamp: Date.now() }
+    const row = data[0] as Record<string, unknown> | null | undefined
+    const price = Number.parseFloat(String(row?.['31'] ?? ''))
+    // 缺失/非数值/0/负数一律视为「没有可用价格」：宁可报错，也不回 0 或 NaN 的伪行情。
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `IBKR getTicker ${sym}: gateway snapshot carries no usable price (${summarizePayload(row)})`,
+      )
+    }
+
+    return {
+      symbol: sym,
+      price,
+      timestamp: Date.now(),
+    }
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
     const sym = normalizeUsSymbol(symbol)
-    try {
-      const data = await this.requestJson<{ data?: Array<{ t: number; o: number; c: number; h: number; l: number; v: number }> }>(
-        `/hmds/history?symbol=${sym}&period=${limit}d&bar=${interval}`,
+    // 同上：历史序列同样只认网关这一个源，不回落任何公共端点。
+    const data = await this.requestJson<{ data?: Array<{ t: number; o: number; c: number; h: number; l: number; v: number }> }>(
+      `/hmds/history?symbol=${sym}&period=${limit}d&bar=${interval}`,
+    )
+    if (!Array.isArray(data?.data)) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `IBKR getKlines ${sym} ${interval}: gateway history response is not a bar array (${summarizePayload(data)})`,
       )
-      if (Array.isArray(data.data)) {
-        return data.data.map((r) => ({
-          openTime: r.t,
-          open: r.o,
-          high: r.h,
-          low: r.l,
-          close: r.c,
-          volume: r.v,
-          closeTime: r.t + 86400000 - 1,
-        }))
-      }
-    } catch {
-      // 回退公共源
-      const res = await this.fetchImpl(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=1mo`)
-      const d = await res.json() as { chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ open: number[]; close: number[]; high: number[]; low: number[]; volume: number[] }> } }> } }
-      const res0 = d.chart?.result?.[0]
-      if (!res0?.timestamp || !res0.indicators?.quote?.[0]) return []
-      const q = res0.indicators.quote[0]
-      return res0.timestamp.slice(-limit).map((t, idx) => ({
-        openTime: t * 1000,
-        open: q.open[idx] ?? 0,
-        high: q.high[idx] ?? 0,
-        low: q.low[idx] ?? 0,
-        close: q.close[idx] ?? 0,
-        volume: q.volume[idx] ?? 0,
-        closeTime: (t + 86400) * 1000 - 1,
-      }))
     }
 
-    return []
+    // 空数组是上游明确的「该序列无数据」，属合法空值，不升级为错误。
+    return data.data.map((r) => ({
+      openTime: r.t,
+      open: r.o,
+      high: r.h,
+      low: r.l,
+      close: r.c,
+      volume: r.v,
+      closeTime: r.t + 86400000 - 1,
+    }))
   }
 
   async getBalance(accountId?: string): Promise<AccountBalance> {

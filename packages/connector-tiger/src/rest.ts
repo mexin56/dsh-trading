@@ -113,77 +113,67 @@ export class TigerRestClient {
 
   async getTicker(symbol: string): Promise<Ticker> {
     const { symbol: sym, canonical } = toTigerSymbol(symbol)
-    try {
-      const data = await this.requestJson<{
-        code: number
-        data?: Array<{ symbol: string; latestPrice: number; volume: number; timestamp: number }>
-      }>({ symbols: [sym] }, 'quote_real_time')
-      if (data.code === 0 && Array.isArray(data.data) && data.data.length > 0) {
-        const row = data.data[0]
-        return {
-          symbol: canonical,
-          price: row.latestPrice,
-          volume: row.volume,
-          timestamp: row.timestamp,
-        }
-      }
-    } catch {
-      // 离线时回退腾讯港股
-      const hkCode = `hk${sym.padStart(5, '0')}`
-      const res = await this.fetchImpl(`https://qt.gtimg.cn/q=${hkCode}`)
-      const text = await res.text()
-      const parts = text.split('~')
-      const price = parseFloat(parts[3] || '0')
-      return {
-        symbol: canonical,
-        price,
-        timestamp: Date.now(),
-      }
+    const data = await this.requestJson<{
+      code: number
+      message?: string
+      data?: Array<{ symbol: string; latestPrice: number; volume: number; timestamp: number }>
+    }>({ symbols: [sym] }, 'quote_real_time')
+
+    if (data.code !== 0) {
+      throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Tiger getTicker failed: ${data.message ?? `code ${data.code}`}`)
+    }
+    // 上游回 code 0 但没有可用报价行时**抛错**：静默返回 price 0 会把「这条标的没有行情」
+    // 伪装成一个可交易的价格，消费方无法把 0 与真报价区分开。
+    const row = Array.isArray(data.data) ? data.data[0] : undefined
+    if (!row || !Number.isFinite(row.latestPrice) || row.latestPrice <= 0) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `Tiger getTicker: response carries no usable quote for ${canonical} (${JSON.stringify(data)})`,
+      )
     }
 
-    return { symbol: canonical, price: 0, timestamp: Date.now() }
+    return {
+      symbol: canonical,
+      price: row.latestPrice,
+      volume: row.volume,
+      timestamp: row.timestamp,
+    }
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
-    const { symbol: sym, canonical } = toTigerSymbol(symbol)
-    try {
-      const data = await this.requestJson<{
-        code: number
-        data?: Array<{ items?: Array<{ time: number; open: number; close: number; high: number; low: number; volume: number }> }>
-      }>({ symbols: [sym], period: interval, limit }, 'kline_quote')
-      const items = data.data?.[0]?.items
-      if (Array.isArray(items)) {
-        return items.map((r) => ({
-          openTime: r.time,
-          open: r.open,
-          high: r.high,
-          low: r.low,
-          close: r.close,
-          volume: r.volume,
-          closeTime: r.time + 86400000 - 1,
-        }))
-      }
-    } catch {
-      // 回退腾讯港股日K
-      const hkCode = `hk${sym.padStart(5, '0')}`
-      const res = await this.fetchImpl(`https://web.ifzq.gtimg.cn/appstock/app/hkfqkline/get?param=${hkCode},day,,,${limit},qfq`)
-      const d = await res.json() as { data?: Record<string, { day?: string[][]; qfqday?: string[][] }> }
-      const arr = d.data?.[hkCode]?.qfqday ?? d.data?.[hkCode]?.day ?? []
-      return arr.map((item) => {
-        const openTime = new Date(item[0].replace(/-/g, '/')).getTime()
-        return {
-          openTime,
-          open: parseFloat(item[1]),
-          close: parseFloat(item[2]),
-          high: parseFloat(item[3]),
-          low: parseFloat(item[4]),
-          volume: parseFloat(item[5]),
-          closeTime: openTime + 86400000 - 1,
-        }
-      })
-    }
+    const { symbol: sym } = toTigerSymbol(symbol)
+    const data = await this.requestJson<{
+      code: number
+      message?: string
+      data?: Array<{ items?: Array<{ time: number; open: number; close: number; high: number; low: number; volume: number }> }>
+    }>({ symbols: [sym], period: interval, limit }, 'kline_quote')
 
-    return []
+    if (data.code !== 0) {
+      throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Tiger getKlines failed: ${data.message ?? `code ${data.code}`}`)
+    }
+    // 上游回**空数组**是明确的「无序列」，属合法空值；其余不可识别的形状一律抛错，
+    // 不把「看不懂的回包」当成「没有 K 线」。
+    if (!Array.isArray(data.data)) {
+      throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Tiger getKlines: unrecognizable payload (${JSON.stringify(data)})`)
+    }
+    if (data.data.length === 0) return []
+
+    const items = data.data[0]?.items
+    if (!Array.isArray(items)) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `Tiger getKlines: response carries no items array (${JSON.stringify(data)})`,
+      )
+    }
+    return items.map((r) => ({
+      openTime: r.time,
+      open: r.open,
+      high: r.high,
+      low: r.low,
+      close: r.close,
+      volume: r.volume,
+      closeTime: r.time + 86400000 - 1,
+    }))
   }
 
   async getBalance(): Promise<AccountBalance> {
