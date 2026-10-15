@@ -71,9 +71,8 @@ Status: implemented
   `data` 为空时的语义一致。
 - 同一条端点契约已收敛到另两个打东财报价的连接器：`connector-akshare` 的 `getTicker`（主取价
   路径）与 `connector-qmt` 的 `getTicker`（本地网关离线时的回退）都改打 `ulist.np/get`，取价
-  同样按报价行的 `f1`。qmt 回退对未收录的 secid 保持它自己的降级语义（零价快照，与网关
-  返回非 0 code 时同形）——`TRADING_SYMBOL_NOT_FOUND` 不在 `TradingErrorCode` 词汇表内，
-  该包不为此新增类型错误（同 bybit 对同一缺口的取舍）。2026-10-14 盘中用两包的构建产物实测：
+  同样按报价行的 `f1`（qmt 回退的降级语义 2026-10-15 与主取价路径统一，见本节末条）。
+  2026-10-14 盘中用两包的构建产物实测：
   贵州茅台 f1=2 → f2=128547 即 1285.47 元、游戏ETF华夏 f1=3 → f2=1056 即 1.056 元，同刻腾讯
   qt.gtimg.cn（GBK 解码）为 1285.57 / 1.056；沿市场级 ÷100 会把 ETF 读成 10.56 元。两包单测
   的报价 fixture 换成同批真实响应行。
@@ -84,6 +83,15 @@ Status: implemented
   `getTicker`/`getTickers` 用同源 `trends2?ndays=1` 派生快照（末根分钟收盘 + 该响应自带的
   preClose/name），按 secid 做 60s TTL 且只在降级分支读写。触发边界与取舍见
   [报价路径降级派生](2026-10-14-quote-path-degradation.md)。
+- **qmt 回退与主取价路径的降级语义统一（2026-10-15）**：`connector-qmt` 的 `getTicker` 此前只
+  在 `requestJson` 抛错时回退，网关 HTTP 200 但业务码非 0 / 缺 `data` 则落穿成零价快照。现在两种
+  形态走**同一条**回退——上游业务错误码与 HTTP 4xx/5xx 在本仓同属一类上游失败（`@dshtrading/api`
+  的 `TRADING_UPSTREAM_ERROR` 词表注释即此口径），不为业务码另立第三种语义。回退自身：非 2xx →
+  `TRADING_UPSTREAM_ERROR`、连不上 → `TRADING_NETWORK`、非 JSON 或没有可用报价行（未收录 secid 的
+  `data:null`、停牌占位 `f2` 缺失或 0）→ `TRADING_EXCHANGE_ERROR`，绝不再交零价快照（`price: 0`
+  会被消费方读成「这只标的不值钱」）。走进回退的唯一原因是主取价路径不可用，故不从 push2 的沉默
+  推断「该标的不存在」，不借用词汇表外的 `TRADING_SYMBOL_NOT_FOUND`（同 bybit 对同一缺口的取舍）。
+  回退仍是限流敏感路径：每次调用最多一个 push2 请求，不重试、不批量。
 
 ## Addendum (2026-10-14, 五日 1m 窗口与开价重建)
 

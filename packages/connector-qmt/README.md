@@ -14,12 +14,13 @@
   根因与修复记录在 [.agents/notes/implemented/bug-fix/2026-10-14-qmt-alpaca-dataplane-config-schema.md](../../.agents/notes/implemented/bug-fix/2026-10-14-qmt-alpaca-dataplane-config-schema.md)。
 - [spikes/verify-connectors-suite/EVIDENCE.md](../../spikes/verify-connectors-suite/EVIDENCE.md)（2026-08-31，commit `b80000e`）
   把 qmt 列为「交易面 stub：`placeOrder` 不发网络请求、`getBalance` 硬编码 CNY 500000」——该结论针对旧实现，
-  现实现经本地网关真实 HTTP（`src/rest.ts:183-295`），此处仅作历史记录引用，不代表当前行为。
+  现实现经本地网关真实 HTTP（`src/rest.ts:242-354`），此处仅作历史记录引用，不代表当前行为。
 - [spikes/impl-service-seam-gate/NET-VERIFY.md](../../spikes/impl-service-seam-gate/NET-VERIFY.md)（2026-09-01）
   在「范围与未验证项」中明确：qmt 等券商网关**未做真实下单验证**，服务缝三态只由离线矩阵
   `test/trade-gate.test.ts` 覆盖。
 - 2026-10-14 本出口对 `push2.eastmoney.com` 不可达（`curl: (52) Empty reply from server`），
-  故网关离线时的东财回退路径本轮同样无法实证。
+  故网关离线时的东财回退路径本轮同样无法实证——回退取价口径与错误映射目前只有离线用例
+  （`test/template.test.ts` 的回退用例组，fixture 是同日真实响应行）。
 
 ## 配置
 
@@ -55,13 +56,13 @@
 
 | 用途 | 端点 | 源码 |
 |---|---|---|
-| 报价 | `GET {gatewayUrl}/api/v1/market/ticker?symbol=<code>`（网关需返回 `code: 0` 且带 `data`） | `src/rest.ts:110-118` |
-| K 线 | `GET {gatewayUrl}/api/v1/market/klines?symbol=<code>&period=<interval>&limit=<limit>` | `src/rest.ts:155` |
-| 资金 | `GET {gatewayUrl}/api/v1/trade/asset?account_id=<acc>` | `src/rest.ts:192` |
-| 持仓 | `GET {gatewayUrl}/api/v1/trade/positions?account_id=<acc>` | `src/rest.ts:220` |
-| 下单 | `POST {gatewayUrl}/api/v1/trade/order`，体 `account_id` / `stock_code` / `order_type` / `order_side` / `price` / `order_volume` | `src/rest.ts:244-253` |
-| 撤单 | `POST {gatewayUrl}/api/v1/trade/cancel`，体 `account_id` / `order_id` | `src/rest.ts:282-287` |
-| 行情回退（网关请求抛错时） | `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=<1 或 0>.<code>&fields=f1,f2,f5,f124`（按行 `f1` 取价）与 `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=<secid>&klt=101&fqt=1`（日线） | `src/rest.ts:126`、`src/rest.ts:162` |
+| 报价 | `GET {gatewayUrl}/api/v1/market/ticker?symbol=<code>`（网关需返回 `code: 0` 且带 `data`） | `src/rest.ts:114-126` |
+| K 线 | `GET {gatewayUrl}/api/v1/market/klines?symbol=<code>&period=<interval>&limit=<limit>` | `src/rest.ts:214` |
+| 资金 | `GET {gatewayUrl}/api/v1/trade/asset?account_id=<acc>` | `src/rest.ts:251` |
+| 持仓 | `GET {gatewayUrl}/api/v1/trade/positions?account_id=<acc>` | `src/rest.ts:279` |
+| 下单 | `POST {gatewayUrl}/api/v1/trade/order`，体 `account_id` / `stock_code` / `order_type` / `order_side` / `price` / `order_volume` | `src/rest.ts:303-312` |
+| 撤单 | `POST {gatewayUrl}/api/v1/trade/cancel`，体 `account_id` / `order_id` | `src/rest.ts:341-346` |
+| 行情回退（网关不可用时：连不上 / 非 2xx / 非 JSON / 业务码非 0 / 缺 `data`） | `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=<1 或 0>.<code>&fields=f1,f2,f5,f124`（按行 `f1` 取价）与 `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=<secid>&klt=101&fqt=1`（日线） | `src/rest.ts:156`、`src/rest.ts:221` |
 
 该网关契约不在本仓、也不是官方契约（类头注 `src/index.ts:97-104` 明示），请求体字段按
 「不猜字段」纪律只写实现已用到的键。
@@ -70,14 +71,18 @@
 
 - **周期词汇**：`INTERVAL_VOCABULARY = ['1m','5m','15m','30m','1h','1d','1w','1M']`（`src/rest.ts:28`），
   同一数组进 `cn_get_klines` 的 `interval` 枚举（`src/index.ts:255`）。
-- **网关路径把 `interval` 原样当 `period` 传**（`src/rest.ts:155`），映射在网关侧；
-  **东财回退路径恒 `klt=101`（日线）**（`src/rest.ts:162`），网关不可用时任何周期都只能拿到日线。
+- **网关路径把 `interval` 原样当 `period` 传**（`src/rest.ts:214`），映射在网关侧；
+  **东财回退路径恒 `klt=101`（日线）**（`src/rest.ts:221`），网关不可用时任何周期都只能拿到日线。
 - **符号形态**（`toQmtCode`，`src/rest.ts:30-37`）：含 `.` 原样；裸码 `6`/`5`→`.SH`，`0`/`3`→`.SZ`，
   `8`/`4`→`.BJ`，其余→`.SH`。
-- **错误映射**：非 2xx → `TRADING_UPSTREAM_ERROR`、不可达或响应非 JSON → `TRADING_NETWORK`
-  （`src/rest.ts:83-101`）；网关 `code !== 0` → `TRADING_EXCHANGE_ERROR`
-  （资金 `src/rest.ts:195`、持仓 `:223`、下单 `:257`、撤单 `:291`）；
-  缺 `accountId` → `TRADING_AUTH_FAILED`（`src/rest.ts:186,208,237,276`）。
+- **错误映射**：网关非 2xx → `TRADING_UPSTREAM_ERROR`、不可达或响应非 JSON → `TRADING_NETWORK`
+  （`src/rest.ts:83-101`）；网关 `code !== 0` 或缺 `data` 时**交易面**（资金 / 持仓 / 下单 / 撤单）
+  → `TRADING_EXCHANGE_ERROR`（资金 `src/rest.ts:254`、持仓 `:282`、下单 `:316`、撤单 `:350`），
+  **报价面不抛该错**——同一形态交给回退（见下）；缺 `accountId` → `TRADING_AUTH_FAILED`
+  （`src/rest.ts:245,267,296,335`）。
+- **东财回退的映射**（`quoteViaEastmoneyFallback`，`src/rest.ts:151-206`）：非 2xx →
+  `TRADING_UPSTREAM_ERROR`、连不上 → `TRADING_NETWORK`、非 JSON 或行里没有可用价格 →
+  `TRADING_EXCHANGE_ERROR`；抛出的错 `cause` 一律是触发本次降级的网关失败。
 - **服务缝三态闸门**（`src/index.ts:126-181`）：
   ① `dryRun=false` 且实盘未授权 → 结构化拒绝 `TRADING_LIVE_TRADING_DISABLED`，且不触网；
   ② `dryRun` 缺省或 `config.dryRun` → 本地模拟回执（`dry-<时间戳>-<随机>`，`dryRun: true`）；
@@ -89,7 +94,7 @@
 
 | 服务方法 | 本包实现 | 工具暴露 |
 |---|---|---|
-| `QmtMarketDataService.getTicker`（网关优先，请求抛错回退东财） | 有（`src/index.ts:74`） | `cn_get_ticker`（`src/index.ts:241`） |
+| `QmtMarketDataService.getTicker`（网关优先，网关不可用即回退东财） | 有（`src/index.ts:74`） | `cn_get_ticker`（`src/index.ts:241`） |
 | `QmtMarketDataService.getKlines`（同上） | 有（`src/index.ts:78`） | `cn_get_klines`（`src/index.ts:251`） |
 | `QmtMarketDataService.subscribeTicker`（轮询，最小 1000 ms、默认 5000 ms） | 有（`src/index.ts:82-90`） | 缺席 |
 | `QmtTradeService.placeOrder`（三态闸门 + 意图台账 + 网关 POST） | 有（`src/index.ts:126-169`） | `cn_place_order`（`src/index.ts:266`） |
@@ -106,10 +111,16 @@
 - **网关契约未经真实联调**：路径与请求体来自 2026-08-31 的实现记录
   （[.agents/notes/implemented/feature/2026-08-31-real-trading-suite-and-cn-fix.md](../../.agents/notes/implemented/feature/2026-08-31-real-trading-suite-and-cn-fix.md) §1.2），
   本仓无网关真实响应证据；`accountId` 未配则资金 / 持仓 / 下单 / 撤单全部 fail-closed。
-- **回退只吃异常，不吃业务码**：网关 HTTP 200 但 `code !== 0` 时 `getTicker` 不回退东财，
-  而是返回零价快照（`src/rest.ts:146`）；只有 `requestJson` 抛错才进回退分支（`src/rest.ts:119`）。
-- **回退分支的错误不是结构化错误码**：`src/rest.ts:125-143` 不校验 `res.ok`，
-  响应解析失败会以原始 `SyntaxError` / 网络错误外抛，不经 `TradingServiceError`。
+- **报价降级只有一条路径**：`getTicker`（`src/rest.ts:110-136`）把网关传输层失败（连不上 / 非 2xx /
+  非 JSON）与网关明确回「业务码非 0 或缺 `data`」交给同一条东财回退（`src/rest.ts:151-206`）——上游
+  业务错误码与 HTTP 4xx/5xx 在本仓同属一类上游失败，不为业务码另立第三种语义。
+- **回退不再交零价快照**：拿不到可用报价行（未收录 secid 的 `data:null`、停牌占位 `f2` 缺失或为 0）
+  即抛结构化错误（映射见上「错误映射」）。`price: 0` 在消费方读起来是「这只标的不值钱」，不是
+  「本次没取到价」；不借用词汇表外的 `TRADING_SYMBOL_NOT_FOUND`——走进回退的唯一原因是主取价路径
+  不可用，从 push2 的沉默推不出「该标的不存在」（secid 由 `toQmtCode` 启发式派生）。
+- **回退是限流敏感路径**：每次 `getTicker` 最多一个 push2 请求，不重试、不批量。push2 域对突发并发
+  极敏感（2026-10-14 实测在飞 4 即被断连、失效面持续 ≥12 分钟，见
+  [connector-eastmoney README 的「已知边界」](../connector-eastmoney/README.md)）。
 - **下单请求不带 venue 幂等字段**：类头注（`src/index.ts:97-104`）说明 QMT 官方 `order_stock` 有
   `order_remark`，但本包打的是本地网关、其契约未承诺该键，按「不猜字段」纪律不写入请求体；
   幂等完全由本地 `OrderIntentLedger`（`@dshtrading/authority`）保证。
@@ -133,7 +144,7 @@ MiniQMT 是券商侧授权软件（需在券商开通迅投 QMT 权限），本�
 # 装配面：走真实 loader 激活路径，判定 cn/qmt 行是否 activated，并打印行情/交易注册表内容（不触网）
 node spikes/impl-qmt-alpaca-dataplane-activation/run-loader-activation-probe.mjs
 
-# 网关面最小复跑（需本机 MiniQMT 网关在 5800；网关请求抛错时会回退东财）
+# 网关面最小复跑（需本机 MiniQMT 网关在 5800；网关不可用时回退东财）
 ./node_modules/.bin/tsx -e "import('./packages/connector-qmt/src/rest.ts').then(async m => console.log(JSON.stringify(await new m.QmtRestClient({ accountId: process.env.QMT_ACCOUNT_ID }).getTicker('600519.SH'))))"
 ```
 

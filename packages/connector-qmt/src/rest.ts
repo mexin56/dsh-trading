@@ -101,11 +101,19 @@ export class QmtRestClient {
     }
   }
 
+  /**
+   * 网关报价。网关**传输层**失败（连不上 / 非 2xx / 非 JSON）与网关明确回「业务码非 0 或缺
+   * data」走**同一条**回退路径（[quoteViaEastmoneyFallback]）：主取价路径任一形态不可用即降级，
+   * 不在业务码上另立第三种语义——上游业务错误码与 HTTP 4xx/5xx 在本仓是同一类失败
+   * （`@dshtrading/api` 的 `TRADING_UPSTREAM_ERROR` 注释即此口径）。
+   */
   async getTicker(symbol: string): Promise<Ticker> {
     const qmtCode = toQmtCode(symbol)
+    let gatewayFailure: unknown
     try {
       const data = await this.requestJson<{
         code: number
+        message?: string
         data?: { lastPrice: number; volume: number; timestamp?: number }
       }>(`/api/v1/market/ticker?symbol=${encodeURIComponent(qmtCode)}`)
       if (data.code === 0 && data.data) {
@@ -116,34 +124,85 @@ export class QmtRestClient {
           timestamp: data.data.timestamp ?? Date.now(),
         }
       }
-    } catch {
-      // 本地网关离线时回退东财：报价走批量端点 ulist.np/get（2026-10-14 实测单标的
-      // /api/qt/stock/get 对任意 secid 都是传输层空回，而同一时刻同域同 UA 的
-      // ulist.np/get 正常），取价按该行自带的 f1 小数位数——市场级 ÷100 会把 A 股
-      // ETF（f1=3）读成 10 倍。原始证据见 spikes/impl-eastmoney-quote-endpoint/。
-      const secid = qmtCode.startsWith('6') || qmtCode.startsWith('5') ? `1.${qmtCode.split('.')[0]}` : `0.${qmtCode.split('.')[0]}`
-      const res = await this.fetchImpl(
+      gatewayFailure = new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `QMT getTicker failed: ${data.message ?? `gateway returned code ${data.code} without a quote payload`}`,
+      )
+    } catch (err) {
+      gatewayFailure = err
+    }
+
+    return await this.quoteViaEastmoneyFallback(qmtCode, gatewayFailure)
+  }
+
+  /**
+   * 网关取价路径不可用时的东财回退报价——2026-10-14 实测建立的降级设计：本地网关离线仍要能出价。
+   *
+   * 报价走批量端点 ulist.np/get（2026-10-14 实测单标的 /api/qt/stock/get 对任意 secid 都是传输层
+   * 空回，而同一时刻同域同 UA 的 ulist.np/get 正常），取价按该行自带的 f1 小数位数——市场级 ÷100
+   * 会把 A 股 ETF（f1=3）读成 10 倍。原始证据见 spikes/impl-eastmoney-quote-endpoint/。
+   *
+   * 每次调用最多一个请求：push2 域对突发并发极敏感（connector-eastmoney/README「已知边界」：
+   * 2026-10-14 实测在飞 4 即被断连且失效面持续 ≥12 分钟），这条路径不做批量、不重试。
+   *
+   * 拿不到可用报价行时抛结构化错误，**绝不交出零价快照**：`price: 0` 在消费方读起来是「这只标的
+   * 不值钱」，而不是「本次没取到价」。`cause` 一律是触发本次降级的网关失败，便于回溯主路径为何不可用。
+   */
+  private async quoteViaEastmoneyFallback(qmtCode: string, cause: unknown): Promise<Ticker> {
+    const secid = qmtCode.startsWith('6') || qmtCode.startsWith('5') ? `1.${qmtCode.split('.')[0]}` : `0.${qmtCode.split('.')[0]}`
+    let res: Response
+    try {
+      res = await this.fetchImpl(
         `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${secid}&fields=${EM_QUOTE_FIELDS}`,
         { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Referer': 'https://quote.eastmoney.com/' } },
       )
-      const d = await res.json() as { data?: { diff?: Array<Record<string, unknown>> } | null }
-      // 未收录的 secid 上游是「少返回行」（只传无效 secid 时 data:null），这里保持本连接器
-      // 既有的降级语义：拿不到行就返回零价快照，与网关返回非 0 code 时的兜底一致；
-      // akshare/eastmoney 抛的 TRADING_SYMBOL_NOT_FOUND 不在 TradingErrorCode 词汇表内，
-      // 本包不为此新增类型错误（同 bybit 对同一缺口的取舍）。
-      const row = d.data?.diff?.[0]
-      const scale = quotePriceScale(row?.f1)
-      const rawPrice = toFiniteNumber(row?.f2)
-      const quoteTime = toFiniteNumber(row?.f124)
-      return {
-        symbol: qmtCode,
-        price: rawPrice !== undefined && rawPrice > 0 ? rawPrice / scale : 0,
-        volume: toFiniteNumber(row?.f5) ?? 0,
-        timestamp: quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now(),
-      }
+    } catch (err) {
+      throw new TradingServiceError(
+        'TRADING_NETWORK',
+        `Eastmoney fallback unreachable: ${String(err)}`,
+        err,
+      )
     }
 
-    return { symbol: qmtCode, price: 0, timestamp: Date.now() }
+    // 非 2xx：请求到达了上游、上游明确报错（与 connector-eastmoney 同一映射）。
+    if (!res.ok) {
+      throw new TradingServiceError(
+        'TRADING_UPSTREAM_ERROR',
+        `Eastmoney fallback HTTP ${res.status} ${res.statusText}`,
+        cause,
+      )
+    }
+
+    // 非 JSON：上游回了一个不成形的载荷（与 connector-eastmoney 同一映射）。
+    let payload: { data?: { diff?: Array<Record<string, unknown>> } | null }
+    try {
+      payload = await res.json() as typeof payload
+    } catch (err) {
+      throw new TradingServiceError(
+        'TRADING_EXCHANGE_ERROR',
+        `Eastmoney fallback returned a non-JSON body for ${qmtCode}: ${String(err)}`,
+        cause,
+      )
+    }
+
+    // 未收录的 secid 上游是「少返回行」（只传无效 secid 时 data:null；HTTP 仍 200），停牌占位是
+    // f2 缺失或 0——两种形态都没有可用价格。不借用 TRADING_SYMBOL_NOT_FOUND：它不在
+    // TradingErrorCode 词汇表内（bybit 对同一缺口的取舍记在 2026-10-08 那份 note），且走进这条
+    // 支路的唯一原因是**主取价路径不可用**，从 push2 的沉默推不出「该标的不存在」（secid 由
+    // toQmtCode 的启发式映射派生）。照实报「上游没给出可用报价」。
+    const row = payload.data?.diff?.[0]
+    const rawPrice = toFiniteNumber(row?.f2)
+    if (row === undefined || rawPrice === undefined || rawPrice <= 0) {
+      throw new TradingServiceError('TRADING_EXCHANGE_ERROR', `Eastmoney fallback returned no usable quote for ${qmtCode}`, cause)
+    }
+
+    const quoteTime = toFiniteNumber(row.f124)
+    return {
+      symbol: qmtCode,
+      price: rawPrice / quotePriceScale(row.f1),
+      volume: toFiniteNumber(row.f5) ?? 0,
+      timestamp: quoteTime !== undefined && quoteTime > 0 ? quoteTime * 1000 : Date.now(),
+    }
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
