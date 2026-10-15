@@ -63,3 +63,13 @@ Status: implemented
   不读任何凭证。`ProviderMeta.env` 的语义仍是「环境变量名或配置项名」，未做类型区分。
 - 证据：`pnpm --filter @dshtrading/client-ui-settings test`（14 例通过）、
   `pnpm --filter @dshtrading/connector-ccxt test`（31 例通过）。
+- 门面文档同步到实现面（commit `7655f4bf`）：`README.md:121/247`、`README_zh.md:123/253`、
+  `docs/guides/connectors-guide.md:59` 整行重写为「现货聚合、仅 binance/okx/bybit 三条直连、
+  K 线只有 binance」，盘口/衍生品/账户读面/永续不再计入 CCXT 能力；同一批文档的传输面声明
+  改为 REST 轮询——全仓无 WebSocket 依赖与 `wss://` 端点，各连接器 `subscribeTicker` 一律
+  `setInterval` 轮询。
+- 门面文档里尚未同批收窄的同类声明（事实缺口，留待后续卡）：
+  `README.md:122` / `README_zh.md:124` 的官方经纪商 REST/WS 网关、`README.md:124` /
+  `README_zh.md:126` 的港股「Level 2 市场数据 / 窝轮牛熊证」——longbridge、futu、tiger
+  三包源码无 `getOrderbook` 与衍生品面（仅 tencent 有盘口，且 hk 实例档位为 0 时按
+  `TRADING_NOT_IMPLEMENTED` 拒绝）。README 的「19+ / 21+ 连接器」计数未核对。
