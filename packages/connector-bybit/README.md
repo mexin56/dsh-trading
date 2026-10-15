@@ -33,13 +33,12 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `enabled` | `true` | 是否激活本连接器；`false` 时 `apply` 立即返回 |
-| `env` | `'demo'` | 类型面声明 `demo`/`live`；**当前没有任何代码读它**——`baseUrl` 恒为 `https://api.bybit.com`，无模拟盘域名或模拟盘请求头切换 |
 | `dryRun` | `true` | 强制模拟下单：为 `true` 时即使 `liveTrading=true` 且请求 `dryRun=false`，也只回本地模拟回执 |
 | `liveTrading` | `false` | 实盘开关的**非权威镜像**；真正授权由 `@dshtrading/authority` 的人工签署平面裁定 |
 | `apiKeyRef` | `'BYBIT_API_KEY'` | API Key 的**环境变量名**（BYOK）；`apply` 时 `process.env[apiKeyRef]` 取值 |
 | `secretRef` | `'BYBIT_SECRET_KEY'` | Secret 的环境变量名；值只存进客户端字段，**不参与任何签名**（当前无签名路径） |
 
-依据：`src/index.ts:48-55`（schema 与默认值）、`src/index.ts:283-284`（环境变量读取）、
+依据：`src/index.ts:47-53`（schema 与默认值）、`src/index.ts:281-282`（环境变量读取）、
 `src/rest.ts:205-210`（baseUrl 与凭证字段）、`src/rest.ts:215-217`（请求头只有 `Accept`）。
 
 ## 接线
@@ -53,10 +52,12 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
   `tradingCryptoTrade`），内层行 id `dsh-trading-crypto-connector-bybit`（第 72-73 行），
   行内只写 `enabled: true` / `dryRun: true` / `liveTrading: false`（schema 默认值由本模块导出的
   `Config` 补全，见 `src/dataplane.ts:16`）。
-- **服务键**：`tradingCryptoMarketData`（`src/index.ts:57`）、`tradingCryptoTrade`（`src/index.ts:58`）。
+- **服务键**：`tradingCryptoMarketData`（`src/index.ts:55`）、`tradingCryptoTrade`（`src/index.ts:56`）。
 - **provider 词汇**：`packages/router/src/index.ts:65` 登记 `bybit`。
-- **设置页显示名**：`packages/client-ui-settings/src/client/locales.ts:240`（中文 `Bybit`）与
-  `:386`（英文）；交易所条目 `packages/client-ui-settings/src/client/trading-settings-controller.ts:28`。
+- **设置页显示名**：`packages/client-ui-settings/src/client/locales.ts:238`（中文 `Bybit`）与
+  `:382`（英文）；交易所条目 `packages/client-ui-settings/src/client/trading-settings-controller.ts:28`。
+  Secret 占位文案是 `BYBIT_SECRET_KEY`（`locales.ts:279` 中文、第 423 行英文），与「配置」表里
+  `secretRef` 的 schema 默认名同名（`src/index.ts:52`）——设置页文案与连接器读取的环境变量名同源。
 - **profile overrides**：`node scripts/sync-profile-overrides.mjs --all --dsh-home ~/.dsh-trading`
   （注意 `--dsh-home`；宿主会话继承的 `DSH_HOME` 指向别处会找错 profile 集）。
 
@@ -110,22 +111,22 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
 
 | 方法 | 有/缺席 | 说明 |
 |---|---|---|
-| `getTicker` | 有 | 现货与线性永续，输出规范形（`src/index.ts:72`） |
-| `getKlines` | 有 | 同上形态分岔（`src/index.ts:76`） |
-| `listInstruments` | 有 | 现货 ∪ 线性永续名册，带 `form` 与 `contract`（`src/index.ts:86`） |
-| `subscribeTicker` | 有 | 快照轮询，最小 1000 ms、缺省 5000 ms（`src/index.ts:90-98`） |
-| `getOrderbook` | 有 | 25 档（`src/index.ts:101`） |
-| `getRecentTrades` | 有 | 时间升序，上限 60（`src/index.ts:106`） |
-| `getDerivatives` | 有 | 单所聚合快照，子查询失败只降级对应字段（`src/index.ts:116`） |
-| `getDerivativesHistory` | 有 | 费率 + OI 双序列，单序列失败即该字段缺省（`src/index.ts:162`） |
-| `placeOrder` | 有（模拟） | 三态闸门；模拟回执由服务层本地合成（`src/index.ts:207-234`） |
-| `cancelOrder` | 有（受限） | 未获实盘授权或 `dryRun=true` 时结构化拒绝（`src/index.ts:236-244`） |
-| `getOrder` | 有（失败关闭） | 恒抛 `TRADING_NOT_IMPLEMENTED`（`src/index.ts:253-259`） |
-| `getPositions` | 有（失败关闭） | 恒抛 `TRADING_NOT_IMPLEMENTED`（`src/index.ts:261-267`） |
+| `getTicker` | 有 | 现货与线性永续，输出规范形（`src/index.ts:70`） |
+| `getKlines` | 有 | 同上形态分岔（`src/index.ts:74`） |
+| `listInstruments` | 有 | 现货 ∪ 线性永续名册，带 `form` 与 `contract`（`src/index.ts:84`） |
+| `subscribeTicker` | 有 | 快照轮询，最小 1000 ms、缺省 5000 ms（`src/index.ts:88-96`） |
+| `getOrderbook` | 有 | 25 档（`src/index.ts:99`） |
+| `getRecentTrades` | 有 | 时间升序，上限 60（`src/index.ts:104`） |
+| `getDerivatives` | 有 | 单所聚合快照，子查询失败只降级对应字段（`src/index.ts:114`） |
+| `getDerivativesHistory` | 有 | 费率 + OI 双序列，单序列失败即该字段缺省（`src/index.ts:160`） |
+| `placeOrder` | 有（模拟） | 三态闸门；模拟回执由服务层本地合成（`src/index.ts:205-232`） |
+| `cancelOrder` | 有（受限） | 未获实盘授权或 `dryRun=true` 时结构化拒绝（`src/index.ts:234-242`） |
+| `getOrder` | 有（失败关闭） | 恒抛 `TRADING_NOT_IMPLEMENTED`（`src/index.ts:251-257`） |
+| `getPositions` | 有（失败关闭） | 恒抛 `TRADING_NOT_IMPLEMENTED`（`src/index.ts:259-265`） |
 | `getBalances` / `listOpenOrders` / `listTradeFills` | 缺席 | 可选方法未定义，消费方按「缺席」处理 |
 | `setLeverage` | 缺席 | 未定义 |
 
-工具（`apply` 内注册，duplicate-safe，`src/index.ts:296-319`）：
+工具（`apply` 内注册，duplicate-safe，`src/index.ts:294-317`）：
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
@@ -141,28 +142,23 @@ Bybit v5 加密货币连接器（crypto 市场）：实现 `@dshtrading/api` 的
    （`src/rest.ts:546-559`），它不触网、返回 `sim-bybit-*` 回执且 `dryRun: true`；
    `cancelOrder` 同理返回 `{orderId, status:'canceled'}`（`src/rest.ts:561-563`）。
    当前没有 Bybit 下单工具、GUI 桥强制 `dryRun=true`，可达面只有动态包 `inject` 直调。
-   见 [bybit-fabricated-trade-surface.md](../../.agents/notes/implemented/simplification/2026-10-10-bybit-fabricated-trade-surface.md)。
+   见 [fabricated-trade-surface-fail-closed.md](../../.agents/notes/implemented/simplification/2026-10-10-fabricated-trade-surface-fail-closed.md)。
 2. **私有账户读面失败关闭**：`getOrder` / `getPositions` 抛 `TRADING_NOT_IMPLEMENTED`
    （语义是「不可用」，不是「订单不存在」或「没有持仓」）；`getBalances` / `listOpenOrders` /
    `listTradeFills` 直接缺席。此前硬编码的 100000 余额与恒空数组已删除，见同一份 Note。
-3. **`env` 未接线**：schema 收了 `demo`/`live`，但没有任何代码读它；没有模拟盘域名、
-   没有模拟盘请求头，因此 `env=demo` 不会把请求切到 Bybit 模拟盘。
-4. **凭证不参与签名**：`apiKeyRef` / `secretRef` 解析出的值只存进客户端字段
+3. **凭证不参与签名**：`apiKeyRef` / `secretRef` 解析出的值只存进客户端字段
    （`src/rest.ts:206-207`），全部请求走免密公共端点；本包没有任何签名实现。
-5. **设置页文案与 schema 默认名不一致**：设置页 Secret 占位文案写 `BYBIT_API_SECRET`
-   （`packages/client-ui-settings/src/client/locales.ts:282` 与 `:428`），
-   而连接器读取的默认环境变量名是 `BYBIT_SECRET_KEY`（`src/index.ts:54`）。
-6. **K 线错误静默为空数组**（`src/rest.ts:289-291`），不抛结构化错误。
-7. **地域封锁（实测）**：默认出口对 `api.bybit.com` 全量 403，换出口地区才可达，
+4. **K 线错误静默为空数组**（`src/rest.ts:289-291`），不抛结构化错误。
+5. **地域封锁（实测）**：默认出口对 `api.bybit.com` 全量 403，换出口地区才可达，
    见「状态」段的证据与日期。这是上游按出口国家的拦截，不是本包可控项。
-8. **类型存量债**：本包 `tsconfig.json` 有 12 条 tsc 错误记在
+6. **类型存量债**：本包 `tsconfig.json` 有 12 条 tsc 错误记在
    `scripts/typecheck-baseline.json:35`（棘轮基线内的旧债，本 README 不改动）。
 
 ## 合规记录
 
 - Bybit 公共行情端点：公开、免密；本包不内置密钥，不把凭证值写进日志或回执。
 - 凭证只以**环境变量名**（ref）形式出现在配置与仓库里；值在 `apply` 时读入进程内存，
-  只传给 REST 客户端字段，不参与签名、不外发（见「配置」与「已知边界」第 4 条）。
+  只传给 REST 客户端字段，不参与签名、不外发（见「配置」与「已知边界」第 3 条）。
 - 本仓不缓存、不再分发行情数据。
 - 地域拦截由上游按出口国家实施（响应体自证 CloudFront）；换出口属**用户侧环境选择**，
   不是仓库配置的一部分（`EVIDENCE-reverify-2026-10-08.md` 第 2 节原文：出口地区是机器状态）。
