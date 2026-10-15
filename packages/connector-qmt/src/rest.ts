@@ -186,8 +186,8 @@ export class QmtRestClient {
     }
 
     // 未收录的 secid 上游是「少返回行」（只传无效 secid 时 data:null；HTTP 仍 200），停牌占位是
-    // f2 缺失或 0——两种形态都没有可用价格。不借用 TRADING_SYMBOL_NOT_FOUND：它不在
-    // TradingErrorCode 词汇表内（bybit 对同一缺口的取舍记在 2026-10-08 那份 note），且走进这条
+    // f2 缺失或 0——两种形态都没有可用价格。不借用 TRADING_SYMBOL_NOT_FOUND（该码 2026-10-15 已
+    // 收录进 TradingErrorCode 词汇表；bybit 对同一缺口的取舍记在 2026-10-08 那份 note）：走进这条
     // 支路的唯一原因是**主取价路径不可用**，从 push2 的沉默推不出「该标的不存在」（secid 由
     // toQmtCode 的启发式映射派生）。照实报「上游没给出可用报价」。
     const row = payload.data?.diff?.[0]

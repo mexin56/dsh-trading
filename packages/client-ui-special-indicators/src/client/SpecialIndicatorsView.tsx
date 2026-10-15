@@ -1,6 +1,6 @@
 /**
  * 特殊指标主视图：自有 finance 服务（docs/api.md）四组指标，二级页签各展一组——
- *   1. A 股恐慌指数（score + 7 分项 + 与中证全指叠加的 250 日历史）
+ *   1. A 股恐慌指数（score + 分项条形 + 与中证全指叠加的 250 日历史）
  *   2. IF / IM 期现基差（日内统计 + 250 日基差率历史）
  *   3. 恒科权重股卖空（聚合占比 + 指数叠加历史 + 成分股表）
  *   4. 板块融资余额（20 日变化率排行表 + 全板块 5 日净变化）
@@ -441,7 +441,9 @@ function SentimentCard({ t, snap, hist, loading }: {
     <CardShell
       t={t}
       title={t('si.sentiment.title')}
-      subtitle={t('si.sentiment.subtitle')}
+      // 方法学版本从**载荷**取,不写死:finance 端 v1/v2/v3 并列可切换,
+      // 副标题跟着实际返回的 methodology_version 走,免得写着 v2 实际是 v3。
+      subtitle={t('si.sentiment.subtitle') + (typeof s?.methodology_version === 'number' ? t('si.sentiment.methodology', { methodology: s.methodology_version }) : '')}
       date={s?.date}
       stale={sentimentDataStale(s)}
       error={snap?.error ?? hist?.error}

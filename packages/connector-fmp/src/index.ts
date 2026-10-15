@@ -165,15 +165,28 @@ export function routeAllows(ctx: Context, config: Config, market: string): boole
   return router.activeProvider(market) === ROUTER_PROVIDER
 }
 
+/**
+ * API Key 的**惰性**取值源：设置中心 `dshtrading.credentials.fmp.apiKey`（router `getCredential`）
+ * 优先、`process.env[config.apiKeyRef]` 兜底，每次请求解析一次。
+ *
+ * 为什么是惰性而不是 apply 期快照：settings 用户层（settings.yaml）的加载与修改都晚于插件
+ * apply（2026-09-12 实证根因），快照会永久漏掉面板里刚填的 key。主入口与数据面行共用这一份，
+ * 包内不存在第二份凭证解析（同 connector-tushare 的 `createTokenProvider`）。
+ */
+export function createApiKeyProvider(ctx: Context, config: Config): () => string | undefined {
+  return () => {
+    const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as { getCredential?(p: string): Record<string, string> | undefined } | undefined
+    return router?.getCredential?.(ROUTER_PROVIDER)?.apiKey || process.env[config.apiKeyRef]
+  }
+}
+
 export function apply(ctx: Context, config: Config): void {
   if (!config.enabled) return
   if (!routeAllows(ctx, config, 'us')) return
 
-  const router = (ctx as unknown as { get?: (key: string, strict?: boolean) => unknown }).get?.('tradingMarketRouter', false) as { getCredential?(p: string): Record<string, string> | undefined } | undefined
-  const creds = router?.getCredential?.(ROUTER_PROVIDER)
-  const apiKey = creds?.apiKey || process.env[config.apiKeyRef]
-  const marketData = new FmpMarketDataService(ctx, { apiKey })
-  const trade = new FmpTradeService(ctx, { apiKey , config })
+  const apiKeyProvider = createApiKeyProvider(ctx, config)
+  const marketData = new FmpMarketDataService(ctx, { apiKeyProvider })
+  const trade = new FmpTradeService(ctx, { apiKeyProvider, config })
 
   ctx.inject(['tools'], (ctx) => {
     const tools = ctx.tools as unknown as { register(d: unknown): void; get(n: string): unknown }

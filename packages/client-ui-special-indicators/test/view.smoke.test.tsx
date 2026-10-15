@@ -45,9 +45,9 @@ function fixtureFor(url: string): { status?: number; body: unknown } {
     return {
       body: {
         score: 42.65, label: 'fear', label_text: '恐惧', date: '2026-09-16', expected_data_date: '2026-09-16', stale: false,
-        average_5d: 29.24, vs_5d: 13.41,
+        average_5d: 29.24, vs_5d: 13.41, methodology_version: 3,
         components: [{ key: 'cn_momentum', name: '全指动量', raw: -5.35, score: 7.8, direction: 'higher_fear' }],
-        coverage: { valid: 1, total: 7, partial: false },
+        coverage: { valid: 1, total: 8, partial: false },
       },
     }
   }
@@ -187,8 +187,19 @@ describe('特殊指标二级页签', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'IF / IM 期现基差' }))
     // Then: 基差卡片可见、恐慌卡片卸载，localStorage 持久化为 basis
     expect(await screen.findByText('IF 沪深300')).toBeTruthy()
-    expect(screen.queryByText('分项（1/7 有效）')).toBeNull()
+    expect(screen.queryByText('分项（1/8 有效）')).toBeNull()
     expect(storage.store.get('dshtrading.special-indicators.tab.v1')).toBe('"basis"')
+  })
+
+  it('用户看到的恐慌指数副标题里的方法学版本来自载荷，不写死在词典里', async () => {
+    // Given: 上游返回 methodology_version=3 的恐慌指数快照（finance 端 v1/v2/v3 并列可切）
+    const fake = installFakeFetch()
+    restoreFetch = fake.restore
+    // When: 用户打开默认的恐慌指数页签
+    render(<SpecialIndicatorsView t={t} view="special-indicators" />)
+    await screen.findByText('42.6')
+    // Then: 副标题带上**载荷里的**版本——写死的话，方法切到 v3 后标签还在说 v2
+    expect(screen.getByText('0–100，越低越恐惧（方法 v3）')).toBeTruthy()
   })
 
   it('用户打开视图时只拉取默认页签的数据端点，未访问页签不预拉', async () => {

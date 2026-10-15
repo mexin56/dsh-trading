@@ -30,6 +30,7 @@ export const inject: readonly string[] = []
 
 export interface Config {
   baseUrl: string
+  sentimentMethodology: number
   username: string
   password: string
   usernameEnv: string
@@ -42,6 +43,7 @@ export interface Config {
 
 export const Config: Schema<Config> = Schema.object({
   baseUrl: Schema.string().default('https://finance.chatwithai.icu').description('自有 finance 服务地址（docs/api.md）'),
+  sentimentMethodology: Schema.number().default(3).description('恐慌指数方法学版本（finance 支持 1/2/3）：v3 = v2 七槽 + 融资连增连减，八槽全有效才出分；越界值由上游 422 显式拒绝'),
   username: Schema.string().default('api').description('finance HTTP Basic 用户名'),
   password: Schema.string().default('').description('finance HTTP Basic 密码（只写本地 profile 行配置，勿提交仓库；空 = 走凭据链兜底）'),
   usernameEnv: Schema.string().default('FINANCE_API_USER').description('用户名环境变量名（凭据链末位兜底）'),
@@ -87,8 +89,8 @@ function clampInt(raw: string | null, fallback: number, min: number, max: number
 interface RouteDef {
   /** 子路径（MOUNT 之后），如 /basis/snapshot。 */
   sub: string
-  /** 由已校验查询参数拼上游路径；返回 null = 参数非法（400）。 */
-  upstream: (url: URL) => string | null
+  /** 由已校验查询参数与被解析的配置拼上游路径；返回 null = 参数非法（400）。 */
+  upstream: (url: URL, config: Config) => string | null
   /** 缓存档：snapshot 用 snapshotCacheMs，history 用 historyCacheMs。 */
   tier: 'snapshot' | 'history'
 }
@@ -101,11 +103,12 @@ export const ROUTES: readonly RouteDef[] = [
     upstream: (url) => '/api/v2/basis/history?days=' + clampInt(url.searchParams.get('days'), 200, 10, 500),
     tier: 'history',
   },
-  // 恐慌指数固定 market=cn + methodology=2（与页面默认方法一致；docs/api.md 要求调用方固定方法）。
-  { sub: '/sentiment/snapshot', upstream: () => '/api/sentiment/snapshot?market=cn&methodology=2', tier: 'snapshot' },
+  // 恐慌指数固定 market=cn + 配置里的方法学版本（docs/api.md：调用方应固定方法，
+  // 避免历史拼接混用；同一会话内不得一半 v2 一半 v3）。版本由配置给，不再写死在路由里。
+  { sub: '/sentiment/snapshot', upstream: (_url, config) => '/api/sentiment/snapshot?market=cn&methodology=' + String(config.sentimentMethodology), tier: 'snapshot' },
   {
     sub: '/sentiment/history',
-    upstream: (url) => '/api/sentiment/history?market=cn&methodology=2&days=' + clampInt(url.searchParams.get('days'), 750, 30, 800),
+    upstream: (url, config) => '/api/sentiment/history?market=cn&methodology=' + String(config.sentimentMethodology) + '&days=' + clampInt(url.searchParams.get('days'), 750, 30, 800),
     tier: 'history',
   },
   { sub: '/hk-short/snapshot', upstream: () => '/api/hk-short/snapshot', tier: 'snapshot' },
@@ -163,7 +166,7 @@ export function createRouteHandler(client: FinanceClient, config: Config, connec
       sendJson(res, 404, { ok: false, code: 'SPECIAL_INDICATORS_ROUTE_NOT_FOUND', message: 'unknown special-indicators route: ' + sub })
       return
     }
-    const upstream = route.upstream(url)
+    const upstream = route.upstream(url, config)
     if (upstream === null) {
       sendJson(res, 400, { ok: false, code: 'SPECIAL_INDICATORS_BAD_PARAMS', message: 'invalid query params for ' + sub })
       return

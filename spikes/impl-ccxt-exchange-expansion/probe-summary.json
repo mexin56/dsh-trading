@@ -1,13 +1,14 @@
 {
-  "probe": "ccxt-nine-exchange-ticker-and-klines",
-  "capturedAt": "2026-10-15T02:04:52.404Z",
+  "probe": "ccxt-nine-exchange-ticker-klines-and-quote-census",
+  "capturedAt": "2026-10-15T02:44:45.795Z",
   "repo": {
-    "headSha": "c3bdb9b4f23313ab33e08830b71071f7c0d3ae64",
+    "headSha": "a83886468a6e0614bec1e67549aa8e7b3aae93fc",
     "fingerprints": {
-      "packages/connector-ccxt/src/rest.ts": "381ab9ff55ef4ddfdf0e2a83c452d5766d2811a8",
-      "packages/connector-ccxt/src/index.ts": "6c209a760ad20a258631df4395ceb3948f2e87a7"
+      "packages/connector-ccxt/src/rest.ts": "d39394e276277fdec6826213b6845e082b80a9fa",
+      "packages/connector-ccxt/src/index.ts": "03fba6de7584d04bd82f94595d90a052dd1b7f64",
+      "packages/api/src/index.ts": "3d58dc586ba088219b31f9c5f125b3837277954a"
     },
-    "statusPorcelainLines": 51
+    "statusPorcelainLines": 14
   },
   "connector": {
     "restTsPath": "packages/connector-ccxt/src/rest.ts",
@@ -23,9 +24,459 @@
       "htx"
     ],
     "klineExchanges": [
-      "binance"
+      "binance",
+      "okx",
+      "bybit",
+      "gateio",
+      "kucoin",
+      "kraken",
+      "coinbase",
+      "bitfinex",
+      "htx"
     ],
+    "quoteTables": {
+      "okx": [
+        "AED",
+        "AUD",
+        "BRL",
+        "BTC",
+        "ETH",
+        "EUR",
+        "PLN",
+        "SGD",
+        "SOL",
+        "TRY",
+        "USD",
+        "USDC",
+        "USDT"
+      ],
+      "kucoin": [
+        "BTC",
+        "DOGE",
+        "ETH",
+        "EUR",
+        "KCS",
+        "TRX",
+        "USD1",
+        "USDC",
+        "USDG",
+        "USDT"
+      ],
+      "gateio": [
+        "BTC",
+        "ETH",
+        "GUSD",
+        "RLUSD",
+        "USD",
+        "USD1",
+        "USDC",
+        "USDT"
+      ],
+      "kraken": [
+        "AUD",
+        "AUSD",
+        "CAD",
+        "CHF",
+        "DAI",
+        "ETH",
+        "EUR",
+        "EURC",
+        "EUROP",
+        "FIDD",
+        "GBP",
+        "JPY",
+        "PYUSD",
+        "RLUSD",
+        "SOFID",
+        "SOL",
+        "USD",
+        "USD1",
+        "USDC",
+        "USDD",
+        "USDQ",
+        "USDR",
+        "USDT",
+        "XBT"
+      ],
+      "coinbase": [
+        "AUD",
+        "BRL",
+        "BTC",
+        "CAD",
+        "DAI",
+        "ETH",
+        "EUR",
+        "GBP",
+        "INR",
+        "SGD",
+        "USD",
+        "USDC",
+        "USDT"
+      ],
+      "bitfinex": [
+        "BTC",
+        "ETH",
+        "EUR",
+        "GBP",
+        "TESTUSD",
+        "TESTUSDT",
+        "USD",
+        "USDT",
+        "XAUT"
+      ],
+      "htx": [
+        "BRL",
+        "BTC",
+        "ETH",
+        "EUR",
+        "EUROC",
+        "GBP",
+        "HT",
+        "HUSD",
+        "KGST",
+        "PYUSD",
+        "RUB",
+        "TRX",
+        "TRY",
+        "TUSD",
+        "UAH",
+        "USD1",
+        "USDC",
+        "USDD",
+        "USDT",
+        "USTC"
+      ]
+    },
+    "intervalParams": {
+      "binance": {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1h",
+        "4h": "4h",
+        "1d": "1d",
+        "1w": "1w",
+        "1M": "1M"
+      },
+      "okx": {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1H",
+        "4h": "4H",
+        "1d": "1Dutc",
+        "1w": "1Wutc",
+        "1M": "1Mutc"
+      },
+      "bybit": {
+        "1m": "1",
+        "5m": "5",
+        "15m": "15",
+        "30m": "30",
+        "1h": "60",
+        "4h": "240",
+        "1d": "D",
+        "1w": "W",
+        "1M": "M"
+      },
+      "gateio": {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1h",
+        "4h": "4h",
+        "1d": "1d",
+        "1w": "7d"
+      },
+      "kucoin": {
+        "1m": "1min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "1hour",
+        "4h": "4hour",
+        "1d": "1day",
+        "1w": "1week"
+      },
+      "kraken": {
+        "1m": "1",
+        "5m": "5",
+        "15m": "15",
+        "30m": "30",
+        "1h": "60",
+        "4h": "240",
+        "1d": "1440",
+        "1w": "10080",
+        "1M": "21600"
+      },
+      "coinbase": {
+        "1m": "60",
+        "5m": "300",
+        "15m": "900",
+        "1h": "3600",
+        "1d": "86400"
+      },
+      "bitfinex": {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1h",
+        "4h": "4h",
+        "1d": "1D",
+        "1w": "1W",
+        "1M": "1M"
+      },
+      "htx": {
+        "1m": "1min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "60min",
+        "4h": "4hour",
+        "1d": "1day",
+        "1w": "1week",
+        "1M": "1mon"
+      }
+    },
     "symbol": "BTCUSDT"
+  },
+  "census": {
+    "okx": [
+      "AED",
+      "AUD",
+      "BRL",
+      "BTC",
+      "ETH",
+      "EUR",
+      "PLN",
+      "SGD",
+      "SOL",
+      "TRY",
+      "USD",
+      "USDC",
+      "USDT"
+    ],
+    "kucoin": [
+      "BTC",
+      "DOGE",
+      "ETH",
+      "EUR",
+      "KCS",
+      "TRX",
+      "USD1",
+      "USDC",
+      "USDG",
+      "USDT"
+    ],
+    "gateio": [
+      "BTC",
+      "ETH",
+      "GUSD",
+      "RLUSD",
+      "USD",
+      "USD1",
+      "USDC",
+      "USDT"
+    ],
+    "kraken": [
+      "AUD",
+      "AUSD",
+      "CAD",
+      "CHF",
+      "DAI",
+      "ETH",
+      "EUR",
+      "EURC",
+      "EUROP",
+      "FIDD",
+      "GBP",
+      "JPY",
+      "PYUSD",
+      "RLUSD",
+      "SOFID",
+      "SOL",
+      "USD",
+      "USD1",
+      "USDC",
+      "USDD",
+      "USDQ",
+      "USDR",
+      "USDT",
+      "XBT"
+    ],
+    "coinbase": [
+      "AUD",
+      "BRL",
+      "BTC",
+      "CAD",
+      "DAI",
+      "ETH",
+      "EUR",
+      "GBP",
+      "INR",
+      "SGD",
+      "USD",
+      "USDC",
+      "USDT"
+    ],
+    "bitfinex": [
+      "BTC",
+      "ETH",
+      "EUR",
+      "GBP",
+      "TESTUSD",
+      "TESTUSDT",
+      "USD",
+      "USDT",
+      "XAUT"
+    ],
+    "htx": [
+      "BRL",
+      "BTC",
+      "ETH",
+      "EUR",
+      "EUROC",
+      "GBP",
+      "HT",
+      "HUSD",
+      "KGST",
+      "PYUSD",
+      "RUB",
+      "TRX",
+      "TRY",
+      "TUSD",
+      "UAH",
+      "USD1",
+      "USDC",
+      "USDD",
+      "USDT",
+      "USTC"
+    ]
+  },
+  "klineCases": [
+    {
+      "exchange": "binance",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5"
+    },
+    {
+      "exchange": "binance",
+      "symbol": "BTCUSDT",
+      "interval": "1M",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5"
+    },
+    {
+      "exchange": "okx",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5"
+    },
+    {
+      "exchange": "okx",
+      "symbol": "BTCUSDT",
+      "interval": "1M",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5"
+    },
+    {
+      "exchange": "bybit",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5"
+    },
+    {
+      "exchange": "bybit",
+      "symbol": "BTCUSDT",
+      "interval": "1M",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5"
+    },
+    {
+      "exchange": "gateio",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5"
+    },
+    {
+      "exchange": "gateio",
+      "symbol": "BTCUSDT",
+      "interval": "1w",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5"
+    },
+    {
+      "exchange": "kucoin",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day"
+    },
+    {
+      "exchange": "kucoin",
+      "symbol": "BTCUSDT",
+      "interval": "1w",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week"
+    },
+    {
+      "exchange": "kraken",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440"
+    },
+    {
+      "exchange": "kraken",
+      "symbol": "BTCUSDT",
+      "interval": "1M",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600"
+    },
+    {
+      "exchange": "coinbase",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400"
+    },
+    {
+      "exchange": "coinbase",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60"
+    },
+    {
+      "exchange": "bitfinex",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5"
+    },
+    {
+      "exchange": "bitfinex",
+      "symbol": "BTCUSDT",
+      "interval": "1w",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5"
+    },
+    {
+      "exchange": "htx",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5"
+    },
+    {
+      "exchange": "htx",
+      "symbol": "BTCUSDT",
+      "interval": "1M",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5"
+    }
+  ],
+  "unsupportedIntervals": {
+    "binance": "8h",
+    "okx": "8h",
+    "bybit": "8h",
+    "gateio": "1M",
+    "kucoin": "1M",
+    "kraken": "8h",
+    "coinbase": "30m",
+    "bitfinex": "8h",
+    "htx": "8h"
   },
   "egress": {
     "selectorGroup": "Proxies",
@@ -56,8 +507,8 @@
     ]
   },
   "counts": {
-    "total": 18,
-    "passed": 18,
+    "total": 63,
+    "passed": 63,
     "failed": 0
   },
   "judgements": [
@@ -74,12 +525,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT",
-      "detail": "price=81552.7 volume=6441.11662476 symbol=BTCUSDT ts=1792029893461",
+      "detail": "BTCUSDT price=81303.9 volume=7374.48696774 ts=1792032287076",
       "observed": {
-        "price": 81552.7,
-        "volume": 6441.11662476,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029893461,
+        "price": 81303.9,
+        "volume": 7374.48696774,
+        "timestamp": 1792032287076,
         "urls": [
           "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         ]
@@ -91,12 +542,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT",
-      "detail": "price=81537.6 volume=10090.540895 symbol=BTCUSDT ts=1792029895288",
+      "detail": "BTCUSDT price=81296.9 volume=11220.272632 ts=1792032289623",
       "observed": {
-        "price": 81537.6,
-        "volume": 10090.540895,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029895288,
+        "price": 81296.9,
+        "volume": 11220.272632,
+        "timestamp": 1792032289623,
         "urls": [
           "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT"
         ]
@@ -108,12 +559,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT",
-      "detail": "price=81556.6 volume=6424.016579461342 symbol=BTCUSDT ts=1792029896025",
+      "detail": "BTCUSDT price=81293.3 volume=7057.140256681342 ts=1792032290471",
       "observed": {
-        "price": 81556.6,
-        "volume": 6424.016579461342,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029896025,
+        "price": 81293.3,
+        "volume": 7057.140256681342,
+        "timestamp": 1792032290471,
         "urls": [
           "https://api.kucoin.com/api/v1/market/stats?symbol=BTC-USDT"
         ]
@@ -125,12 +576,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT",
-      "detail": "price=81541.9 volume=124.85765033 symbol=BTCUSDT ts=1792029896658",
+      "detail": "BTCUSDT price=81282.7 volume=153.36194918 ts=1792032291059",
       "observed": {
-        "price": 81541.9,
-        "volume": 124.85765033,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029896658,
+        "price": 81282.7,
+        "volume": 153.36194918,
+        "timestamp": 1792032291059,
         "urls": [
           "https://api.kraken.com/0/public/Ticker?pair=XBTUSDT"
         ]
@@ -142,12 +593,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.exchange.coinbase.com/products/BTC-USDT/ticker",
-      "detail": "price=81545.9 volume=28.04946057 symbol=BTCUSDT ts=1792029897278",
+      "detail": "BTCUSDT price=81214.13 volume=33.74576569 ts=1792032291811",
       "observed": {
-        "price": 81545.9,
-        "volume": 28.04946057,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029897278,
+        "price": 81214.13,
+        "volume": 33.74576569,
+        "timestamp": 1792032291811,
         "urls": [
           "https://api.exchange.coinbase.com/products/BTC-USDT/ticker"
         ]
@@ -159,12 +610,12 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api-pub.bitfinex.com/v2/ticker/tBTCUST",
-      "detail": "price=81532 volume=787.49682495 symbol=BTCUSDT ts=1792029897982",
+      "detail": "BTCUSDT price=81297 volume=850.58204351 ts=1792032292590",
       "observed": {
-        "price": 81532,
-        "volume": 787.49682495,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029897982,
+        "price": 81297,
+        "volume": 850.58204351,
+        "timestamp": 1792032292590,
         "urls": [
           "https://api-pub.bitfinex.com/v2/ticker/tBTCUST"
         ]
@@ -176,15 +627,1330 @@
       "route": "plain",
       "egressIp": "216.195.208.136",
       "url": "https://api.htx.com/market/detail/merged?symbol=btcusdt",
-      "detail": "price=81537.3 volume=3089.232323646486 symbol=BTCUSDT ts=1792029898887",
+      "detail": "BTCUSDT price=81276 volume=3045.558574807656 ts=1792032293522",
       "observed": {
-        "price": 81537.3,
-        "volume": 3089.232323646486,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029898887,
+        "price": 81276,
+        "volume": 3045.558574807656,
+        "timestamp": 1792032293522,
         "urls": [
           "https://api.htx.com/market/detail/merged?symbol=btcusdt"
         ]
+      }
+    },
+    {
+      "id": "ticker.okx.ETHBTC",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://www.okx.com/api/v5/market/ticker?instId=ETH-BTC",
+      "detail": "ETHBTC price=0.02923 volume=2178.322006 ts=1792032295075",
+      "observed": {
+        "symbol": "ETHBTC",
+        "price": 0.02923,
+        "volume": 2178.322006,
+        "timestamp": 1792032295075,
+        "urls": [
+          "https://www.okx.com/api/v5/market/ticker?instId=ETH-BTC"
+        ]
+      }
+    },
+    {
+      "id": "ticker.gateio.ETHBTC",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_BTC",
+      "detail": "ETHBTC price=0.029221 volume=74.1156 ts=1792032297199",
+      "observed": {
+        "symbol": "ETHBTC",
+        "price": 0.029221,
+        "volume": 74.1156,
+        "timestamp": 1792032297199,
+        "urls": [
+          "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_BTC"
+        ]
+      }
+    },
+    {
+      "id": "ticker.kucoin.ETHBTC",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC",
+      "detail": "ETHBTC price=0.02922 volume=1430.8447224 ts=1792032294890",
+      "observed": {
+        "symbol": "ETHBTC",
+        "price": 0.02922,
+        "volume": 1430.8447224,
+        "timestamp": 1792032294890,
+        "urls": [
+          "https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC"
+        ]
+      }
+    },
+    {
+      "id": "ticker.kraken.ETHEUR",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kraken.com/0/public/Ticker?pair=ETHEUR",
+      "detail": "ETHEUR price=2113.23 volume=9914.75431949 ts=1792032299021",
+      "observed": {
+        "symbol": "ETHEUR",
+        "price": 2113.23,
+        "volume": 9914.75431949,
+        "timestamp": 1792032299021,
+        "urls": [
+          "https://api.kraken.com/0/public/Ticker?pair=ETHEUR"
+        ]
+      }
+    },
+    {
+      "id": "ticker.coinbase.ETHBTC",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.exchange.coinbase.com/products/ETH-BTC/ticker",
+      "detail": "ETHBTC price=0.029234 volume=1053.61420814 ts=1792032299819",
+      "observed": {
+        "symbol": "ETHBTC",
+        "price": 0.029234,
+        "volume": 1053.61420814,
+        "timestamp": 1792032299819,
+        "urls": [
+          "https://api.exchange.coinbase.com/products/ETH-BTC/ticker"
+        ]
+      }
+    },
+    {
+      "id": "ticker.bitfinex.ETHEUR",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api-pub.bitfinex.com/v2/ticker/tETHEUR",
+      "detail": "ETHEUR price=2071.8 volume=115.52872778 ts=1792032300728",
+      "observed": {
+        "symbol": "ETHEUR",
+        "price": 2071.8,
+        "volume": 115.52872778,
+        "timestamp": 1792032300728,
+        "urls": [
+          "https://api-pub.bitfinex.com/v2/ticker/tETHEUR"
+        ]
+      }
+    },
+    {
+      "id": "ticker.htx.ETHBTC",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.htx.com/market/detail/merged?symbol=ethbtc",
+      "detail": "ETHBTC price=0.029193 volume=7.3493 ts=1792032301674",
+      "observed": {
+        "symbol": "ETHBTC",
+        "price": 0.029193,
+        "volume": 7.3493,
+        "timestamp": 1792032301674,
+        "urls": [
+          "https://api.htx.com/market/detail/merged?symbol=ethbtc"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.okx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://www.okx.com/api/v5/public/instruments?instType=SPOT",
+      "detail": "13 个 quote 与代码表逐字相等：AED, AUD, BRL, BTC, ETH, EUR, PLN, SGD, SOL, TRY, USD, USDC, USDT",
+      "observed": {
+        "derived": [
+          "AED",
+          "AUD",
+          "BRL",
+          "BTC",
+          "ETH",
+          "EUR",
+          "PLN",
+          "SGD",
+          "SOL",
+          "TRY",
+          "USD",
+          "USDC",
+          "USDT"
+        ],
+        "table": [
+          "AED",
+          "AUD",
+          "BRL",
+          "BTC",
+          "ETH",
+          "EUR",
+          "PLN",
+          "SGD",
+          "SOL",
+          "TRY",
+          "USD",
+          "USDC",
+          "USDT"
+        ],
+        "urls": [
+          "https://www.okx.com/api/v5/public/instruments?instType=SPOT"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.kucoin",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kucoin.com/api/v2/symbols",
+      "detail": "10 个 quote 与代码表逐字相等：BTC, DOGE, ETH, EUR, KCS, TRX, USD1, USDC, USDG, USDT",
+      "observed": {
+        "derived": [
+          "BTC",
+          "DOGE",
+          "ETH",
+          "EUR",
+          "KCS",
+          "TRX",
+          "USD1",
+          "USDC",
+          "USDG",
+          "USDT"
+        ],
+        "table": [
+          "BTC",
+          "DOGE",
+          "ETH",
+          "EUR",
+          "KCS",
+          "TRX",
+          "USD1",
+          "USDC",
+          "USDG",
+          "USDT"
+        ],
+        "urls": [
+          "https://api.kucoin.com/api/v2/symbols"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.gateio",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.gateio.ws/api/v4/spot/currency_pairs",
+      "detail": "8 个 quote 与代码表逐字相等：BTC, ETH, GUSD, RLUSD, USD, USD1, USDC, USDT",
+      "observed": {
+        "derived": [
+          "BTC",
+          "ETH",
+          "GUSD",
+          "RLUSD",
+          "USD",
+          "USD1",
+          "USDC",
+          "USDT"
+        ],
+        "table": [
+          "BTC",
+          "ETH",
+          "GUSD",
+          "RLUSD",
+          "USD",
+          "USD1",
+          "USDC",
+          "USDT"
+        ],
+        "urls": [
+          "https://api.gateio.ws/api/v4/spot/currency_pairs"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.kraken",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kraken.com/0/public/AssetPairs",
+      "detail": "24 个 quote 与代码表逐字相等：AUD, AUSD, CAD, CHF, DAI, ETH, EUR, EURC, EUROP, FIDD, GBP, JPY, PYUSD, RLUSD, SOFID, SOL, USD, USD1, USDC, USDD, USDQ, USDR, USDT, XBT",
+      "observed": {
+        "derived": [
+          "AUD",
+          "AUSD",
+          "CAD",
+          "CHF",
+          "DAI",
+          "ETH",
+          "EUR",
+          "EURC",
+          "EUROP",
+          "FIDD",
+          "GBP",
+          "JPY",
+          "PYUSD",
+          "RLUSD",
+          "SOFID",
+          "SOL",
+          "USD",
+          "USD1",
+          "USDC",
+          "USDD",
+          "USDQ",
+          "USDR",
+          "USDT",
+          "XBT"
+        ],
+        "table": [
+          "AUD",
+          "AUSD",
+          "CAD",
+          "CHF",
+          "DAI",
+          "ETH",
+          "EUR",
+          "EURC",
+          "EUROP",
+          "FIDD",
+          "GBP",
+          "JPY",
+          "PYUSD",
+          "RLUSD",
+          "SOFID",
+          "SOL",
+          "USD",
+          "USD1",
+          "USDC",
+          "USDD",
+          "USDQ",
+          "USDR",
+          "USDT",
+          "XBT"
+        ],
+        "urls": [
+          "https://api.kraken.com/0/public/AssetPairs"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.coinbase",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.exchange.coinbase.com/products",
+      "detail": "13 个 quote 与代码表逐字相等：AUD, BRL, BTC, CAD, DAI, ETH, EUR, GBP, INR, SGD, USD, USDC, USDT",
+      "observed": {
+        "derived": [
+          "AUD",
+          "BRL",
+          "BTC",
+          "CAD",
+          "DAI",
+          "ETH",
+          "EUR",
+          "GBP",
+          "INR",
+          "SGD",
+          "USD",
+          "USDC",
+          "USDT"
+        ],
+        "table": [
+          "AUD",
+          "BRL",
+          "BTC",
+          "CAD",
+          "DAI",
+          "ETH",
+          "EUR",
+          "GBP",
+          "INR",
+          "SGD",
+          "USD",
+          "USDC",
+          "USDT"
+        ],
+        "urls": [
+          "https://api.exchange.coinbase.com/products"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.bitfinex",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api-pub.bitfinex.com/v2/conf/pub:list:pair:exchange",
+      "detail": "9 个 quote 与代码表逐字相等：BTC, ETH, EUR, GBP, TESTUSD, TESTUSDT, USD, USDT, XAUT",
+      "observed": {
+        "derived": [
+          "BTC",
+          "ETH",
+          "EUR",
+          "GBP",
+          "TESTUSD",
+          "TESTUSDT",
+          "USD",
+          "USDT",
+          "XAUT"
+        ],
+        "table": [
+          "BTC",
+          "ETH",
+          "EUR",
+          "GBP",
+          "TESTUSD",
+          "TESTUSDT",
+          "USD",
+          "USDT",
+          "XAUT"
+        ],
+        "urls": [
+          "https://api-pub.bitfinex.com/v2/conf/pub:list:pair:exchange",
+          "https://api-pub.bitfinex.com/v2/conf/pub:list:currency"
+        ]
+      }
+    },
+    {
+      "id": "quote-census.htx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.htx.com/v2/settings/common/symbols",
+      "detail": "20 个 quote 与代码表逐字相等：BRL, BTC, ETH, EUR, EUROC, GBP, HT, HUSD, KGST, PYUSD, RUB, TRX, TRY, TUSD, UAH, USD1, USDC, USDD, USDT, USTC",
+      "observed": {
+        "derived": [
+          "BRL",
+          "BTC",
+          "ETH",
+          "EUR",
+          "EUROC",
+          "GBP",
+          "HT",
+          "HUSD",
+          "KGST",
+          "PYUSD",
+          "RUB",
+          "TRX",
+          "TRY",
+          "TUSD",
+          "UAH",
+          "USD1",
+          "USDC",
+          "USDD",
+          "USDT",
+          "USTC"
+        ],
+        "table": [
+          "BRL",
+          "BTC",
+          "ETH",
+          "EUR",
+          "EUROC",
+          "GBP",
+          "HT",
+          "HUSD",
+          "KGST",
+          "PYUSD",
+          "RUB",
+          "TRX",
+          "TRY",
+          "TUSD",
+          "UAH",
+          "USD1",
+          "USDC",
+          "USDD",
+          "USDT",
+          "USTC"
+        ],
+        "urls": [
+          "https://api.htx.com/v2/settings/common/symbols"
+        ]
+      }
+    },
+    {
+      "id": "klines.okx.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5",
+      "detail": "5 根 close=83760.4/81853.1/83172.2/81682.6/81309.5 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82985.1,
+            "high": 84200,
+            "low": 82800,
+            "close": 83760.4,
+            "volume": 1876.50989794,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83763.7,
+            "high": 84361.6,
+            "low": 81767,
+            "close": 81853.1,
+            "volume": 6004.90593744,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81853.2,
+            "high": 84166.3,
+            "low": 81032.8,
+            "close": 83172.2,
+            "volume": 6001.04419625,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83172.2,
+            "high": 84147.1,
+            "low": 81453.2,
+            "close": 81682.6,
+            "volume": 6219.05010247,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81682.6,
+            "high": 81933.5,
+            "low": 80228.2,
+            "close": 81309.5,
+            "volume": 1454.3251276,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5"
+        ],
+        "expectedUrl": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5"
+      }
+    },
+    {
+      "id": "klines.okx.BTCUSDT.1M",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5",
+      "detail": "5 根 close=58628/62891.1/78582.1/83618.4/81297 openTime 1780272000000–1790812800000",
+      "observed": {
+        "interval": "1M",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1780272000000,
+            "open": 73681.7,
+            "high": 74097.6,
+            "low": 58110,
+            "close": 58628,
+            "volume": 299316.36205999,
+            "closeTime": 1782863999999
+          },
+          {
+            "openTime": 1782864000000,
+            "open": 58628.1,
+            "high": 66955,
+            "low": 57809.4,
+            "close": 62891.1,
+            "volume": 210632.36297454,
+            "closeTime": 1785455999999
+          },
+          {
+            "openTime": 1785542400000,
+            "open": 62891.1,
+            "high": 81499.9,
+            "low": 62268.5,
+            "close": 78582.1,
+            "volume": 168823.0895314,
+            "closeTime": 1788134399999
+          },
+          {
+            "openTime": 1788220800000,
+            "open": 78582.2,
+            "high": 87399,
+            "low": 74955.5,
+            "close": 83618.4,
+            "volume": 172313.12825404,
+            "closeTime": 1790812799999
+          },
+          {
+            "openTime": 1790812800000,
+            "open": 83618.4,
+            "high": 87238.3,
+            "low": 80228.2,
+            "close": 81297,
+            "volume": 76748.62075913,
+            "closeTime": 1793404799999
+          }
+        ],
+        "urls": [
+          "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5"
+        ],
+        "expectedUrl": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5"
+      }
+    },
+    {
+      "id": "klines.gateio.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5",
+      "detail": "5 根 close=83761.4/81846.4/83174.1/81672/81294.4 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82987.7,
+            "high": 84192.2,
+            "low": 82800,
+            "close": 83761.4,
+            "volume": 2783.910612,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83761.5,
+            "high": 84352.2,
+            "low": 81761.8,
+            "close": 81846.4,
+            "volume": 8101.919404,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81846.4,
+            "high": 84158,
+            "low": 81040.5,
+            "close": 83174.1,
+            "volume": 9196.67854455,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83174.1,
+            "high": 84142.8,
+            "low": 81450.4,
+            "close": 81672,
+            "volume": 9709.630307,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81672,
+            "high": 81918.3,
+            "low": 80268,
+            "close": 81294.4,
+            "volume": 2275.863054,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5"
+        ],
+        "expectedUrl": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5"
+      }
+    },
+    {
+      "id": "klines.gateio.BTCUSDT.1w",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5",
+      "detail": "5 根 close=81183.4/84478.5/86518.2/83761.4/81292.1 openTime 1789344000000–1791763200000",
+      "observed": {
+        "interval": "1w",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1789344000000,
+            "open": 76832.5,
+            "high": 81944,
+            "low": 74965,
+            "close": 81183.4,
+            "volume": 45335.55173486,
+            "closeTime": 1789948799999
+          },
+          {
+            "openTime": 1789948800000,
+            "open": 81183.6,
+            "high": 87401.5,
+            "low": 80865,
+            "close": 84478.5,
+            "volume": 45629.55061716,
+            "closeTime": 1790553599999
+          },
+          {
+            "openTime": 1790553600000,
+            "open": 84478.5,
+            "high": 87236.6,
+            "low": 82571.7,
+            "close": 86518.2,
+            "volume": 45510.01835614,
+            "closeTime": 1791158399999
+          },
+          {
+            "openTime": 1791158400000,
+            "open": 86505.9,
+            "high": 86989.4,
+            "low": 80397.1,
+            "close": 83761.4,
+            "volume": 51872.679176,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83761.5,
+            "high": 84352.2,
+            "low": 80268,
+            "close": 81292.1,
+            "volume": 29284.13559655,
+            "closeTime": 1792367999999
+          }
+        ],
+        "urls": [
+          "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5"
+        ],
+        "expectedUrl": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5"
+      }
+    },
+    {
+      "id": "klines.kucoin.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day",
+      "detail": "5 根 close=83756.9/81858.6/83172.7/81679.7/81300.6 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82996.2,
+            "high": 84195,
+            "low": 82814.5,
+            "close": 83756.9,
+            "volume": 1313.2605969169003,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83757,
+            "high": 84334.1,
+            "low": 81769.1,
+            "close": 81858.6,
+            "volume": 2475.712507092614,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81858.5,
+            "high": 84149,
+            "low": 81035.5,
+            "close": 83172.7,
+            "volume": 2610.381771960947,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83172.8,
+            "high": 84126.6,
+            "low": 81458.9,
+            "close": 81679.7,
+            "volume": 2946.977255460671,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81679.8,
+            "high": 81909.6,
+            "low": 80247.2,
+            "close": 81300.6,
+            "volume": 722.7152872,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day"
+        ],
+        "expectedUrl": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day"
+      }
+    },
+    {
+      "id": "klines.kucoin.BTCUSDT.1w",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week",
+      "detail": "5 根 close=84398.6/83609.9/83321.6/81679.7/81297.1 openTime 1789603200000–1792022400000",
+      "observed": {
+        "interval": "1w",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1789603200000,
+            "open": 76199.7,
+            "high": 87396,
+            "low": 76034,
+            "close": 84398.6,
+            "volume": 24093.59067604205,
+            "closeTime": 1790207999999
+          },
+          {
+            "openTime": 1790208000000,
+            "open": 84398.6,
+            "high": 85607.9,
+            "low": 82577.3,
+            "close": 83609.9,
+            "volume": 11754.370398259865,
+            "closeTime": 1790812799999
+          },
+          {
+            "openTime": 1790812800000,
+            "open": 83609.9,
+            "high": 87220,
+            "low": 82784.6,
+            "close": 83321.6,
+            "volume": 11918.082024522886,
+            "closeTime": 1791417599999
+          },
+          {
+            "openTime": 1791417600000,
+            "open": 83321.7,
+            "high": 84334.1,
+            "low": 80401,
+            "close": 81679.7,
+            "volume": 18094.132525526667,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81679.8,
+            "high": 81909.6,
+            "low": 80247.2,
+            "close": 81297.1,
+            "volume": 722.83105362,
+            "closeTime": 1792627199999
+          }
+        ],
+        "urls": [
+          "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week"
+        ],
+        "expectedUrl": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week"
+      }
+    },
+    {
+      "id": "klines.kraken.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440",
+      "detail": "5 根 close=83764.7/81872.1/83169.6/81663.9/81298 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82987.8,
+            "high": 84196.8,
+            "low": 82810.1,
+            "close": 83764.7,
+            "volume": 50.66697842,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83762.6,
+            "high": 84348.3,
+            "low": 81775.4,
+            "close": 81872.1,
+            "volume": 95.71129157,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81862.8,
+            "high": 84151.5,
+            "low": 81055.1,
+            "close": 83169.6,
+            "volume": 111.16132579,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83210.3,
+            "high": 84121.2,
+            "low": 81449.9,
+            "close": 81663.9,
+            "volume": 121.96169845,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81701.9,
+            "high": 81900,
+            "low": 80250.1,
+            "close": 81298,
+            "volume": 34.22606384,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440"
+        ],
+        "expectedUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440"
+      }
+    },
+    {
+      "id": "klines.kraken.BTCUSDT.1M",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600",
+      "detail": "5 根 close=69311/81269.6/80933.5/84756.3/81298 openTime 1785888000000–1791072000000",
+      "observed": {
+        "interval": "1M",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1785888000000,
+            "open": 64099,
+            "high": 70037.3,
+            "low": 62540.1,
+            "close": 69311,
+            "volume": 1397.35145916,
+            "closeTime": 1788479999999
+          },
+          {
+            "openTime": 1787184000000,
+            "open": 69338.3,
+            "high": 82279.5,
+            "low": 68921.7,
+            "close": 81269.6,
+            "volume": 1723.35792847,
+            "closeTime": 1789775999999
+          },
+          {
+            "openTime": 1788480000000,
+            "open": 81248,
+            "high": 81419.2,
+            "low": 74969.7,
+            "close": 80933.5,
+            "volume": 1924.4108151,
+            "closeTime": 1791071999999
+          },
+          {
+            "openTime": 1789776000000,
+            "open": 80906.3,
+            "high": 87386.6,
+            "low": 80151.2,
+            "close": 84756.3,
+            "volume": 2105.99674362,
+            "closeTime": 1792367999999
+          },
+          {
+            "openTime": 1791072000000,
+            "open": 84768.8,
+            "high": 86990.1,
+            "low": 80250.1,
+            "close": 81298,
+            "volume": 1283.90029899,
+            "closeTime": 1793663999999
+          }
+        ],
+        "urls": [
+          "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600"
+        ],
+        "expectedUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600"
+      }
+    },
+    {
+      "id": "klines.coinbase.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400",
+      "detail": "5 根 close=83757.79/81900.57/83168.15/81785.34/81214.13 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 83010.1,
+            "high": 84182.82,
+            "low": 82805.27,
+            "close": 83757.79,
+            "volume": 20.50683369,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83755.77,
+            "high": 84347.67,
+            "low": 81754.09,
+            "close": 81900.57,
+            "volume": 45.82912097,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81886.33,
+            "high": 84129.03,
+            "low": 81031.19,
+            "close": 83168.15,
+            "volume": 46.67226134,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83249.59,
+            "high": 84114.51,
+            "low": 81463.97,
+            "close": 81785.34,
+            "volume": 28.91814962,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81749.58,
+            "high": 81930.29,
+            "low": 80250,
+            "close": 81214.13,
+            "volume": 7.56110773,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400"
+        ],
+        "expectedUrl": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400"
+      }
+    },
+    {
+      "id": "klines.coinbase.BTCUSDT.1m",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60",
+      "detail": "5 根 close=81004.52/81201.37/81307.48/81276.35/81214.13 openTime 1792031640000–1792032060000",
+      "observed": {
+        "interval": "1m",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1792031640000,
+            "open": 80941.87,
+            "high": 81004.52,
+            "low": 80941.87,
+            "close": 81004.52,
+            "volume": 0.12146782,
+            "closeTime": 1792031699999
+          },
+          {
+            "openTime": 1792031700000,
+            "open": 81201.37,
+            "high": 81201.37,
+            "low": 81200.86,
+            "close": 81201.37,
+            "volume": 0.00429152,
+            "closeTime": 1792031759999
+          },
+          {
+            "openTime": 1792031760000,
+            "open": 81188.29,
+            "high": 81307.48,
+            "low": 81188.29,
+            "close": 81307.48,
+            "volume": 0.05079179,
+            "closeTime": 1792031819999
+          },
+          {
+            "openTime": 1792031820000,
+            "open": 81276.35,
+            "high": 81276.35,
+            "low": 81276.35,
+            "close": 81276.35,
+            "volume": 0.00030672,
+            "closeTime": 1792031879999
+          },
+          {
+            "openTime": 1792032060000,
+            "open": 81238.18,
+            "high": 81238.18,
+            "low": 81214.13,
+            "close": 81214.13,
+            "volume": 0.07941918,
+            "closeTime": 1792032119999
+          }
+        ],
+        "urls": [
+          "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60"
+        ],
+        "expectedUrl": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60"
+      }
+    },
+    {
+      "id": "klines.bitfinex.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5",
+      "detail": "5 根 close=83761/81875/83177/81658/81276 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 83004,
+            "high": 84353,
+            "low": 82796,
+            "close": 83761,
+            "volume": 159.62575163,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83760,
+            "high": 84377,
+            "low": 81750,
+            "close": 81875,
+            "volume": 339.9971529,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81896,
+            "high": 84175,
+            "low": 81035,
+            "close": 83177,
+            "volume": 672.5353018,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83165,
+            "high": 84143,
+            "low": 81429,
+            "close": 81658,
+            "volume": 799.52754294,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81688,
+            "high": 81935,
+            "low": 80250,
+            "close": 81276,
+            "volume": 84.5992578,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5"
+        ],
+        "expectedUrl": "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5"
+      }
+    },
+    {
+      "id": "klines.bitfinex.BTCUSDT.1w",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5",
+      "detail": "5 根 close=81178/84464/86525/83761/81060 openTime 1789344000000–1791763200000",
+      "observed": {
+        "interval": "1w",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1789344000000,
+            "open": 76857,
+            "high": 81943,
+            "low": 74973,
+            "close": 81178,
+            "volume": 5337.28445305,
+            "closeTime": 1789948799999
+          },
+          {
+            "openTime": 1789948800000,
+            "open": 81178,
+            "high": 87420,
+            "low": 80839,
+            "close": 84464,
+            "volume": 4195.92299506,
+            "closeTime": 1790553599999
+          },
+          {
+            "openTime": 1790553600000,
+            "open": 84450,
+            "high": 87234,
+            "low": 82501,
+            "close": 86525,
+            "volume": 3532.481179,
+            "closeTime": 1791158399999
+          },
+          {
+            "openTime": 1791158400000,
+            "open": 86524,
+            "high": 86990,
+            "low": 80388,
+            "close": 83761,
+            "volume": 4458.06440277,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83760,
+            "high": 84377,
+            "low": 80250,
+            "close": 81060,
+            "volume": 1889.87056785,
+            "closeTime": 1792367999999
+          }
+        ],
+        "urls": [
+          "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5"
+        ],
+        "expectedUrl": "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5"
+      }
+    },
+    {
+      "id": "klines.htx.BTCUSDT.1d",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5",
+      "detail": "5 根 close=83864.66/82682.02/83395.99/81609.39/81241.5 openTime 1791648000000–1791993600000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791648000000,
+            "open": 83000.9,
+            "high": 83946.6,
+            "low": 82762.51,
+            "close": 83864.66,
+            "volume": 2030.9193296742535,
+            "closeTime": 1791734399999
+          },
+          {
+            "openTime": 1791734400000,
+            "open": 83867.68,
+            "high": 84300.99,
+            "low": 82379.98,
+            "close": 82682.02,
+            "volume": 1831.5563009339153,
+            "closeTime": 1791820799999
+          },
+          {
+            "openTime": 1791820800000,
+            "open": 82689.27,
+            "high": 84123.8,
+            "low": 81011,
+            "close": 83395.99,
+            "volume": 2936.4362632924713,
+            "closeTime": 1791907199999
+          },
+          {
+            "openTime": 1791907200000,
+            "open": 83396,
+            "high": 84088.5,
+            "low": 81561.41,
+            "close": 81609.39,
+            "volume": 4639.004065671391,
+            "closeTime": 1791993599999
+          },
+          {
+            "openTime": 1791993600000,
+            "open": 81629.97,
+            "high": 82054.38,
+            "low": 80230.76,
+            "close": 81241.5,
+            "volume": 697.6522115598647,
+            "closeTime": 1792079999999
+          }
+        ],
+        "urls": [
+          "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5"
+        ],
+        "expectedUrl": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5"
+      }
+    },
+    {
+      "id": "klines.htx.BTCUSDT.1M",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5",
+      "detail": "5 根 close=58379.85/62747.43/78506.71/84106.21/81241.5 openTime 1780243200000–1790784000000",
+      "observed": {
+        "interval": "1M",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1780243200000,
+            "open": 73719.4,
+            "high": 74150,
+            "low": 58158.15,
+            "close": 58379.85,
+            "volume": 49969.71649217459,
+            "closeTime": 1782835199999
+          },
+          {
+            "openTime": 1782835200000,
+            "open": 58404.38,
+            "high": 66922.88,
+            "low": 57827.19,
+            "close": 62747.43,
+            "volume": 53961.79724216603,
+            "closeTime": 1785427199999
+          },
+          {
+            "openTime": 1785513600000,
+            "open": 62752.52,
+            "high": 81334.15,
+            "low": 62318.96,
+            "close": 78506.71,
+            "volume": 68921.96978672744,
+            "closeTime": 1788105599999
+          },
+          {
+            "openTime": 1788192000000,
+            "open": 78523.69,
+            "high": 87307.69,
+            "low": 74914.25,
+            "close": 84106.21,
+            "volume": 128368.43563314377,
+            "closeTime": 1790783999999
+          },
+          {
+            "openTime": 1790784000000,
+            "open": 84115.17,
+            "high": 87183.12,
+            "low": 80230.76,
+            "close": 81241.5,
+            "volume": 59317.42548719232,
+            "closeTime": 1793375999999
+          }
+        ],
+        "urls": [
+          "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5"
+        ],
+        "expectedUrl": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5"
       }
     },
     {
@@ -208,31 +1974,315 @@
       "observed": {
         "code": "TRADING_NOT_IMPLEMENTED",
         "requests": 0,
-        "message": "CCXT connector has no klines branch for exchange \"bitstamp\" (implemented: binance); zero network requests were made. klines have a single implemented branch (binance): set the connector defaultExchange to binance, or use @dshtrading/connector-binance."
+        "message": "CCXT connector has no klines branch for exchange \"bitstamp\" (implemented: binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx); zero network requests were made. klines have nine implemented direct branches (binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx): use one of them, or the dedicated per-exchange packages @dshtrading/connector-binance / @dshtrading/connector-okx / @dshtrading/connector-bybit."
       }
     },
     {
-      "id": "negative.okx-default-exchange.klines",
+      "id": "negative.unsupported-interval.binance",
       "pass": true,
       "route": "plain",
       "egressIp": "216.195.208.136",
-      "detail": "code=TRADING_NOT_IMPLEMENTED requests=0",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
       "observed": {
-        "code": "TRADING_NOT_IMPLEMENTED",
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
         "requests": 0,
-        "message": "CCXT connector has no klines branch for exchange \"okx\" (implemented: binance); zero network requests were made. klines have a single implemented branch (binance): set the connector defaultExchange to binance, or use @dshtrading/connector-binance."
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/binance klines: unsupported interval 8h — binance supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
       }
     },
     {
-      "id": "negative.unsupported-quote.BTCJPY",
+      "id": "negative.unsupported-interval.okx",
       "pass": true,
       "route": "plain",
       "egressIp": "216.195.208.136",
-      "detail": "code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
       "observed": {
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/okx klines: unsupported interval 8h — okx supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.bybit",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
+      "observed": {
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/bybit klines: unsupported interval 8h — bybit supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.gateio",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=1M code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w",
+      "observed": {
+        "interval": "1M",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "message": "CCXT/gateio klines: unsupported interval 1M — gateio supports 1m/5m/15m/30m/1h/4h/1d/1w; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.kucoin",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=1M code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w",
+      "observed": {
+        "interval": "1M",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "message": "CCXT/kucoin klines: unsupported interval 1M — kucoin supports 1m/5m/15m/30m/1h/4h/1d/1w; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.kraken",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
+      "observed": {
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/kraken klines: unsupported interval 8h — kraken supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.coinbase",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=30m code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/1h/1d",
+      "observed": {
+        "interval": "30m",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "1h",
+          "1d"
+        ],
+        "message": "CCXT/coinbase klines: unsupported interval 30m — coinbase supports 1m/5m/15m/1h/1d; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.bitfinex",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
+      "observed": {
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/bitfinex klines: unsupported interval 8h — bitfinex supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-interval.htx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "interval=8h code=TRADING_UNSUPPORTED_INTERVAL requests=0; 该所支持 1m/5m/15m/30m/1h/4h/1d/1w/1M",
+      "observed": {
+        "interval": "8h",
+        "code": "TRADING_UNSUPPORTED_INTERVAL",
+        "requests": 0,
+        "supported": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1M"
+        ],
+        "message": "CCXT/htx klines: unsupported interval 8h — htx supports 1m/5m/15m/30m/1h/4h/1d/1w/1M; no network request was made."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.okx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
         "code": "TRADING_UNSUPPORTED_SYMBOL",
         "requests": 0,
-        "message": "CCXT connector cannot split \"BTCJPY\" into base+quote: supported quote suffixes are USDT, USDC, USD, EUR, TRY, BRL, BTC, ETH (longest match first, base must be non-empty)."
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for okx: okx quotes are AED, AUD, BRL, BTC, ETH, EUR, PLN, SGD, SOL, TRY, USD, USDC, USDT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.kucoin",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for kucoin: kucoin quotes are BTC, DOGE, ETH, EUR, KCS, TRX, USD1, USDC, USDG, USDT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.gateio",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for gateio: gateio quotes are BTC, ETH, GUSD, RLUSD, USD, USD1, USDC, USDT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.kraken",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for kraken: kraken quotes are AUD, AUSD, CAD, CHF, DAI, ETH, EUR, EURC, EUROP, FIDD, GBP, JPY, PYUSD, RLUSD, SOFID, SOL, USD, USD1, USDC, USDD, USDQ, USDR, USDT, XBT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.coinbase",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for coinbase: coinbase quotes are AUD, BRL, BTC, CAD, DAI, ETH, EUR, GBP, INR, SGD, USD, USDC, USDT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.bitfinex",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for bitfinex: bitfinex quotes are BTC, ETH, EUR, GBP, TESTUSD, TESTUSDT, USD, USDT, XAUT (longest match first, base must be non-empty)."
+      }
+    },
+    {
+      "id": "negative.unsupported-quote.htx",
+      "pass": true,
+      "route": "plain",
+      "egressIp": "216.195.208.136",
+      "detail": "symbol=BTCNGN code=TRADING_UNSUPPORTED_SYMBOL requests=0",
+      "observed": {
+        "symbol": "BTCNGN",
+        "quote": "NGN",
+        "code": "TRADING_UNSUPPORTED_SYMBOL",
+        "requests": 0,
+        "message": "CCXT connector cannot split \"BTCNGN\" into base+quote for htx: htx quotes are BRL, BTC, ETH, EUR, EUROC, GBP, HT, HUSD, KGST, PYUSD, RUB, TRX, TRY, TUSD, UAH, USD1, USDC, USDD, USDT, USTC (longest match first, base must be non-empty)."
       }
     },
     {
@@ -240,9 +2290,9 @@
       "pass": true,
       "route": "plain",
       "egressIp": "216.195.208.136",
-      "detail": "默认出口七所共发出 7 次请求（计数包装确实在工作）",
+      "detail": "默认出口共发出 36 次请求（计数包装确实在工作）",
       "observed": {
-        "requests": 7
+        "requests": 36
       }
     },
     {
@@ -258,12 +2308,12 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
-      "detail": "price=81541.27 volume=18895.09848 symbol=BTCUSDT ts=1792029900012",
+      "detail": "BTCUSDT price=81254.95 volume=21644.46534 ts=1792032321013",
       "observed": {
-        "price": 81541.27,
-        "volume": 18895.09848,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029900012,
+        "price": 81254.95,
+        "volume": 21644.46534,
+        "timestamp": 1792032321013,
         "urls": [
           "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"
         ]
@@ -275,12 +2325,12 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT",
-      "detail": "price=81539.4 volume=9939.035717 symbol=BTCUSDT ts=1792029900673",
+      "detail": "BTCUSDT price=81270.4 volume=10822.142301 ts=1792032321849",
       "observed": {
-        "price": 81539.4,
-        "volume": 9939.035717,
         "symbol": "BTCUSDT",
-        "timestamp": 1792029900673,
+        "price": 81270.4,
+        "volume": 10822.142301,
+        "timestamp": 1792032321849,
         "urls": [
           "https://api.bybit.com/v5/market/tickers?category=spot&symbol=BTCUSDT"
         ]
@@ -292,8 +2342,9 @@
       "route": "proxy",
       "egressIp": "188.253.121.148",
       "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5",
-      "detail": "5 根，收盘价 83773.12/81850/83169/81682.01/81541.27，openTime 1791676800000–1792022400000",
+      "detail": "5 根 close=83773.12/81850/83169/81682.01/81262.93 openTime 1791676800000–1792022400000",
       "observed": {
+        "interval": "1d",
         "count": 5,
         "klines": [
           {
@@ -336,15 +2387,205 @@
             "openTime": 1792022400000,
             "open": 81682.02,
             "high": 81938.96,
-            "low": 81398.37,
-            "close": 81541.27,
-            "volume": 1807.01071,
+            "low": 80226.35,
+            "close": 81262.93,
+            "volume": 4755.8957,
             "closeTime": 1792108799999
           }
         ],
         "urls": [
           "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5"
-        ]
+        ],
+        "expectedUrl": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5"
+      }
+    },
+    {
+      "id": "klines.binance.BTCUSDT.1M",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5",
+      "detail": "5 根 close=58624.71/62887.88/78581.29/83623.6/81262.93 openTime 1780272000000–1790812800000",
+      "observed": {
+        "interval": "1M",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1780272000000,
+            "open": 73674.39,
+            "high": 74092,
+            "low": 58115.01,
+            "close": 58624.71,
+            "volume": 632661.43583,
+            "closeTime": 1782863999999
+          },
+          {
+            "openTime": 1782864000000,
+            "open": 58624.71,
+            "high": 66956.15,
+            "low": 57800.19,
+            "close": 62887.88,
+            "volume": 496528.30804,
+            "closeTime": 1785542399999
+          },
+          {
+            "openTime": 1785542400000,
+            "open": 62887.88,
+            "high": 81478.87,
+            "low": 62275,
+            "close": 78581.29,
+            "volume": 472053.26866,
+            "closeTime": 1788220799999
+          },
+          {
+            "openTime": 1788220800000,
+            "open": 78581.3,
+            "high": 87395.67,
+            "low": 74967.97,
+            "close": 83623.6,
+            "volume": 469465.12983,
+            "closeTime": 1790812799999
+          },
+          {
+            "openTime": 1790812800000,
+            "open": 83623.59,
+            "high": 87220,
+            "low": 80226.35,
+            "close": 81262.93,
+            "volume": 207543.3014,
+            "closeTime": 1793491199999
+          }
+        ],
+        "urls": [
+          "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5"
+        ],
+        "expectedUrl": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5"
+      }
+    },
+    {
+      "id": "klines.bybit.BTCUSDT.1d",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5",
+      "detail": "5 根 close=83771.2/81852.1/83172/81673.9/81253.3 openTime 1791676800000–1792022400000",
+      "observed": {
+        "interval": "1d",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1791676800000,
+            "open": 82985.5,
+            "high": 84198.6,
+            "low": 82792.8,
+            "close": 83771.2,
+            "volume": 3566.515184,
+            "closeTime": 1791763199999
+          },
+          {
+            "openTime": 1791763200000,
+            "open": 83771.2,
+            "high": 84355.8,
+            "low": 81759,
+            "close": 81852.1,
+            "volume": 8518.110265,
+            "closeTime": 1791849599999
+          },
+          {
+            "openTime": 1791849600000,
+            "open": 81852.1,
+            "high": 84172.6,
+            "low": 81031.2,
+            "close": 83172,
+            "volume": 10058.420602,
+            "closeTime": 1791935999999
+          },
+          {
+            "openTime": 1791936000000,
+            "open": 83172,
+            "high": 84137.6,
+            "low": 81447.3,
+            "close": 81673.9,
+            "volume": 9619.746152,
+            "closeTime": 1792022399999
+          },
+          {
+            "openTime": 1792022400000,
+            "open": 81673.9,
+            "high": 81936,
+            "low": 80224.4,
+            "close": 81253.3,
+            "volume": 2237.992619,
+            "closeTime": 1792108799999
+          }
+        ],
+        "urls": [
+          "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5"
+        ],
+        "expectedUrl": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5"
+      }
+    },
+    {
+      "id": "klines.bybit.BTCUSDT.1M",
+      "pass": true,
+      "route": "proxy",
+      "egressIp": "188.253.121.148",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5",
+      "detail": "5 根 close=58631/62885.8/78580.8/83616.2/81270.4 openTime 1780272000000–1790812800000",
+      "observed": {
+        "interval": "1M",
+        "count": 5,
+        "klines": [
+          {
+            "openTime": 1780272000000,
+            "open": 73683.6,
+            "high": 74089.6,
+            "low": 58112,
+            "close": 58631,
+            "volume": 433017.84367,
+            "closeTime": 1782863999999
+          },
+          {
+            "openTime": 1782864000000,
+            "open": 58631,
+            "high": 66968.5,
+            "low": 57802.2,
+            "close": 62885.8,
+            "volume": 231647.187914,
+            "closeTime": 1785455999999
+          },
+          {
+            "openTime": 1785542400000,
+            "open": 62885.8,
+            "high": 81463.2,
+            "low": 62272.5,
+            "close": 78580.8,
+            "volume": 229442.085203,
+            "closeTime": 1788134399999
+          },
+          {
+            "openTime": 1788220800000,
+            "open": 78580.8,
+            "high": 87401.9,
+            "low": 74961.2,
+            "close": 83616.2,
+            "volume": 183320.643532,
+            "closeTime": 1790812799999
+          },
+          {
+            "openTime": 1790812800000,
+            "open": 83616.2,
+            "high": 87256.3,
+            "low": 80224.4,
+            "close": 81270.4,
+            "volume": 103735.289344,
+            "closeTime": 1793404799999
+          }
+        ],
+        "urls": [
+          "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5"
+        ],
+        "expectedUrl": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5"
       }
     },
     {
@@ -399,6 +2640,180 @@
       "status": 200
     },
     {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://www.okx.com/api/v5/market/ticker?instId=ETH-BTC",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_BTC",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kraken.com/0/public/Ticker?pair=ETHEUR",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.exchange.coinbase.com/products/ETH-BTC/ticker",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/ticker/tETHEUR",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.htx.com/market/detail/merged?symbol=ethbtc",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://www.okx.com/api/v5/public/instruments?instType=SPOT",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kucoin.com/api/v2/symbols",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.gateio.ws/api/v4/spot/currency_pairs",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kraken.com/0/public/AssetPairs",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.exchange.coinbase.com/products",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/conf/pub:list:pair:exchange",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/conf/pub:list:currency",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.htx.com/v2/settings/common/symbols",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5",
+      "status": 200
+    },
+    {
+      "phase": "default-exit",
+      "route": "plain",
+      "url": "https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5",
+      "status": 200
+    },
+    {
       "phase": "egress-window",
       "route": "proxy",
       "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
@@ -414,6 +2829,24 @@
       "phase": "egress-window",
       "route": "proxy",
       "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5",
+      "status": 200
+    },
+    {
+      "phase": "egress-window",
+      "route": "proxy",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5",
       "status": 200
     }
   ],

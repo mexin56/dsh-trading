@@ -1,13 +1,14 @@
 /**
- * CCXT 九所 ticker 直连分支 · 连接器级真实网络探针（Phase 2）。
+ * CCXT 九所 ticker + K 线 + quote 普查 · 连接器级真实网络探针。
  *
- * 直接 import `packages/connector-ccxt/src/rest.ts` 的真实 `CcxtRestClient`，对九所 ticker、
- * binance K 线、三条负例做真实网络调用并逐条断言；不满足即 `process.exit(1)`。
+ * 直接 import `packages/connector-ccxt/src/rest.ts` 的真实 `CcxtRestClient`，对本卡交付的三件事
+ * （A 按所 quote 表 / B 错误码词汇收敛 / C K 线按所切换）做真实网络调用并逐条断言；
+ * 不满足即 `process.exit(1)`。
  *
  * 出口：本探针自己驱动本机 mihomo 控制器（切换/还原 `Proxies` 组），因此**单条命令即可复跑**：
  *   - 七个所在**默认出口**跑（`plain` 路由：不带 proxy 参数，由 TUN 走默认出口）；
- *   - binance / bybit / klines 在 SG 窗口内经**显式 proxy 参数**跑（`proxy` 路由，等价 `curl -x`），
- *     因为默认出口对这两所是 451 / 403（见本目录 EVIDENCE.md §3）；
+ *   - binance / bybit 在 SG 窗口内经**显式 proxy 参数**跑（`proxy` 路由，等价 `curl -x`），
+ *     因为默认出口对这两所是 451 / 403（见本目录 EVIDENCE 文档）；
  *   - 还原放在 `finally` 里，之后复核选择器与出口 IP，复核不过同样判 FAIL。
  *
  * 每条判据都记录自己实际用的路由与当时实测的出口 IP（ipify 现场取值），不靠声明。
@@ -21,8 +22,13 @@ import { fileURLToPath } from 'node:url'
 import {
   CcxtRestClient,
   KLINE_EXCHANGES,
+  QUOTE_TABLES,
   SUPPORTED_EXCHANGES,
   TradingServiceError,
+  klineIntervalParam,
+  klineSupportedIntervals,
+  type KlineExchange,
+  type TransformExchange,
 } from '../../packages/connector-ccxt/src/rest.ts'
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -33,22 +39,19 @@ const PROXY_URL = process.env.DSH_PROBE_PROXY ?? 'http://127.0.0.1:7890'
 const SELECTOR_GROUP = 'Proxies'
 const WINDOW_SELECTOR = process.env.DSH_PROBE_WINDOW_SELECTOR ?? 'SG'
 const IPIFY = 'https://api.ipify.org'
-/** Phase 1 实测的本机默认出口 IP（美国节点）。换机器用 DSH_PROBE_EXPECT_DEFAULT_IP 覆盖。 */
+/** 默认出口实测 IP（美国节点）。换机器用 DSH_PROBE_EXPECT_DEFAULT_IP 覆盖。 */
 const EXPECTED_DEFAULT_IP = process.env.DSH_PROBE_EXPECT_DEFAULT_IP ?? '216.195.208.136'
-/** 七所在默认出口跑（ticker 面）；binance/bybit 与 K 线在可达出口窗口内跑。 */
+/** 七所在默认出口跑；binance/bybit 在可达出口窗口内跑。 */
 const DEFAULT_EXIT_EXCHANGES = ['okx', 'gateio', 'kucoin', 'kraken', 'coinbase', 'bitfinex', 'htx'] as const
 const WINDOW_EXCHANGES = ['binance', 'bybit'] as const
+const TRANSFORM_EXCHANGES = ['okx', 'kucoin', 'gateio', 'kraken', 'coinbase', 'bitfinex', 'htx'] as const
 const SYMBOL = 'BTCUSDT'
+const DAY_MS = 86_400_000
 
 type Route = 'plain' | 'proxy'
 type Phase = 'default-exit' | 'egress-window' | 'preflight' | 'restore'
 
-interface TraceEntry {
-  phase: Phase
-  route: Route
-  url: string
-  status: number
-}
+interface TraceEntry { phase: Phase; route: Route; url: string; status: number }
 
 interface Judgement {
   id: string
@@ -68,7 +71,7 @@ function judge(j: Judgement): void {
   console.log(`${j.pass ? 'PASS' : 'FAIL'}  ${j.id}  ${j.detail}`)
 }
 
-/** 计数 fetch：证明负例「零请求」。proxy 路由显式带 proxy 参数（Node 25 原生支持），plain 路由不带。 */
+/** 计数 fetch：证明负例「零请求」。proxy 路由显式带 proxy 参数，plain 路由不带。 */
 function makeFetch(route: Route, phase: Phase): { impl: typeof fetch; count: () => number } {
   let count = 0
   const impl = ((input: string | URL | Request, init?: RequestInit) => {
@@ -90,7 +93,6 @@ function makeFetch(route: Route, phase: Phase): { impl: typeof fetch; count: () 
 /**
  * 现场测**默认出口** IP。每次新建连接（`agent: false`）：undici 的 keep-alive 连接池会把窗口内建立的
  * 连接留到还原之后继续复用，读到的仍是窗口出口——首次实跑 17/18、唯一 FAIL 就是这条造成的假阴性。
- * 测出口必须排除「连接复用」这个变量，否则还原是否真的生效说不清。
  */
 function measurePlainEgressIp(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -110,7 +112,7 @@ function measurePlainEgressIp(): Promise<string> {
   })
 }
 
-/** 代理路由的出口 IP：显式 proxy。该路由下连接无论新建还是复用都从窗口出口出去，复用不改变结论。 */
+/** 代理路由的出口 IP：显式 proxy。该路由下连接无论新建还是复用都从窗口出口出去。 */
 async function measureProxyEgressIp(): Promise<string> {
   const res = await (globalThis.fetch as typeof fetch)(IPIFY, { proxy: PROXY_URL } as RequestInit)
   const body = (await res.text()).trim()
@@ -183,9 +185,11 @@ async function captureError(fn: () => Promise<unknown>): Promise<{ code?: string
   }
 }
 
-/** 一条 ticker 判据：真实网络取价 + 四条数值/回显断言。 */
+/* ── 判据 1：九所 ticker（含非 USDT 计价对）────────────────────────────── */
+
 async function assertTicker(
   exchange: string,
+  symbol: string,
   phase: Phase,
   route: Route,
   egressIp: string,
@@ -193,31 +197,33 @@ async function assertTicker(
 ): Promise<void> {
   const client = new CcxtRestClient({ exchange, fetchImpl })
   const before = trace.length
+  const id = symbol === SYMBOL ? `ticker.${exchange}` : `ticker.${exchange}.${symbol}`
   try {
-    const ticker = await client.getTicker(SYMBOL, exchange)
+    const ticker = await client.getTicker(symbol, exchange)
     const issued = trace.slice(before).map((t) => t.url)
     const now = Date.now()
     const problems: string[] = []
     if (!(ticker.price > 0)) problems.push(`price=${String(ticker.price)} 不大于 0`)
     if (!(ticker.volume > 0)) problems.push(`volume=${String(ticker.volume)} 不大于 0`)
-    if (ticker.symbol !== SYMBOL) problems.push(`symbol=${String(ticker.symbol)} 不回显 ${SYMBOL}`)
+    if (ticker.symbol !== symbol) problems.push(`symbol=${String(ticker.symbol)} 不回显 ${symbol}`)
     if (!(ticker.timestamp > 1.7e12)) problems.push(`timestamp=${String(ticker.timestamp)} 不大于 1.7e12`)
     if (!(ticker.timestamp <= now + 60_000)) problems.push(`timestamp=${String(ticker.timestamp)} 超过 now+60s`)
+    if (issued.length !== 1) problems.push(`发出 ${issued.length} 条请求，期望 1`)
     judge({
-      id: `ticker.${exchange}`,
+      id,
       pass: problems.length === 0,
       route,
       egressIp,
       url: issued[0],
       detail: problems.length === 0
-        ? `price=${ticker.price} volume=${ticker.volume} symbol=${ticker.symbol} ts=${ticker.timestamp}`
+        ? `${symbol} price=${ticker.price} volume=${ticker.volume} ts=${ticker.timestamp}`
         : problems.join('; '),
-      observed: { price: ticker.price, volume: ticker.volume, symbol: ticker.symbol, timestamp: ticker.timestamp, urls: issued },
+      observed: { symbol: ticker.symbol, price: ticker.price, volume: ticker.volume, timestamp: ticker.timestamp, urls: issued },
     })
   } catch (err) {
     const issued = trace.slice(before).map((t) => t.url)
     judge({
-      id: `ticker.${exchange}`,
+      id,
       pass: false,
       route,
       egressIp,
@@ -228,14 +234,50 @@ async function assertTicker(
   }
 }
 
-/** binance K 线判据：5 根，每根 OHLC > 0 且 high >= low。 */
-async function assertKlines(egressIp: string, fetchImpl: typeof fetch): Promise<void> {
-  const client = new CcxtRestClient({ exchange: 'binance', fetchImpl })
+/* ── 判据 2：K 线按所（端点 + 周期映射 + 行解析）─────────────────────── */
+
+/**
+ * 逐所 K 线请求的**逐字期望 URL**（host + 请求符号 + 周期参数 + 根数参数），由 2026-10-15 的
+ * 周期普查逐所实测得出（kraken 分钟数 / coinbase 秒数 / bybit 单字母 / okx utc 变体 / htx 1day…）。
+ * 用整条 URL 相等判「按所映射」，而不是「URL 里含某子串」那种会被符号本身误命中的弱断言。
+ */
+const KLINE_CASES: Array<{ exchange: KlineExchange; symbol: string; interval: string; url: string }> = [
+  { exchange: 'binance', symbol: SYMBOL, interval: '1d', url: 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=5' },
+  { exchange: 'binance', symbol: SYMBOL, interval: '1M', url: 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=5' },
+  { exchange: 'okx', symbol: SYMBOL, interval: '1d', url: 'https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Dutc&limit=5' },
+  { exchange: 'okx', symbol: SYMBOL, interval: '1M', url: 'https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1Mutc&limit=5' },
+  { exchange: 'bybit', symbol: SYMBOL, interval: '1d', url: 'https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=D&limit=5' },
+  { exchange: 'bybit', symbol: SYMBOL, interval: '1M', url: 'https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=M&limit=5' },
+  { exchange: 'gateio', symbol: SYMBOL, interval: '1d', url: 'https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1d&limit=5' },
+  { exchange: 'gateio', symbol: SYMBOL, interval: '1w', url: 'https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=7d&limit=5' },
+  { exchange: 'kucoin', symbol: SYMBOL, interval: '1d', url: 'https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1day' },
+  { exchange: 'kucoin', symbol: SYMBOL, interval: '1w', url: 'https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1week' },
+  { exchange: 'kraken', symbol: SYMBOL, interval: '1d', url: 'https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=1440' },
+  { exchange: 'kraken', symbol: SYMBOL, interval: '1M', url: 'https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=21600' },
+  { exchange: 'coinbase', symbol: SYMBOL, interval: '1d', url: 'https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=86400' },
+  { exchange: 'coinbase', symbol: SYMBOL, interval: '1m', url: 'https://api.exchange.coinbase.com/products/BTC-USDT/candles?granularity=60' },
+  { exchange: 'bitfinex', symbol: SYMBOL, interval: '1d', url: 'https://api-pub.bitfinex.com/v2/candles/trade:1D:tBTCUST/hist?limit=5' },
+  { exchange: 'bitfinex', symbol: SYMBOL, interval: '1w', url: 'https://api-pub.bitfinex.com/v2/candles/trade:1W:tBTCUST/hist?limit=5' },
+  { exchange: 'htx', symbol: SYMBOL, interval: '1d', url: 'https://api.htx.com/market/history/kline?symbol=btcusdt&period=1day&size=5' },
+  { exchange: 'htx', symbol: SYMBOL, interval: '1M', url: 'https://api.htx.com/market/history/kline?symbol=btcusdt&period=1mon&size=5' },
+]
+
+async function assertKlines(
+  kase: { exchange: KlineExchange; symbol: string; interval: string; url: string },
+  phase: Phase,
+  route: Route,
+  egressIp: string,
+  fetchImpl: typeof fetch,
+): Promise<void> {
+  const client = new CcxtRestClient({ exchange: kase.exchange, fetchImpl })
   const before = trace.length
+  const id = `klines.${kase.exchange}.${kase.symbol}.${kase.interval}`
   try {
-    const klines = await client.getKlines(SYMBOL, '1d', 5)
+    const klines = await client.getKlines(kase.symbol, kase.interval as never, 5, kase.exchange)
     const issued = trace.slice(before).map((t) => t.url)
     const problems: string[] = []
+    if (issued.length !== 1) problems.push(`发出 ${issued.length} 条请求，期望 1`)
+    if (issued[0] !== kase.url) problems.push(`URL 为 ${issued[0]}，期望 ${kase.url}`)
     if (klines.length !== 5) problems.push(`返回 ${klines.length} 根，不等于 5`)
     klines.forEach((k, i) => {
       for (const field of ['open', 'high', 'low', 'close'] as const) {
@@ -243,23 +285,27 @@ async function assertKlines(egressIp: string, fetchImpl: typeof fetch): Promise<
       }
       if (!(k.high >= k.low)) problems.push(`[${i}].high=${k.high} 小于 low=${k.low}`)
       if (!(k.volume > 0)) problems.push(`[${i}].volume=${String(k.volume)} 不大于 0`)
+      const step = k.closeTime - k.openTime
+      if (!(step > 0 && step <= 31 * DAY_MS)) problems.push(`[${i}] closeTime-openTime=${step} 不在 (0, 31d]`)
+      const prev = i > 0 ? klines[i - 1] : undefined
+      if (prev !== undefined && !(k.openTime > prev.openTime)) problems.push(`[${i}].openTime 未升序`)
     })
     judge({
-      id: 'klines.binance.BTCUSDT.1d',
+      id,
       pass: problems.length === 0,
-      route: 'proxy',
+      route,
       egressIp,
       url: issued[0],
       detail: problems.length === 0
-        ? `${klines.length} 根，收盘价 ${klines.map((k) => k.close).join('/')}，openTime ${klines[0]?.openTime}–${klines.at(-1)?.openTime}`
+        ? `${klines.length} 根 close=${klines.map((k) => k.close).join('/')} openTime ${klines[0]?.openTime}–${klines.at(-1)?.openTime}`
         : problems.join('; '),
-      observed: { count: klines.length, klines, urls: issued },
+      observed: { interval: kase.interval, count: klines.length, klines, urls: issued, expectedUrl: kase.url },
     })
   } catch (err) {
     judge({
-      id: 'klines.binance.BTCUSDT.1d',
+      id,
       pass: false,
-      route: 'proxy',
+      route,
       egressIp,
       url: trace.slice(before).map((t) => t.url)[0],
       detail: `抛出 ${errorCode(err) ?? '非 TradingServiceError'}: ${err instanceof Error ? err.message : String(err)}`,
@@ -267,12 +313,144 @@ async function assertKlines(egressIp: string, fetchImpl: typeof fetch): Promise<
   }
 }
 
+/* ── 判据 3：失败关闭负例（零请求）──────────────────────────────────── */
+
+/**
+ * 逐所「该所不支持的周期」负例。coinbase 的 30m/4h/1w/1M、gateio/kucoin 的 1M 是**实测**上游 400
+ * 的周期；其余六所（binance/okx/bybit/kraken/bitfinex/htx）实测支持词汇表全部九档，故它们用
+ * 词汇表外的 `8h`（任何一所都没有这一档）走同一条 fail-closed 分支。
+ */
+const UNSUPPORTED_INTERVALS: Record<KlineExchange, string> = {
+  binance: '8h',
+  okx: '8h',
+  bybit: '8h',
+  gateio: '1M',
+  kucoin: '1M',
+  kraken: '8h',
+  coinbase: '30m',
+  bitfinex: '8h',
+  htx: '8h',
+}
+
+/** 「该所表外计价币」负例的候选池：都是各所普查里没有的 fiat，按顺序取第一个不在该所表内的。 */
+const ABSENT_QUOTE_CANDIDATES = ['NGN', 'CNY', 'ZAR', 'MXN', 'NZD', 'ISK', 'HUF', 'RON']
+
+/* ── 判据 4：quote 表 = 该所公开挂牌端点普查结果 ──────────────────────── */
+
+interface CensusSpec {
+  urls: string[]
+  derive: (payloads: unknown[]) => string[]
+}
+
+function uniqueUpper(values: unknown[]): string[] {
+  const set = new Set<string>()
+  for (const value of values) {
+    if (typeof value !== 'string') continue
+    const upper = value.trim().toUpperCase()
+    if (upper !== '') set.add(upper)
+  }
+  return [...set].sort()
+}
+
+const CENSUS: Record<TransformExchange, CensusSpec> = {
+  okx: {
+    urls: ['https://www.okx.com/api/v5/public/instruments?instType=SPOT'],
+    derive: ([payload]) => uniqueUpper(((payload as { data?: Array<{ quoteCcy?: unknown }> }).data ?? []).map((row) => row.quoteCcy)),
+  },
+  kucoin: {
+    urls: ['https://api.kucoin.com/api/v2/symbols'],
+    derive: ([payload]) => uniqueUpper(((payload as { data?: Array<{ quoteCurrency?: unknown }> }).data ?? []).map((row) => row.quoteCurrency)),
+  },
+  gateio: {
+    urls: ['https://api.gateio.ws/api/v4/spot/currency_pairs'],
+    derive: ([payload]) => uniqueUpper((payload as Array<{ quote?: unknown }>).map((row) => row.quote)),
+  },
+  kraken: {
+    urls: ['https://api.kraken.com/0/public/AssetPairs'],
+    derive: ([payload]) => uniqueUpper(Object.values((payload as { result?: Record<string, { wsname?: unknown }> }).result ?? {})
+      .map((row) => String(row.wsname ?? '').split('/')[1])),
+  },
+  coinbase: {
+    urls: ['https://api.exchange.coinbase.com/products'],
+    derive: ([payload]) => uniqueUpper((payload as Array<{ quote_currency?: unknown }>).map((row) => row.quote_currency)),
+  },
+  bitfinex: {
+    urls: [
+      'https://api-pub.bitfinex.com/v2/conf/pub:list:pair:exchange',
+      'https://api-pub.bitfinex.com/v2/conf/pub:list:currency',
+    ],
+    derive: ([pairsPayload, currenciesPayload]) => {
+      const pairs = ((pairsPayload as string[][] | undefined)?.[0]) ?? []
+      const currencies = ((currenciesPayload as string[][] | undefined)?.[0]) ?? []
+      const longestFirst = [...currencies].sort((a, b) => b.length - a.length)
+      return uniqueUpper(pairs.map((pair) => {
+        // bitfinex 的挂牌对有两种形态：`AAVE:USD`（显式分隔）与 `ADAUST`（最长货币后缀）。
+        const explicit = pair.split(':')
+        if (explicit.length === 2) return explicit[1] === 'UST' ? 'USDT' : explicit[1]
+        const hit = longestFirst.find((currency) => pair.length > currency.length && pair.endsWith(currency))
+        if (hit === undefined) return ''
+        return hit === 'UST' ? 'USDT' : hit
+      }))
+    },
+  },
+  htx: {
+    urls: ['https://api.htx.com/v2/settings/common/symbols'],
+    derive: ([payload]) => uniqueUpper(((payload as { data?: Array<{ qcdn?: unknown }> }).data ?? []).map((row) => row.qcdn)),
+  },
+}
+
+function sameSet(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+async function assertQuoteCensus(
+  exchange: TransformExchange,
+  egressIp: string,
+  fetchImpl: typeof fetch,
+): Promise<{ derived: string[]; urls: string[] }> {
+  const spec = CENSUS[exchange]
+  const before = trace.length
+  const payloads: unknown[] = []
+  const problems: string[] = []
+  try {
+    for (const url of spec.urls) {
+      const res = await fetchImpl(url, { headers: { Accept: 'application/json' } })
+      payloads.push(await res.json())
+    }
+  } catch (err) {
+    problems.push(`普查请求失败：${err instanceof Error ? err.message : String(err)}`)
+  }
+  const issued = trace.slice(before).map((t) => t.url)
+  const derived = problems.length === 0 ? spec.derive(payloads) : []
+  const table = [...QUOTE_TABLES[exchange]].sort()
+  if (problems.length === 0 && !sameSet(derived, table)) {
+    const missing = derived.filter((quote) => !table.includes(quote))
+    const extra = table.filter((quote) => !derived.includes(quote))
+    problems.push(`表与普查不一致：普查新增 [${missing.join(', ')}] / 表内多余 [${extra.join(', ')}]`)
+  }
+  judge({
+    id: `quote-census.${exchange}`,
+    pass: problems.length === 0,
+    route: 'plain',
+    egressIp,
+    url: issued[0],
+    detail: problems.length === 0
+      ? `${derived.length} 个 quote 与代码表逐字相等：${derived.join(', ')}`
+      : problems.join('; '),
+    observed: { derived, table, urls: issued },
+  })
+  return { derived, urls: issued }
+}
+
+/* ── 主流程 ─────────────────────────────────────────────────────────── */
+
 async function main(): Promise<void> {
   const capturedAt = new Date().toISOString()
   const headSha = git(['rev-parse', 'HEAD'])
   const fingerprints = {
     'packages/connector-ccxt/src/rest.ts': git(['hash-object', 'packages/connector-ccxt/src/rest.ts']),
     'packages/connector-ccxt/src/index.ts': git(['hash-object', 'packages/connector-ccxt/src/index.ts']),
+    'packages/api/src/index.ts': git(['hash-object', 'packages/api/src/index.ts']),
   }
   const dirtyLines = git(['status', '--porcelain']).split('\n').filter((l) => l !== '').length
 
@@ -288,9 +466,8 @@ async function main(): Promise<void> {
   let ipifyPlainInWindow = ''
   let ipifyProxyInWindow = ''
   let ipifyPlainAfterRestore = ''
+  const censusResult: Record<string, string[]> = {}
 
-  // plainFetch 的请求全部发生在窗口打开**之前**，因此连接池里不可能有窗口期的旧连接（
-  // 这也正是「七个所在默认出口跑」这条设计顺带消除的污染面）。
   const plainFetch = makeFetch('plain', 'default-exit')
   const proxyFetch = makeFetch('proxy', 'egress-window')
 
@@ -304,14 +481,37 @@ async function main(): Promise<void> {
       detail: `默认出口实测 ${ipifyPlainBefore}（期望 ${EXPECTED_DEFAULT_IP}）`,
     })
 
+    // ---- 默认出口：七所 ticker（USDT 对 + 各所一条非 USDT 对）----
     for (const exchange of DEFAULT_EXIT_EXCHANGES) {
-      await assertTicker(exchange, 'default-exit', 'plain', ipifyPlainBefore, plainFetch.impl)
+      await assertTicker(exchange, SYMBOL, 'default-exit', 'plain', ipifyPlainBefore, plainFetch.impl)
+    }
+    const NON_USDT_TICKERS: Record<(typeof DEFAULT_EXIT_EXCHANGES)[number], string> = {
+      okx: 'ETHBTC',
+      gateio: 'ETHBTC',
+      kucoin: 'ETHBTC',
+      kraken: 'ETHEUR',
+      coinbase: 'ETHBTC',
+      bitfinex: 'ETHEUR',
+      htx: 'ETHBTC',
+    }
+    for (const exchange of DEFAULT_EXIT_EXCHANGES) {
+      await assertTicker(exchange, NON_USDT_TICKERS[exchange], 'default-exit', 'plain', ipifyPlainBefore, plainFetch.impl)
     }
 
-    // 负例一：未登记 slug（ticker + klines 两处都必须在任何 fetch 之前拒绝）。
+    // ---- 默认出口：七所 quote 普查（表 = 普查结果）----
+    for (const exchange of TRANSFORM_EXCHANGES) {
+      const result = await assertQuoteCensus(exchange, ipifyPlainBefore, plainFetch.impl)
+      censusResult[exchange] = result.derived
+    }
+
+    // ---- 默认出口：七所 K 线（每所两档周期，逐字比对请求 URL）----
+    for (const kase of KLINE_CASES.filter((entry) => entry.exchange !== 'binance' && entry.exchange !== 'bybit')) {
+      await assertKlines(kase, 'default-exit', 'plain', ipifyPlainBefore, plainFetch.impl)
+    }
+
+    // ---- 零请求负例：未登记 slug（ticker + klines）----
     const bitstampTicker = makeFetch('plain', 'default-exit')
-    const bitstampTickerClient = new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: bitstampTicker.impl })
-    const bitstampTickerOutcome = await captureError(() => bitstampTickerClient.getTicker(SYMBOL, 'bitstamp'))
+    const bitstampTickerOutcome = await captureError(() => new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: bitstampTicker.impl }).getTicker(SYMBOL, 'bitstamp'))
     judge({
       id: 'negative.unregistered-slug.ticker',
       pass: bitstampTickerOutcome.code === 'TRADING_NOT_IMPLEMENTED' && bitstampTicker.count() === 0,
@@ -322,8 +522,7 @@ async function main(): Promise<void> {
     })
 
     const bitstampKlines = makeFetch('plain', 'default-exit')
-    const bitstampKlinesClient = new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: bitstampKlines.impl })
-    const bitstampKlinesOutcome = await captureError(() => bitstampKlinesClient.getKlines(SYMBOL, '1d', 5))
+    const bitstampKlinesOutcome = await captureError(() => new CcxtRestClient({ exchange: 'bitstamp', fetchImpl: bitstampKlines.impl }).getKlines(SYMBOL, '1d', 5, 'bitstamp'))
     judge({
       id: 'negative.unregistered-slug.klines',
       pass: bitstampKlinesOutcome.code === 'TRADING_NOT_IMPLEMENTED' && bitstampKlines.count() === 0,
@@ -333,31 +532,36 @@ async function main(): Promise<void> {
       observed: { code: bitstampKlinesOutcome.code, requests: bitstampKlines.count(), message: bitstampKlinesOutcome.message },
     })
 
-    // 负例二：已登记所名 okx 的 K 线面（形参面已撤，裁决对象是客户端默认所名）。
-    const okxKlines = makeFetch('plain', 'default-exit')
-    const okxKlinesClient = new CcxtRestClient({ exchange: 'okx', fetchImpl: okxKlines.impl })
-    const okxKlinesOutcome = await captureError(() => okxKlinesClient.getKlines(SYMBOL, '1d', 5))
-    judge({
-      id: 'negative.okx-default-exchange.klines',
-      pass: okxKlinesOutcome.code === 'TRADING_NOT_IMPLEMENTED' && okxKlines.count() === 0,
-      route: 'plain',
-      egressIp: ipifyPlainBefore,
-      detail: `code=${okxKlinesOutcome.code ?? '(无)'} requests=${okxKlines.count()}`,
-      observed: { code: okxKlinesOutcome.code, requests: okxKlines.count(), message: okxKlinesOutcome.message },
-    })
+    // ---- 零请求负例：逐所不支持的周期 ----
+    for (const exchange of KLINE_EXCHANGES) {
+      const interval = UNSUPPORTED_INTERVALS[exchange]
+      const probe = makeFetch('plain', 'default-exit')
+      const outcome = await captureError(() => new CcxtRestClient({ exchange, fetchImpl: probe.impl }).getKlines(SYMBOL, interval as never, 5, exchange))
+      judge({
+        id: `negative.unsupported-interval.${exchange}`,
+        pass: outcome.code === 'TRADING_UNSUPPORTED_INTERVAL' && probe.count() === 0,
+        route: 'plain',
+        egressIp: ipifyPlainBefore,
+        detail: `interval=${interval} code=${outcome.code ?? '(无)'} requests=${probe.count()}; 该所支持 ${klineSupportedIntervals(exchange).join('/')}`,
+        observed: { interval, code: outcome.code, requests: probe.count(), supported: klineSupportedIntervals(exchange), message: outcome.message },
+      })
+    }
 
-    // 负例三：quote 表外的符号（BTCJPY）在七条形态变换分支之一（gateio）本地拒绝。
-    const btcjpy = makeFetch('plain', 'default-exit')
-    const btcjpyClient = new CcxtRestClient({ exchange: 'gateio', fetchImpl: btcjpy.impl })
-    const btcjpyOutcome = await captureError(() => btcjpyClient.getTicker('BTCJPY', 'gateio'))
-    judge({
-      id: 'negative.unsupported-quote.BTCJPY',
-      pass: btcjpyOutcome.code === 'TRADING_UNSUPPORTED_SYMBOL' && btcjpy.count() === 0,
-      route: 'plain',
-      egressIp: ipifyPlainBefore,
-      detail: `code=${btcjpyOutcome.code ?? '(无)'} requests=${btcjpy.count()}`,
-      observed: { code: btcjpyOutcome.code, requests: btcjpy.count(), message: btcjpyOutcome.message },
-    })
+    // ---- 零请求负例：逐所表外计价币 ----
+    for (const exchange of TRANSFORM_EXCHANGES) {
+      const quote = ABSENT_QUOTE_CANDIDATES.find((candidate) => !QUOTE_TABLES[exchange].includes(candidate)) ?? 'NGN'
+      const symbol = `BTC${quote}`
+      const probe = makeFetch('plain', 'default-exit')
+      const outcome = await captureError(() => new CcxtRestClient({ exchange, fetchImpl: probe.impl }).getTicker(symbol, exchange))
+      judge({
+        id: `negative.unsupported-quote.${exchange}`,
+        pass: outcome.code === 'TRADING_UNSUPPORTED_SYMBOL' && probe.count() === 0,
+        route: 'plain',
+        egressIp: ipifyPlainBefore,
+        detail: `symbol=${symbol} code=${outcome.code ?? '(无)'} requests=${probe.count()}`,
+        observed: { symbol, quote, code: outcome.code, requests: probe.count(), message: outcome.message },
+      })
+    }
 
     // 计数机制本身的自证：正向路径必须真的记到请求，否则「零请求」是空证明。
     judge({
@@ -365,11 +569,11 @@ async function main(): Promise<void> {
       pass: plainFetch.count() > 0,
       route: 'plain',
       egressIp: ipifyPlainBefore,
-      detail: `默认出口七所共发出 ${plainFetch.count()} 次请求（计数包装确实在工作）`,
+      detail: `默认出口共发出 ${plainFetch.count()} 次请求（计数包装确实在工作）`,
       observed: { requests: plainFetch.count() },
     })
 
-    // ---- 可达出口窗口：只覆盖 binance / bybit / klines ----
+    // ---- 可达出口窗口：只覆盖 binance / bybit（ticker + K 线）----
     await selectEgress(WINDOW_SELECTOR)
     const switched = await waitFor('等待出口切换生效', 15_000, async () => {
       const now = await currentSelector().catch(() => '')
@@ -388,9 +592,11 @@ async function main(): Promise<void> {
     })
 
     for (const exchange of WINDOW_EXCHANGES) {
-      await assertTicker(exchange, 'egress-window', 'proxy', ipifyProxyInWindow, proxyFetch.impl)
+      await assertTicker(exchange, SYMBOL, 'egress-window', 'proxy', ipifyProxyInWindow, proxyFetch.impl)
     }
-    await assertKlines(ipifyProxyInWindow, proxyFetch.impl)
+    for (const kase of KLINE_CASES.filter((entry) => entry.exchange === 'binance' || entry.exchange === 'bybit')) {
+      await assertKlines(kase, 'egress-window', 'proxy', ipifyProxyInWindow, proxyFetch.impl)
+    }
   } finally {
     // 还原是硬要求：无论上面发生什么都必须回到原选择器并复核。
     try {
@@ -420,15 +626,23 @@ async function main(): Promise<void> {
 
   const failed = judgements.filter((j) => !j.pass)
   const summary = {
-    probe: 'ccxt-nine-exchange-ticker-and-klines',
+    probe: 'ccxt-nine-exchange-ticker-klines-and-quote-census',
     capturedAt,
     repo: { headSha, fingerprints, statusPorcelainLines: dirtyLines },
     connector: {
       restTsPath: 'packages/connector-ccxt/src/rest.ts',
       supportedExchanges: [...SUPPORTED_EXCHANGES],
       klineExchanges: [...KLINE_EXCHANGES],
+      quoteTables: QUOTE_TABLES,
+      intervalParams: Object.fromEntries(KLINE_EXCHANGES.map((exchange) => [
+        exchange,
+        Object.fromEntries(klineSupportedIntervals(exchange).map((interval) => [interval, klineIntervalParam(exchange, interval)])),
+      ])),
       symbol: SYMBOL,
     },
+    census: censusResult,
+    klineCases: KLINE_CASES,
+    unsupportedIntervals: UNSUPPORTED_INTERVALS,
     egress: {
       selectorGroup: SELECTOR_GROUP,
       mihomoSocket: MIHOMO_SOCKET,

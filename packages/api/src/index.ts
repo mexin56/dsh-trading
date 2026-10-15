@@ -904,6 +904,15 @@ export type TradingErrorCode =
   | 'TRADING_TRADE_PROVIDER_NOT_ROUTED'
   | 'TRADING_UNSUPPORTED_SYMBOL'
   | 'TRADING_UNSUPPORTED_INTERVAL'
+  /**
+   * 请求到达了上游、上游答了，但没有这个标的（HTTP 404、400 + `label` 以 `INVALID_` 开头，
+   * 或 200 但没有任何可用行）——与 `TRADING_UNSUPPORTED_SYMBOL`（本地就判定这个形态不支持、
+   * 零请求）区分：这里是「上游说查不到」，消费方不该当基础设施抖动去重试。
+   * 8 个连接器已按此语义实际使用该码（akshare / eastmoney / finnhub / fmp / longbridge /
+   * polygon / tushare / ccxt 的行级判空与 404 映射），此前只是漏进了本词汇表（类型层缺口，
+   * 与 `TRADING_UPSTREAM_ERROR` 曾经的缺口同形）。
+   */
+  | 'TRADING_SYMBOL_NOT_FOUND'
   /** 凭证缺失或无效（ctx.credentials 引用解析失败 [S4]）。 */
   | 'TRADING_CREDENTIALS_MISSING'
   | 'TRADING_AUTH_FAILED'

@@ -23,6 +23,7 @@ import {
   CcxtRestClient,
   type CcxtRestOptions,
   INTERVAL_VOCABULARY,
+  KLINE_EXCHANGES,
   SUPPORTED_EXCHANGES,
   TradingServiceError,
 } from './rest.js'
@@ -43,8 +44,9 @@ export const Config: Schema<Config> = Schema.object({
   dryRun: Schema.boolean().default(true).description('默认模拟下单'),
   liveTrading: Schema.boolean().default(false).description('是否允许实盘交易'),
   defaultExchange: Schema.string().default('binance').description(
-    '默认首选交易所：9 所都有 ticker 直连分支（binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx）；'
-      + 'K 线只有 binance 一条路径，其余所名在请求前结构化拒绝（TRADING_NOT_IMPLEMENTED，零请求）',
+    '默认首选交易所：9 所的 ticker 与 K 线都有直连分支（binance/okx/bybit/gateio/kucoin/kraken/coinbase/bitfinex/htx）；'
+      + '登记面之外的 slug 在请求前结构化拒绝（TRADING_NOT_IMPLEMENTED，零请求），'
+      + '登记面内的某个周期该所不支持时同样零请求拒绝（TRADING_UNSUPPORTED_INTERVAL）',
   ),
 })
 
@@ -52,7 +54,14 @@ export const TRADING_CRYPTO_MARKET_DATA_KEY = 'tradingCryptoMarketData'
 export const TRADING_CRYPTO_TRADE_KEY = 'tradingCryptoTrade'
 
 export class CcxtMarketDataService extends Service implements MarketDataService {
-  private readonly client: CcxtRestClient
+  /**
+   * REST 客户端（**公开只读引用**，不是新的服务契约）。
+   *
+   * `crypto_get_klines` 工具要按所取 K 线，而 `@dshtrading/api` 的
+   * `MarketDataService.getKlines(symbol, interval, limit?)` 没有 `exchange` 形参——
+   * 服务缝保持与契约同形，形参只加在本客户端方法与自有工具上（见 README「周期与契约」）。
+   */
+  readonly client: CcxtRestClient
 
   constructor(
     ctx: Context,
@@ -68,8 +77,9 @@ export class CcxtMarketDataService extends Service implements MarketDataService 
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
-    // 形参面不再收 exchange：K 线只有 Binance 一条分支，裁决对象是客户端默认所名
-    // （与 @dshtrading/api 的 MarketDataService.getKlines(symbol, interval, limit?) 同形）。
+    // 契约方法不吃 exchange（与 @dshtrading/api 的
+    // MarketDataService.getKlines(symbol, interval, limit?) 同形）：裁决对象是客户端默认所名。
+    // 按所取 K 线走客户端方法（marketData.client.getKlines(..., exchange)），见 README「周期与契约」。
     return this.client.getKlines(symbol, interval, limit)
   }
 
@@ -200,15 +210,22 @@ export function apply(ctx: Context, config: Config): void {
 
     register(defineTool({
       name: 'crypto_get_klines',
-      description: 'Get recent spot klines from Binance: klines have a single implemented branch (binance), selected by the connector defaultExchange. Any other CCXT exchange slug is rejected with TRADING_NOT_IMPLEMENTED before any network request.',
+      description: 'Get recent spot klines from one of the nine implemented direct branches (binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx). Intervals are mapped per venue; an interval that the venue does not support is rejected with TRADING_UNSUPPORTED_INTERVAL before any network request. Any other CCXT exchange slug is rejected with TRADING_NOT_IMPLEMENTED before any network request.',
       parameters: {
         symbol: { type: 'string', required: true, description: 'Crypto pair symbol, e.g. BTCUSDT' },
-        interval: { type: 'string', enum: INTERVAL_VOCABULARY, default: '1d', description: 'Interval' },
-        limit: { type: 'integer', default: 100, description: 'Limit' },
+        interval: { type: 'string', enum: INTERVAL_VOCABULARY, default: '1d', description: 'Interval (mapped per venue; unsupported intervals are rejected locally with TRADING_UNSUPPORTED_INTERVAL)' },
+        limit: { type: 'integer', default: 100, description: 'Limit (capped to the venue single-request maximum; klines are returned oldest-first)' },
+        exchange: { type: 'string', enum: KLINE_EXCHANGES, default: 'binance', description: 'Exchange slug; nine slugs have implemented kline branches (binance, okx, bybit, gateio, kucoin, kraken, coinbase, bitfinex, htx)' },
       },
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args) {
-        const klines = await marketData.getKlines(args.symbol, (args.interval ?? '1d') as Interval, args.limit)
+        // 走客户端方法而非契约方法：契约的 getKlines 没有 exchange 形参（见 README「周期与契约」）。
+        const klines = await marketData.client.getKlines(
+          args.symbol,
+          (args.interval ?? '1d') as Interval,
+          args.limit,
+          args.exchange,
+        )
         return JSON.stringify(klines)
       },
     }))
