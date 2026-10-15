@@ -10,6 +10,7 @@ import { MOUNT, ROUTES, createRouteHandler, type Config } from '../src/index.ts'
 
 const BASE_CONFIG: Config = {
   baseUrl: 'https://finance.example.test',
+  sentimentMethodology: 3,
   username: 'api',
   password: 'secret',
   usernameEnv: 'FINANCE_API_USER',
@@ -41,6 +42,7 @@ function makeHandler(overrides: {
   upstreamStatus?: number
   upstreamBodies?: unknown[]
   now?: () => number
+  config?: Partial<Config>
 }) {
   const calls: string[] = []
   let call = 0
@@ -62,7 +64,7 @@ function makeHandler(overrides: {
     now: overrides.now,
   })
   const connection = { requestRejection: () => overrides.rejection }
-  const handler = createRouteHandler(client, BASE_CONFIG, connection)
+  const handler = createRouteHandler(client, { ...BASE_CONFIG, ...overrides.config }, connection)
   return { handler, calls }
 }
 
@@ -103,15 +105,38 @@ describe('特殊指标桥路由栅栏', () => {
 })
 
 describe('特殊指标桥子路由映射', () => {
-  it('用户请求恐慌指数快照时上游固定 market=cn 与 methodology=2', async () => {
-    // Given: 已通过栅栏
+  it('用户请求恐慌指数快照时上游带 market=cn 与配置里的方法学版本', async () => {
+    // Given: 已通过栅栏，配置为默认方法学 v3
     const { handler, calls } = makeHandler({})
     const { res, state } = fakeRes()
     // When: 用户请求情绪快照
     await handler(fakeReq('GET', '/sentiment/snapshot'), res)
-    // Then: 上游路径固定方法学参数（docs/api.md：调用方应固定方法，避免历史拼接混用）
+    // Then: 上游路径带上**固定的**方法学参数（docs/api.md：调用方应固定方法，避免历史拼接混用）
     expect(state.status).toBe(200)
-    expect(calls[0]).toBe('https://finance.example.test/api/sentiment/snapshot?market=cn&methodology=2')
+    expect(calls[0]).toBe('https://finance.example.test/api/sentiment/snapshot?market=cn&methodology=3')
+  })
+
+  it('用户把方法学配回 v2 时快照与历史两端一起回退，不出现一半 v2 一半 v3', async () => {
+    // Given: 行配置把 sentimentMethodology 设为 2
+    const { handler, calls } = makeHandler({ config: { sentimentMethodology: 2 } })
+    // When: 用户依次请求快照与历史
+    await handler(fakeReq('GET', '/sentiment/snapshot'), fakeRes().res)
+    await handler(fakeReq('GET', '/sentiment/history'), fakeRes().res)
+    // Then: 两条路由都用同一个方法学版本（同一会话内不得混用两种方法）
+    expect(calls).toEqual([
+      'https://finance.example.test/api/sentiment/snapshot?market=cn&methodology=2',
+      'https://finance.example.test/api/sentiment/history?market=cn&methodology=2&days=750',
+    ])
+  })
+
+  it('用户把方法学配成越界值时如实透传，由上游 422 显式拒绝而不是静默改口径', async () => {
+    // Given: 行配置写了一个 finance 不支持的版本
+    const { handler, calls } = makeHandler({ config: { sentimentMethodology: 9 }, upstreamStatus: 422 })
+    // When: 用户请求情绪快照
+    const { state } = await (async () => { const r = fakeRes(); await handler(fakeReq('GET', '/sentiment/snapshot'), r.res); return r })()
+    // Then: 上游收到 9（不做本地夹取），错误如实上抛
+    expect(calls[0]).toBe('https://finance.example.test/api/sentiment/snapshot?market=cn&methodology=9')
+    expect(state.status).toBe(502)
   })
 
   it('用户请求基差历史时 days 被夹取到 10–500 的服务端边界', async () => {
@@ -203,7 +228,7 @@ describe('子路由白名单完整性', () => {
     // Then: 四组全覆盖，且所有 upstream 生成器产出 /api/ 前缀只读路径
     for (const g of groups) expect(g.length).toBeGreaterThan(0)
     for (const route of ROUTES) {
-      const upstream = route.upstream(new URL('http://dsh.local' + MOUNT + route.sub + '?days=30&window=5&code=801738'))
+      const upstream = route.upstream(new URL('http://dsh.local' + MOUNT + route.sub + '?days=30&window=5&code=801738'), BASE_CONFIG)
       expect(upstream === null || upstream.startsWith('/api/')).toBe(true)
     }
   })

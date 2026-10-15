@@ -50,6 +50,7 @@ function config(overrides: Partial<Config> = {}): Config {
     snapshotCacheMs: 60_000,
     historyCacheMs: 300_000,
     cacheFile,
+    sentimentMethodology: 3,
     ...overrides,
   }
 }
@@ -101,7 +102,7 @@ describe('宿主重启后的首屏缓存', () => {
       v: 1,
       baseUrl,
       entries: {
-        '/api/sentiment/snapshot?market=cn&methodology=2': { at: Date.now(), payload: { market: 'cn', score: 38.9, date: '2026-10-08' } },
+        '/api/sentiment/snapshot?market=cn&methodology=3': { at: Date.now(), payload: { market: 'cn', score: 38.9, date: '2026-10-08' } },
       },
     }))
     // When: 新宿主启动（真实 apply 组装）后用户请求恐慌指数快照
@@ -116,7 +117,7 @@ describe('宿主重启后的首屏缓存', () => {
     writeFileSync(cacheFile, JSON.stringify({
       v: 1,
       baseUrl: 'https://other.example.test',
-      entries: { '/api/sentiment/snapshot?market=cn&methodology=2': { at: Date.now(), payload: { score: 99 } } },
+      entries: { '/api/sentiment/snapshot?market=cn&methodology=3': { at: Date.now(), payload: { score: 99 } } },
     }))
     // When: 用户请求
     const body = await request(bootHost(config()), '/sentiment/snapshot')
