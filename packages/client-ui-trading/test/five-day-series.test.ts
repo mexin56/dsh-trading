@@ -11,8 +11,8 @@ import {
   FIVE_DAY_DEFAULT_DAYS, FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_MAX_DAYS,
   FIVE_DAY_MIN_DAYS, FIVE_DAY_RESYNC_MS, FIVE_DAY_TRADING_DAYS,
   chartIntervals, clampFiveDayDays, fiveDayCapability, fiveDayDayStarts, fiveDayDisplayRange,
-  fiveDayVolumeColor, fiveDayWheelStep, groupTradingDays,
-  ratioTier, recentTradingDays, rememberableInterval, toFiveDayBars, viewportResetStrategy,
+  fiveDayTickerProvider, fiveDayVolumeColor, fiveDayWheelStep, groupTradingDays,
+  ratioTier, recentTradingDays, rememberableInterval, tickerBarMergeable, toFiveDayBars, viewportResetStrategy,
 } from '../src/client/five-day-series.ts'
 import type { FiveDayTier } from '../src/client/five-day-series.ts'
 import { selectApplicableInstances, supportedIntervals } from '../src/client/indicator-scope.ts'
@@ -280,36 +280,48 @@ describe('五日级别的日界与轴拼接', () => {
 })
 
 describe('五日级别的能力驱动出现规则', () => {
-  it('用户切到 us+yahoo 或 cn/hk+eastmoney 时五日胶囊紧跟日K出现', () => {
-    // Given 三类可得路由
+  /** 该市场声明的能力并集：东财式（1m/2500 根）与腾讯式（1m/800 根）。 */
+  const CAP_1M_2500 = [{ interval: '1m', maxBars: FIVE_DAY_KLINE_LIMIT }]
+  const CAP_1M_800 = [{ interval: '1m', maxBars: 800 }]
+
+  it('用户的市场声明能支撑 5 交易日 1m 时，五日胶囊紧跟日K出现（跨源并集也算数）', () => {
+    // Given 三市场声明的并集里都有 1m/2500 根——cn/hk 本机 active 是腾讯，靠并集里的
+    // 东财声明成立，路由本身不再是判据
+    // When 算级别列表
     // Then '5d' 紧随 '1d'，与既有级别平级
-    expect(chartIntervals('us', 'yahoo')).toEqual(['5m', '15m', '30m', '1h', '1d', '5d', '1w', '1M'])
-    expect(chartIntervals('cn', 'eastmoney')).toEqual(['5m', '30m', '1d', '5d', '1w', '1M'])
-    expect(chartIntervals('hk', 'eastmoney')).toEqual(['5m', '15m', '30m', '1h', '1d', '5d', '1w', '1M'])
+    expect(chartIntervals('us', CAP_1M_2500)).toEqual(['5m', '15m', '30m', '1h', '1d', '5d', '1w', '1M'])
+    expect(chartIntervals('cn', CAP_1M_2500)).toEqual(['5m', '30m', '1d', '5d', '1w', '1M'])
+    expect(chartIntervals('hk', CAP_1M_2500)).toEqual(['5m', '15m', '30m', '1h', '1d', '5d', '1w', '1M'])
     expect(FIVE_DAY_INTERVAL).toBe('5d')
   })
 
-  it('用户切到 crypto/futures/global 或 cn/hk 走腾讯路由时看不到五日胶囊', () => {
-    // Given 结构性不可得的市场与路由
+  it('用户的市场只声明 1m/800 根（三日多）时看不到五日胶囊', () => {
+    // Given 能力并集最大只有 800 根 1m，结构性撑不满 5 个交易日
     // Then 能力一律 no，级别列表原样返回（不出现，也不渲染假数据）
-    expect(fiveDayCapability('crypto', 'okx')).toBe('no')
-    expect(fiveDayCapability('futures', 'hithink')).toBe('no')
-    expect(fiveDayCapability('global', 'jin10')).toBe('no')
-    expect(fiveDayCapability('cn', 'tencent')).toBe('no')
-    expect(fiveDayCapability('hk', 'tencent')).toBe('no')
-    expect(chartIntervals('cn', 'tencent')).toEqual(['5m', '30m', '1d', '1w', '1M'])
-    expect(chartIntervals('hk', 'tencent')).not.toContain(FIVE_DAY_INTERVAL)
-    expect(chartIntervals('crypto', 'okx')).not.toContain(FIVE_DAY_INTERVAL)
+    expect(fiveDayCapability('cn', CAP_1M_800)).toBe('no')
+    expect(fiveDayCapability('hk', CAP_1M_800)).toBe('no')
+    expect(chartIntervals('cn', CAP_1M_800)).toEqual(['5m', '30m', '1d', '1w', '1M'])
+    expect(chartIntervals('hk', CAP_1M_800)).not.toContain(FIVE_DAY_INTERVAL)
+    // 声明里没有 1m（只有更粗的粒度）同样不可得
+    expect(fiveDayCapability('cn', [{ interval: '5m', maxBars: 2500 }])).toBe('no')
   })
 
-  it('用户首次打开时 provider 还没回来，市场不据此判定为不可得', () => {
-    // Given provider 缺失（markets 请求未回）
+  it('用户首次打开时能力并集还没回来，市场不据此判定为不可得', () => {
+    // Given 能力并集缺席（markets 请求未回，或桥无任何声明）
     // Then 三态是 unknown（既不出现胶囊，也不把级别记忆清成不可得）
     expect(fiveDayCapability('us', undefined)).toBe('unknown')
-    expect(fiveDayCapability('cn', '')).toBe('unknown')
     expect(chartIntervals('us', undefined)).toEqual(['5m', '15m', '30m', '1h', '1d', '1w', '1M'])
-    // 结构性不可得的市场即使 provider 未知也是 no
+    // 结构性不可得的市场即使能力未知也是 no
     expect(fiveDayCapability('futures', undefined)).toBe('no')
+  })
+
+  it('用户的 crypto/futures/global 声明再多也不出五日级别（市场族判据不变）', () => {
+    // Given 这些市场也声明了 1m/2500 根（上游实际给不出的粒度）
+    // Then 市场族判据先短路：一律 no，胶囊不出现
+    expect(fiveDayCapability('crypto', CAP_1M_2500)).toBe('no')
+    expect(fiveDayCapability('futures', CAP_1M_2500)).toBe('no')
+    expect(fiveDayCapability('global', CAP_1M_2500)).toBe('no')
+    expect(chartIntervals('crypto', CAP_1M_2500)).not.toContain(FIVE_DAY_INTERVAL)
   })
 
   it('用户切到五日级别时取数上限与重取节奏是 2500 根 / 60s，不沿用 30s 全量重取', () => {
@@ -327,7 +339,8 @@ describe('五日级别的能力驱动出现规则', () => {
     }
 
     // Then 适用范围面板把 '5d' 列进美股级别集，'5d' 命中该指标而 '1w' 不命中
-    expect(supportedIntervals('us', 'yahoo')).toContain(FIVE_DAY_INTERVAL)
+    expect(supportedIntervals('us', CAP_1M_2500)).toContain(FIVE_DAY_INTERVAL)
+    expect(supportedIntervals('us', undefined)).not.toContain(FIVE_DAY_INTERVAL)
     expect(selectApplicableInstances([scoped], 'us', FIVE_DAY_INTERVAL)).toEqual([scoped])
     expect(selectApplicableInstances([scoped], 'us', '1w')).toEqual([])
   })
@@ -355,6 +368,36 @@ describe('五日级别的能力驱动出现规则', () => {
     expect(rememberableInterval('global', FIVE_DAY_INTERVAL)).toBe(false)
     expect(rememberableInterval('us', '10d')).toBe(false)
     expect(rememberableInterval('us', '1d')).toBe(true)
+  })
+})
+
+describe('五日级别跨源取数时的同源合流', () => {
+  it('用户的 bar 来自非 active 的源时，该级别的价格也向同一源取', () => {
+    // Given 五日 bar 由东财供数而当前 active 路由是腾讯
+    // When 决定该级别 ticker 的取数源
+    // Then 显式指定东财（不把两个源的价与量混进同一根 bar）
+    expect(fiveDayTickerProvider('eastmoney', 'tencent')).toBe('eastmoney')
+    // 其它级别不跟踪供数源（undefined = 沿用现行），故不会带 provider
+    expect(fiveDayTickerProvider(undefined, 'tencent')).toBeUndefined()
+  })
+
+  it('用户的 bar 源与 active 相同时不多发一个请求（沿用既有那一条 ticker 轮询）', () => {
+    // Given 五日 bar 的源就是 active 路由，或桥没标注供数源
+    // When 决定该级别 ticker 的取数源
+    // Then 不指定 provider（沿用现行请求，不额外打一次）
+    expect(fiveDayTickerProvider('tencent', 'tencent')).toBeUndefined()
+    expect(fiveDayTickerProvider('eastmoney', 'eastmoney')).toBeUndefined()
+    expect(fiveDayTickerProvider('eastmoney', undefined)).toBe('eastmoney')
+  })
+
+  it('用户的 ticker 与 bar 不同源时不合并进最后一根，同源才合并', () => {
+    // Given 当前 bar 序列由腾讯供数
+    // When/Then 东财的 ticker 不合并（两个源不混进同一根 bar），腾讯的照常合并
+    expect(tickerBarMergeable('tencent', 'eastmoney')).toBe(false)
+    expect(tickerBarMergeable('tencent', 'tencent')).toBe(true)
+    // 任一端未知时维持现行合并行为（「还没问到」不等于「不同源」）
+    expect(tickerBarMergeable(undefined, 'eastmoney')).toBe(true)
+    expect(tickerBarMergeable('tencent', undefined)).toBe(true)
   })
 })
 

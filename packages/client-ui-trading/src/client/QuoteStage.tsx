@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  fetchKlines, fetchTickers, fetchDerivatives, fetchDerivativesHistory, fetchOrderbook, fetchRecentTrades,
+  fetchKlines, fetchKlinesFrom, fetchTickers, fetchDerivatives, fetchDerivativesHistory, fetchOrderbook, fetchRecentTrades,
   fetchTradePositions, fetchTradeBalances, fetchTradeOpenOrders, fetchTradeFills, placeGuiOrder,
   cancelGuiOrder, fetchSouthboundHoldings, fetchActiveBuy, type TradeRowsReason,
 } from './api.ts'
@@ -46,12 +46,12 @@ import { auxEmptyNoticeKey, requiredAuxKeys } from './aux-series.ts'
 import { useAuxSeries } from './useAuxSeries.ts'
 import { availableDefinitions, dispatchIndicatorGroups } from './indicator-dispatch.ts'
 import { defaultScopeEntries } from './indicator-defaults.ts'
-import { ensureMarketProviders, useMarketProviders } from './market-providers.ts'
+import { ensureMarketProviders, useMarketCapabilities, useMarketProviders } from './market-providers.ts'
 import { useDarkTheme } from './theme-mode.ts'
 import {
   FIVE_DAY_DEFAULT_DAYS, FIVE_DAY_INTERVAL, FIVE_DAY_KLINE_LIMIT, FIVE_DAY_LEGEND_TIERS, FIVE_DAY_RESYNC_MS,
   chartIntervals, clampFiveDayDays, fiveDayCapability, fiveDayDayStarts, fiveDayDisplayRange,
-  fiveDayVolumeColor, rememberableInterval, toFiveDayBars, type FiveDayTier,
+  fiveDayTickerProvider, fiveDayVolumeColor, rememberableInterval, tickerBarMergeable, toFiveDayBars, type FiveDayTier,
 } from './five-day-series.ts'
 import { fiveDayVolumeTierBarAux } from './volume-tier-bar-aux.ts'
 import { MARKET_TAB_KEY } from './market-vocab.ts'
@@ -182,9 +182,11 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   const colorMode = useSyncExternalStore(colorModeStore.subscribe, colorModeStore.getSnapshot)
   /** 深色主题（五日级别成交量档位色与图例色块的口径，见 theme-mode.ts）。 */
   const dark = useDarkTheme()
-  // 各市场当前路由 provider（市场级缓存，禁止按标的探测）：五日级别能力判定的唯一输入。
+  // 各市场当前路由 provider 与能力并集（市场级缓存，禁止按标的探测）：能力三态与跨源
+  // 合流判定的唯一输入。
   const providers = useMarketProviders()
-  const fiveDayCap = fiveDayCapability(activeMarket, providers[activeMarket])
+  const capabilities = useMarketCapabilities()
+  const fiveDayCap = fiveDayCapability(activeMarket, capabilities[activeMarket])
   useEffect(() => { void ensureMarketProviders() }, [])
   // 数值紧凑单位 locale（亿/万 vs K/M/B）：词典哨兵键判定，随语言切换响应。
   const numLocale = scaleLocaleOf(t)
@@ -232,6 +234,9 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   /** klines 所属级别：切级别后旧的上一级别数据在途期间不得被当成新级别数据消费
    * （五日级别尤其致命——拿日 K 当 1m 分组会算出假的量比档位）。 */
   const [klinesInterval, setKlinesInterval] = useState<string | null>(null)
+  /** 当前 klines 序列的供数源（桥在 klines 响应里标注；普通级别不跟踪 = undefined）。
+   * 五日级别跨源时 ticker 必须向同一源取价，见 fiveDayTickerProvider。 */
+  const [klinesProvider, setKlinesProvider] = useState<string | undefined>(undefined)
   const [kError, setKError] = useState<string | null>(null)
   const [ticker, setTicker] = useState<Ticker | null>(null)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -386,9 +391,9 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     if (market !== undefined) setIntervalFor(readInterval(market))
   }, [market])
 
-  // 五日级别的路由回落：记忆里的 '5d' 只有在当前路由能诚实提供时才保留（tencent
-  // 路由下的 cn/hk、crypto/futures/global 一律回落到日 K 并改写记忆）。provider
-  // 未取到（unknown）时不动——不能把「还没问到」当成「不可得」。
+  // 五日级别的能力回落：记忆里的 '5d' 只有在该市场声明的能力并集能诚实提供时才保留
+  // （crypto/futures/global 与只声明 800 根 1m 的市场一律回落到日 K 并改写记忆）。
+  // 能力并集未到（unknown）时不动——不能把「还没问到」当成「不可得」。
   useEffect(() => {
     if (chartInterval !== FIVE_DAY_INTERVAL || fiveDayCap !== 'no') return
     setIntervalFor('1d')
@@ -407,13 +412,19 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     const request = `${market}:${symbol}:${chartInterval}`
     requestRef.current = request
     try {
-      const rows = chartInterval === FIVE_DAY_INTERVAL
-        // 冻结契约：永远是 1m 取数 + 客户端按市场时区分组取最近 5 个交易日。
-        ? toFiveDayBars(market, await fetchKlines(market, symbol, '1m', FIVE_DAY_KLINE_LIMIT)).map(bar => bar.kline)
+      // 五日级别：永远是 1m 取数 + 客户端按市场时区分组取最近 5 个交易日；响应的
+      // provider 是本次实际供数的源（可能不是当前 active 路由——按能力跨源兜底），
+      // 记下来供 ticker 同源取价与合流判定。
+      const page = chartInterval === FIVE_DAY_INTERVAL
+        ? await fetchKlinesFrom(market, symbol, '1m', FIVE_DAY_KLINE_LIMIT)
+        : undefined
+      const rows = page !== undefined
+        ? toFiveDayBars(market, page.klines).map(bar => bar.kline)
         : await fetchKlines(market, symbol, chartInterval, chartInterval === '1d' ? DAILY_LIMIT : klineLimit(market))
       if (requestRef.current !== request) return
       setKlines(rows)
       setKlinesInterval(chartInterval)
+      setKlinesProvider(page?.provider)
       setKError(null)
     } catch (error) {
       if (requestRef.current !== request) return
@@ -578,6 +589,7 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
   useEffect(() => {
     setKlines(null)
     setKlinesInterval(null)
+    setKlinesProvider(undefined)
     setDaily(null)
     setTicker(null)
     setHoverIndex(null)
@@ -592,14 +604,33 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     setMarkerHover(null)
   }, [market, symbol])
 
-  // ticker 轮询：头部价格 + 尾随合并最后一根 K 线。global 按需（见 quote-budget.ts）
+  /**
+   * 当前 bar 序列的供数源（五日级别用取数响应标明的源，普通级别按该市场的 active
+   * 路由）。合流判定发生在 ticker 响应回来时，必须用**那一瞬**的序列来源——请求在途
+   * 期间用户可能切了级别或换了路由，请求发出时的闭包已经不是图上那条序列的源。
+   */
+  const activeProvider = market === undefined ? undefined : providers[market]
+  const barSourceRef = useRef<string | undefined>(undefined)
+  barSourceRef.current = klinesInterval === FIVE_DAY_INTERVAL ? (klinesProvider ?? activeProvider) : activeProvider
+
+  // ticker 轮询：头部价格 + 尾随合并最后一根 K 线。global 按需（见 quote-budget.ts）。
+  // 五日级别的 bar 来自非 active 的源（按能力跨源兜底）时，该级别的价格也向同一源取，
+  // 否则两个源会混进同一根 bar；bar 源与 active 相同时不多发一个请求——始终只有这一条
+  // ticker 轮询，只是它按当前级别选源。
   usePoll(async () => {
     if (market === undefined || symbol === undefined) return
+    const active = providers[market]
+    const barProvider = klinesInterval === FIVE_DAY_INTERVAL ? klinesProvider : undefined
+    const requestProvider = fiveDayTickerProvider(barProvider, active)
     try {
-      const outcome = await fetchTickers(market, [symbol])
+      const outcome = await fetchTickers(market, [symbol], requestProvider)
       const result = outcome[symbol]
       if (result?.ok) {
         setTicker(result.ticker)
+        // 合并判据：图上这条序列解析出的源与 ticker 本次取数的源一致才合并；任一端未知
+        // 时维持现行 5s 合并行为——「还没问到」不等于「不同源」。
+        const tickerSource = requestProvider ?? active
+        if (!tickerBarMergeable(barSourceRef.current, tickerSource)) return
         setKlines(prev => prev === null ? prev : withTickerBar(prev, result.ticker))
       }
     } catch { /* 下轮再试 */ }
@@ -940,8 +971,8 @@ export function QuoteStage({ t, useSelection, useChart, toggleIndicator, setIndi
     )
   }
 
-  // 级别胶囊条：连接器级别 + 能力驱动时插入的 '5d'（当前路由诚实可得才出现）。
-  const intervals = chartIntervals(market, providers[market])
+  // 级别胶囊条：连接器级别 + 能力并集声明能诚实提供时的 '5d'（跨源兜底也算数）。
+  const intervals = chartIntervals(market, capabilities[market])
   const color = directionColor(stats.pct ?? 0, colorMode)
 
   /**
@@ -1809,12 +1840,12 @@ function IndicatorScopeEditor(props: {
 }): React.JSX.Element {
   const { instance, t, onChange } = props
   const [expanded, setExpanded] = useState<MarketId | null>(null)
-  const providers = useMarketProviders()
+  const capabilities = useMarketCapabilities()
   return (
     <div className={css.scopeEditor} data-dshtrading-scope="">
       <div className={css.scopeHint}>{t('indicator.scope.hint')}</div>
       {SCOPE_MARKETS.map(target => {
-        const supported = supportedIntervals(target, providers[target])
+        const supported = supportedIntervals(target, capabilities[target])
         const scene = effectiveMarketScope(instance, target, supported)
         const open = expanded === target
         const commit = (next: IndicatorMarketScope): void => {

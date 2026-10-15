@@ -32,9 +32,20 @@ export interface WatchlistGroupMeta {
   createdAt: number
 }
 
+/** 一条 kline 能力声明（某市场的一个已注册源上报的级别与最大根数）。 */
+export interface KlineCapability {
+  interval: string
+  maxBars: number
+}
+
 export interface MarketInfo {
   id: MarketId
   provider?: string
+  /**
+   * 该市场全部已注册源声明的 kline 能力**并集**（桥上报）。字段缺席 = 没有任何
+   * 声明（≠「无能力」）——读侧据此走能力三态的 unknown，不得当成不可得。
+   */
+  klineCapabilities?: readonly KlineCapability[]
 }
 
 export type TickerOutcome =

@@ -11,7 +11,7 @@
  */
 import type { IndicatorInstance, IndicatorMarketScope } from '@dshtrading/indicators'
 import { isInstanceApplicableOn } from '@dshtrading/indicators'
-import type { MarketId } from './types.ts'
+import type { KlineCapability, MarketId } from './types.ts'
 import { MARKET_INTERVALS } from './store.ts'
 import { chartIntervals } from './five-day-series.ts'
 
@@ -36,11 +36,11 @@ export function normalizeMarketScope(
 
 /**
  * 某市场支持的全部级别（图表可提供的周期；未知市场返回空表）。
- * provider 决定是否含能力驱动的客户端视图级别 '5d'（见 five-day-series.chartIntervals）：
- * provider 缺省即未取到，此时不含 '5d'，也不把它当成不可得。
+ * 能力并集决定是否含能力驱动的客户端视图级别 '5d'（见 five-day-series.chartIntervals）：
+ * capabilities 缺省即桥尚未上报，此时不含 '5d'，也不把它当成不可得。
  */
-export function supportedIntervals(market: MarketId, provider?: string | undefined): string[] {
-  return chartIntervals(market, provider)
+export function supportedIntervals(market: MarketId, capabilities?: readonly KlineCapability[] | undefined): string[] {
+  return chartIntervals(market, capabilities)
 }
 
 /**
