@@ -24,7 +24,7 @@
  * @module @dshtrading/connector-tencent/rest
  */
 
-import type { ActiveBuySnapshot, Interval, Kline, Orderbook, OrderbookLevel, StockFundamentals, Ticker, TradingErrorCode } from '@dshtrading/api'
+import type { ActiveBuySnapshot, Interval, Kline, KlineCapability, Orderbook, OrderbookLevel, StockFundamentals, Ticker, TradingErrorCode } from '@dshtrading/api'
 
 /* ------------------------------------------------------------------ */
 /* 错误载体（api 包词汇的运行时映射，与 connector-stooq 同构）               */
@@ -157,6 +157,25 @@ const INTERVAL_TO_TENCENT: ReadonlyMap<Interval, TencentIntervalDef> = new Map([
 
 /** 工具 parameters enum 用：受支持 interval 词汇。 */
 export const INTERVAL_VOCABULARY: readonly string[] = [...INTERVAL_TO_TENCENT.keys()]
+
+/**
+ * 单请求能承接的根数上限 = 800（2026-10-14 实测，spikes/impl-five-day-1m-probe/EVIDENCE.md §1）：
+ * mkline 端点 count ≤ 800 正常，**超过即静默降级到 320 根**（不是报错），无游标可翻页。
+ * 故 800 是本连接器能诚实承接的 limit 上限（getKlines 也按它 min 裁剪）。
+ */
+export const TENCENT_KLINE_MAX_BARS = 800
+
+/**
+ * K 线能力声明（api 可选契约 klineCapabilities）：本实例能诚实服务的 (周期, 请求深度)。
+ * - 周期集 = INTERVAL_TO_TENCENT 的键；**hk 实例不含 5m/30m**——mkline 端点对港股一律
+ *   `msg: param error`（实测同上 §1），getKlines 也显式抛 TRADING_UNSUPPORTED_INTERVAL；
+ * - 深度 = TENCENT_KLINE_MAX_BARS（上限即截断点，超过就静默降级，不是「多给几根」）。
+ */
+export function tencentKlineCapabilities(market: TencentMarket): KlineCapability[] {
+  return [...INTERVAL_TO_TENCENT]
+    .filter(([, def]) => !(def.type === 'mkline' && market === 'hk'))
+    .map(([interval]) => ({ interval, maxBars: TENCENT_KLINE_MAX_BARS }))
+}
 
 /* ------------------------------------------------------------------ */
 /* 时间处理                                                                */
@@ -819,6 +838,11 @@ export class TencentRestClient {
     )
   }
 
+  /** K 线能力声明（api 可选契约）：本实例市场的诚实 (周期, 请求深度) 清单，口径见 tencentKlineCapabilities。 */
+  klineCapabilities(): readonly KlineCapability[] {
+    return tencentKlineCapabilities(this.#market)
+  }
+
   /**
    * K 线（日/周/月走 fqkline 前权 qfq；5m/30m 分钟线走 mkline 端点）。
    * 港股 mkline 端点不支持分钟线，请求 5m/30m 会抛出 TRADING_UNSUPPORTED_INTERVAL。
@@ -838,7 +862,7 @@ export class TencentRestClient {
         `Tencent klines: Hong Kong market (HKEX) does not support minute intervals (${interval}) via public endpoint`,
       )
     }
-    const count = typeof limit === 'number' && Number.isInteger(limit) && limit > 0 ? Math.min(limit, 800) : 100
+    const count = typeof limit === 'number' && Number.isInteger(limit) && limit > 0 ? Math.min(limit, TENCENT_KLINE_MAX_BARS) : 100
     const wire = this.#klineWireCode(sym)
     const isMinute = mapping.type === 'mkline'
     const url = isMinute

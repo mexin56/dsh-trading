@@ -709,6 +709,24 @@ export interface ActiveBuySnapshot {
 }
 
 /**
+ * 连接器自我申报的 K 线能力（2026-10-15 跨源 K 线路由）：对自己**能诚实服务**的
+ * (周期, 请求深度) 的声明。深度必须来自本连接器自己的实证，不借别家的数字。
+ *
+ * `maxBars` 是该周期能承接的 `limit` 上限，**不是返回根数保证**：
+ *   - `limit <= maxBars`：请求在本源自己的语义下已被诚实服务——返回根数以本源自己的
+ *     取数窗口/上游上限为界（如窗口型源的 5 个交易日），但不得因为请求更大而静默降级
+ *     到更小的窗口或更浅的历史；
+ *   - `limit > maxBars`：本源结构性不足——上游会静默截到更少根数、忽略该参数，
+ *     或根本没有该周期的通道。
+ *
+ * 方法缺席 = **未声明**，不是「不支持」：消费方照旧可直接调用，错误码才是判据。
+ */
+export interface KlineCapability {
+  readonly interval: Interval
+  readonly maxBars: number
+}
+
+/**
  * 行情服务契约：由市场连接器实现，注册到按市场命名空间的 ctx 键（如 ctx.tradingCrypto）。
  * 符号词汇（2026-08-31 规范，docs/guides/symbol-vocabulary.md）：入参接受市场规范形与连接器原生形，
  * 输出 `symbol` 一律市场规范形——消费方（GUI/Agent/工作流）与数据源方言解耦。
@@ -716,6 +734,14 @@ export interface ActiveBuySnapshot {
 export interface MarketDataService {
   getTicker(symbol: string): Promise<Ticker>
   getKlines(symbol: string, interval: Interval, limit?: number): Promise<Kline[]>
+  /**
+   * K 线能力声明（可选，2026-10-15 跨源 K 线路由；语义见 KlineCapability）：本源能诚实
+   * 服务的 (周期, 请求深度) 清单。桥据它做跨源解析——active 覆盖请求就用 active，只有
+   * active 结构性不足时才换同市场其它已注册源——并把同市场全部注册项的并集上报客户端。
+   * 可选方法：未声明的连接器缺席，桥退回「按 TRADING_UNSUPPORTED_INTERVAL 错误码兜底」
+   * 路径（行为与不声明前一致）。
+   */
+  klineCapabilities?(): readonly KlineCapability[]
   subscribeTicker(symbol: string, cb: (ticker: Ticker) => void): Disposable
   /**
    * 批量最新报价（GUI 自选/盘中列表每拍取价用，2026-10-14）：一次请求取多只标的，

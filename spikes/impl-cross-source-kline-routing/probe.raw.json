@@ -1,0 +1,297 @@
+{
+  "ranAt": "2026-10-15T03:05:06.771Z",
+  "direct": {
+    "tencentCn1m": {
+      "ok": false,
+      "code": "TRADING_UNSUPPORTED_INTERVAL",
+      "message": "Tencent klines: unsupported interval 1m — supported: 5m/30m/1d/1w/1M"
+    },
+    "tencentHk1m": {
+      "ok": false,
+      "code": "TRADING_UNSUPPORTED_INTERVAL",
+      "message": "Tencent klines: unsupported interval 1m — supported: 5m/30m/1d/1w/1M"
+    },
+    "eastmoneyCn1m2500": {
+      "ok": true,
+      "value": {
+        "bars": 1061,
+        "tradingDays": 5,
+        "first": "2026-10-09T01:30:00.000Z",
+        "last": "2026-10-15T03:06:00.000Z"
+      }
+    },
+    "eastmoneyHk1m2500": {
+      "ok": true,
+      "value": {
+        "bars": 1421,
+        "tradingDays": 5,
+        "first": "2026-10-09T01:30:00.000Z",
+        "last": "2026-10-15T03:06:00.000Z"
+      }
+    },
+    "declared": {
+      "tencentCn": [
+        {
+          "interval": "5m",
+          "maxBars": 800
+        },
+        {
+          "interval": "30m",
+          "maxBars": 800
+        },
+        {
+          "interval": "1d",
+          "maxBars": 800
+        },
+        {
+          "interval": "1w",
+          "maxBars": 800
+        },
+        {
+          "interval": "1M",
+          "maxBars": 800
+        }
+      ],
+      "tencentHk": [
+        {
+          "interval": "1d",
+          "maxBars": 800
+        },
+        {
+          "interval": "1w",
+          "maxBars": 800
+        },
+        {
+          "interval": "1M",
+          "maxBars": 800
+        }
+      ],
+      "eastmoneyCn": [
+        {
+          "interval": "1m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "5m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "15m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "30m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1h",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1d",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1w",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1M",
+          "maxBars": 2500
+        }
+      ],
+      "eastmoneyHk": [
+        {
+          "interval": "1m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "5m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "15m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "30m",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1h",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1d",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1w",
+          "maxBars": 2500
+        },
+        {
+          "interval": "1M",
+          "maxBars": 2500
+        }
+      ]
+    }
+  },
+  "bridge": {
+    "markets": {
+      "ok": true,
+      "value": [
+        {
+          "id": "cn",
+          "provider": "tencent",
+          "klineCapabilities": [
+            {
+              "interval": "5m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "30m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1d",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1w",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1M",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "15m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1h",
+              "maxBars": 2500
+            }
+          ]
+        },
+        {
+          "id": "hk",
+          "provider": "tencent",
+          "klineCapabilities": [
+            {
+              "interval": "1d",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1w",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1M",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "5m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "15m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "30m",
+              "maxBars": 2500
+            },
+            {
+              "interval": "1h",
+              "maxBars": 2500
+            }
+          ]
+        }
+      ]
+    },
+    "cn1m2500": {
+      "ok": true,
+      "value": {
+        "provider": "eastmoney",
+        "bars": 1061,
+        "tradingDays": 5,
+        "first": "2026-10-09T01:30:00.000Z",
+        "last": "2026-10-15T03:06:00.000Z"
+      }
+    },
+    "cn1d750": {
+      "ok": true,
+      "value": {
+        "provider": "tencent",
+        "bars": 751,
+        "tradingDays": 751,
+        "first": "2023-09-04T00:00:00.000Z",
+        "last": "2026-10-15T00:00:00.000Z"
+      }
+    },
+    "hk1m2500": {
+      "ok": true,
+      "value": {
+        "provider": "eastmoney",
+        "bars": 1421,
+        "tradingDays": 5,
+        "first": "2026-10-09T01:30:00.000Z",
+        "last": "2026-10-15T03:06:00.000Z"
+      }
+    },
+    "tickersActive": {
+      "ok": true,
+      "value": {
+        "ok": true,
+        "ticker": {
+          "market": "cn",
+          "currency": "CNY",
+          "name": "贵州茅台",
+          "symbol": "600519.SH",
+          "price": 1312.87,
+          "bid": 1312.87,
+          "ask": 1312.99,
+          "volume": 3055500,
+          "timestamp": 1792033502000,
+          "prevClose": 1286,
+          "open": 1286,
+          "high": 1317.76,
+          "low": 1282,
+          "limitUp": 1414.6,
+          "limitDown": 1157.4,
+          "change": 26.87,
+          "changePercent": 2.09
+        }
+      }
+    },
+    "tickersByProvider": {
+      "ok": true,
+      "value": {
+        "ok": true,
+        "ticker": {
+          "symbol": "600519.SH",
+          "name": "贵州茅台",
+          "price": 1312.88,
+          "volume": 30564,
+          "timestamp": 1792033505000,
+          "prevClose": 1286,
+          "changePercent": 2.09
+        }
+      }
+    },
+    "tickersUnregisteredProvider": {
+      "ok": false,
+      "code": null,
+      "message": "tickers: provider \"stooq\" is not a registered source of market cn"
+    }
+  }
+}

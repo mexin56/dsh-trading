@@ -6,6 +6,7 @@
 import type {
   Interval,
   Kline,
+  KlineCapability,
   SouthboundHoldingHistory,
   SouthboundHoldingPoint,
   Ticker,
@@ -24,6 +25,23 @@ export class TradingServiceError extends Error {
 }
 
 export const INTERVAL_VOCABULARY = ['1m', '5m', '15m', '30m', '1h', '1d', '1w', '1M'] as const
+
+/**
+ * 能承接的请求深度上限 = 桥的 K 线参数闸门（packages/bot-api MAX_KLINE_LIMIT = 2500）。
+ * 5m 及以上走 kline/get，lmt 直通上游且历史深度远超闸门（2026-10-14 实测 klt=5&lmt=1000
+ * → 1000 根，spikes/impl-five-day-1m-probe/EVIDENCE.md §3）；1m 走 trends2 窗口型取数
+ * （见 getIntradayTrends），同样承接 2500 的请求——返回根数以最近 5 个交易日窗口为界。
+ */
+export const EASTMONEY_KLINE_MAX_BARS = 2500
+
+/**
+ * K 线能力声明（api 可选契约 klineCapabilities）：cn/hk 实例同一集（两条通道的周期面相同）。
+ * 1m 的取证 = trends2 ndays=5 是上游唯一的多日 1m 通道（ndays=10 → rc:1），一次给最近
+ * 5 个交易日（cn ≈1205 根 / hk ≈1655 根，实测每交易日 cn 241 / hk 331）。
+ */
+export function eastmoneyKlineCapabilities(): KlineCapability[] {
+  return INTERVAL_VOCABULARY.map(interval => ({ interval, maxBars: EASTMONEY_KLINE_MAX_BARS }))
+}
 
 export function mapIntervalToKlt(interval: Interval): string {
   switch (interval) {
@@ -553,6 +571,11 @@ export class EastmoneyRestClient {
       ...(prevClose !== undefined && prevClose > 0 ? { prevClose } : {}),
       ...(changePercent !== undefined ? { changePercent } : {}),
     }
+  }
+
+  /** K 线能力声明（api 可选契约）：cn/hk 实例同一集，口径见 eastmoneyKlineCapabilities。 */
+  klineCapabilities(): readonly KlineCapability[] {
+    return eastmoneyKlineCapabilities()
   }
 
   async getKlines(symbol: string, interval: Interval = '1d', limit: number = 100): Promise<Kline[]> {
