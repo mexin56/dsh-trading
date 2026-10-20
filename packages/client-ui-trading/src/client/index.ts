@@ -38,6 +38,7 @@ import { SessionRail } from './SessionRail.tsx'
 import { ChatResizeHandle } from './ChatResizeHandle.tsx'
 import { foldStore, marketFoldStore } from './fold-store.ts'
 import { rightbarStore } from './rightbar-store.ts'
+import { currentSessionId } from './current-session.ts'
 import { deleteCustomIndicator, fetchCustomIndicators, subscribeTradingEvents } from './api.ts'
 import { wireHostWatchlistSync } from './host-watchlist-sync.ts'
 import { wireHostChartSync } from './host-chart-sync.ts'
@@ -52,6 +53,11 @@ const NS = 'dshtrading.market'
  * uiWorkspace（UiWorkspaceService，官方 sidebar/conversation 同款消费方式），
  * 不在 workspaces（纯 WorkspaceController：create/rename/archive，无导航）。 */
 export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace']
+
+/** Cross-package request from Research pages to the currently open native chat. */
+export const RESEARCH_SEND_TO_CHAT_EVENT = 'dshtrading:research-send-to-chat'
+
+interface ResearchSendRequest extends CustomEvent<{ text: string; resolve: () => void; reject: (error: Error) => void }> {}
 
 /** SessionId 是 branded 类型而 dsh-session 非本包依赖（直接 import 解析不到）；
  *  从已引入的 ISessions 面派生同一 brand，inject 面字符串 id 在边界断言一次。
@@ -79,6 +85,26 @@ export function apply(ctx: ClientContext): void {
   const watchlistGroups = createWatchlistGroupsStore()
   const chart = createChartStateStore(indicators)
   const sessions = ctx.sessions as unknown as ISessions
+
+  // Send Research prompts through the same Session Controller path as the native
+  // composer, so they appear in the currently open right-side conversation.
+  const sendResearchPrompt = async (text: string): Promise<void> => {
+    const sessionId = currentSessionId(sessions.list.getSnapshot())
+    if (!sessionId) throw new Error('请先打开右侧大模型会话')
+    await sessions.using(sessionId as never, { source: 'controllerOperation' }, async reference => {
+      const submission = reference.binding.session.beginSubmission({ mode: 'queue', text, attachments: [] })
+      const result = await reference.binding.session.prompt([{ type: 'text', text }], 'queue', undefined, submission.requestId)
+      if (!result.ok) throw new Error('消息发送失败，请稍后重试')
+    })
+  }
+  const handleResearchSend = (event: Event): void => {
+    const request = event as ResearchSendRequest
+    void sendResearchPrompt(request.detail.text).then(request.detail.resolve, error => {
+      request.detail.reject(error instanceof Error ? error : new Error(String(error)))
+    })
+  }
+  window.addEventListener(RESEARCH_SEND_TO_CHAT_EVENT, handleResearchSend)
+  ctx.effect(() => window.removeEventListener(RESEARCH_SEND_TO_CHAT_EVENT, handleResearchSend), 'dsh-trading: research chat bridge')
 
   // 共享入口动作：右缘竖条（2.9 起唯一会话入口）使用。
   // uiWorkspace 必须在点击时惰性解析：官方 dsh.client.inject 边只是加载/预取

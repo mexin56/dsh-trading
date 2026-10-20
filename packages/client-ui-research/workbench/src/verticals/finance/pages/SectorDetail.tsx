@@ -2,15 +2,18 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Send } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAiDraft, useAiPage } from "../../../core/ai/pageContext";
+import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import sectorsData from "@/data/sectors.json";
 import { sectorSteps, sectorTabs, type SectorStep } from "@/lib/sectorPrompts";
 
-/** 一步提示词：复制到自己常用的 AI，或填进右上角「问 Agent」（不自动发送） */
-function StepCard({ step, onSend }: { step: SectorStep; onSend: ((text: string) => void) | null }) {
+/** 一步提示词：可复制到常用 AI，也可直接发送到右侧 DSH 会话。 */
+function StepCard({ step, onSend }: { step: SectorStep; onSend: (text: string) => Promise<void> }) {
   const [copied, setCopied] = useState<"ok" | "fail" | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   useEffect(() => {
     if (copied !== "ok") return;
     const t = setTimeout(() => setCopied(null), 2000);
@@ -22,6 +25,19 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: ((text: string) 
       setCopied("ok");
     } catch {
       setCopied("fail");
+    }
+  };
+  const send = async () => {
+    setSending(true);
+    setSent(false);
+    setSendError(null);
+    try {
+      await onSend(step.prompt);
+      setSent(true);
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "发送失败，请重试");
+    } finally {
+      setSending(false);
     }
   };
   return (
@@ -37,12 +53,11 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: ((text: string) 
             {copied === "ok" ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
             {copied === "ok" ? "已复制" : "复制"}
           </button>
-          {onSend && (
-            <button type="button" onClick={() => onSend(step.prompt)} title="填进右上角「问 Agent」的输入框，看过再发送"
-              className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25">
-              <Send className="h-3.5 w-3.5" /> 发给 Agent
+          <button type="button" onClick={() => void send()} disabled={sending}
+            title="直接发送到右侧大模型会话"
+            className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25 disabled:opacity-60">
+              <Send className="h-3.5 w-3.5" /> {sending ? "发送中…" : sent ? "已发送" : "发给 Agent"}
             </button>
-          )}
         </div>
       </div>
       <details className="mt-2">
@@ -50,6 +65,7 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: ((text: string) 
         <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 font-sans text-xs leading-relaxed text-muted-foreground">{step.prompt}</pre>
       </details>
       {copied === "fail" && <p className="mt-2 text-xs text-warning">复制没成功，可以展开全文手动选中复制。</p>}
+      {sendError && <p role="status" className="mt-2 text-xs text-warning">{sendError}</p>}
     </GlassCard>
   );
 }
@@ -57,7 +73,9 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: ((text: string) 
 export function SectorDetail() {
   const { key } = useParams();
   const sector = sectorsData.sectors.find((s) => s.key === key);
-  const send = useAiDraft();
+  const send = (text: string) => new Promise<void>((resolve, reject) => {
+    window.dispatchEvent(new CustomEvent("dshtrading:research-send-to-chat", { detail: { text, resolve, reject } }));
+  });
 
   // 🔴 必须在下面那个 early return **之前**调：条件调用 hook 会让
   //    "找不到板块"和"找到了"两种渲染的 hook 数量不一致，React 直接报错。
@@ -109,7 +127,7 @@ export function SectorDetail() {
       <section>
         <h3 className="text-sm font-semibold">让 AI 一步步梳理这个板块（{steps.length} 步）</h3>
         <p className="mb-3 mt-1 text-xs leading-relaxed text-muted-foreground">
-          先读研报，再按栏目一页页写。按顺序来：点「发给 Agent」把这一步填进右上角的输入框，看过再发送；
+          先读研报，再按栏目一页页写。按顺序来：点「发给 Agent」直接发送这一步到右侧大模型会话；
           回答下面点「存进记录」，攒成这个板块的研究笔记。也可以「复制」贴到你自己常用的 AI 里。
           这里只给研究方法，内容由 AI 当场查资料产出，每个数字都要它写明来源。
         </p>
