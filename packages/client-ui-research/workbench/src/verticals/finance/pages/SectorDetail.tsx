@@ -36,7 +36,7 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: (text: string) =
       await Promise.race([
         onSend(step.prompt),
         new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => reject(new Error("发送超时，请检查右侧会话是否收到后再重试")), 20_000);
+          timeout = setTimeout(() => reject(new Error("发送超时，请检查右侧会话是否收到后再重试")), 60_000);
         }),
       ]);
       setSent(true);
@@ -80,9 +80,16 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: (text: string) =
 export function SectorDetail() {
   const { key } = useParams();
   const sector = sectorsData.sectors.find((s) => s.key === key);
-  const send = (text: string) => new Promise<void>((resolve, reject) => {
-    window.dispatchEvent(new CustomEvent("dshtrading:research-send-to-chat", { detail: { text, resolve, reject } }));
-  });
+  const send = (text: string): Promise<void> => {
+    const localBridge = (window as Window & { dshTradingSendResearchPrompt?: (prompt: string) => Promise<void> })
+      .dshTradingSendResearchPrompt;
+    const parentBridge = window.parent === window ? undefined :
+      (window.parent as Window & { dshTradingSendResearchPrompt?: (prompt: string) => Promise<void> })
+        .dshTradingSendResearchPrompt;
+    const sendPrompt = localBridge ?? parentBridge;
+    if (!sendPrompt) return Promise.reject(new Error("DSH 模型会话未就绪，请刷新页面后重试"));
+    return sendPrompt(text);
+  };
 
   // 🔴 必须在下面那个 early return **之前**调：条件调用 hook 会让
   //    "找不到板块"和"找到了"两种渲染的 hook 数量不一致，React 直接报错。

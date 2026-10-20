@@ -54,10 +54,9 @@ const NS = 'dshtrading.market'
  * 不在 workspaces（纯 WorkspaceController：create/rename/archive，无导航）。 */
 export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace']
 
-/** Cross-package request from Research pages to the currently open native chat. */
-export const RESEARCH_SEND_TO_CHAT_EVENT = 'dshtrading:research-send-to-chat'
-
-interface ResearchSendRequest extends CustomEvent<{ text: string; resolve: () => void; reject: (error: Error) => void }> {}
+interface ResearchBridgeWindow extends Window {
+  dshTradingSendResearchPrompt?: (text: string) => Promise<void>
+}
 
 /** SessionId 是 branded 类型而 dsh-session 非本包依赖（直接 import 解析不到）；
  *  从已引入的 ISessions 面派生同一 brand，inject 面字符串 id 在边界断言一次。
@@ -69,9 +68,17 @@ type SessionIdParam = SessionTarget
  *  官方同款语义（不切选中，行内可见）、archiveSession 广播权威归档集）。 */
 interface WorkspaceNavigation {
   startSession(workspaceId?: string): void
+  connectWorkspace(workspaceId: string): Promise<string>
   openSession(sessionId: string): void
   forkSession(sessionId: string): Promise<void>
   archiveSession(sessionId: string): Promise<void>
+}
+
+interface WorkspaceCatalog {
+  list: {
+    getSnapshot(): { phase: string; items: Array<{ workspaceId: string; sessionIds: string[]; createdAt: string }> }
+    subscribe(listener: () => void): () => void
+  }
 }
 
 /** 注册 slot + locale 字典。 */
@@ -89,32 +96,44 @@ export function apply(ctx: ClientContext): void {
   // Start a clean native model conversation for each Research prompt.
   const sendResearchPrompt = async (text: string): Promise<void> => {
     const workspace = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation | undefined
-    if (!workspace) throw new Error('大模型会话服务暂不可用，请稍后重试')
-    const before = currentSessionId(sessions.list.getSnapshot())
-    workspace.startSession()
-    const targetSessionId = await new Promise<string>((resolve, reject) => {
-        let settled = false
-        let unsubscribe = (): void => {}
-        const finish = (id?: string): void => {
-          if (settled || !id) return
-          settled = true
-          unsubscribe()
-          clearTimeout(timeout)
-          resolve(id)
-        }
-        const checkSelection = (): void => {
-          const selected = currentSessionId(sessions.list.getSnapshot())
-          if (selected && selected !== before) finish(selected)
-        }
-        const timeout = setTimeout(() => {
-          if (settled) return
-          settled = true
-          unsubscribe()
-          reject(new Error('新建大模型会话超时，请稍后重试'))
-        }, 20_000)
-        unsubscribe = sessions.list.subscribe(checkSelection)
-        checkSelection()
+    const workspaceCatalog = ctx.get('workspaces') as unknown as WorkspaceCatalog | undefined
+    if (!workspace || !workspaceCatalog) throw new Error('大模型会话服务暂不可用，请稍后重试')
+
+    // startSession() is fire-and-forget, so polling mainView for a selection
+    // change can hang if navigation does not publish a new reference. Use the
+    // native workspace API that returns the exact blank session to target.
+    const workspaceSnapshot = await new Promise<ReturnType<WorkspaceCatalog['list']['getSnapshot']>>((resolve, reject) => {
+      let unsubscribe = (): void => {}
+      const finish = (snapshot: ReturnType<WorkspaceCatalog['list']['getSnapshot']>): void => {
+        if (snapshot.phase !== 'ready') return
+        clearTimeout(timeout)
+        unsubscribe()
+        resolve(snapshot)
+      }
+      const timeout = setTimeout(() => {
+        unsubscribe()
+        reject(new Error('工作区仍在加载，请稍后重试'))
+      }, 15_000)
+      unsubscribe = workspaceCatalog.list.subscribe(() => finish(workspaceCatalog.list.getSnapshot()))
+      finish(workspaceCatalog.list.getSnapshot())
     })
+    const workspaces = workspaceSnapshot.items
+    const list = sessions.list.getSnapshot()
+    const selectedId = currentSessionId(list)
+    const selectedWorkspace = workspaces.find(item => selectedId && item.sessionIds.includes(selectedId))
+    const latestActivity = (item: (typeof workspaces)[number]): number =>
+      Math.max(Date.parse(item.createdAt) || 0, ...item.sessionIds.map(id => list.byId[id]?.updatedAt ?? 0))
+    const targetWorkspace = selectedWorkspace ?? [...workspaces].sort((a, b) => latestActivity(b) - latestActivity(a))[0]
+    const latestSession = Object.values(list.byId).filter(session => session.cwd)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+
+    const targetSessionId = targetWorkspace
+      ? await workspace.connectWorkspace(targetWorkspace.workspaceId)
+      : latestSession?.cwd
+        ? await sessions.create({ cwd: latestSession.cwd })
+        : undefined
+    if (!targetSessionId) throw new Error('没有可用的工作区或会话目录，无法新建模型会话')
+    workspace.openSession(targetSessionId)
 
     await sessions.using(targetSessionId as never, { source: 'controllerOperation' }, async reference => {
       const conversation = reference.binding.ctx.get('conversation') as IConversation | undefined
@@ -122,14 +141,15 @@ export function apply(ctx: ClientContext): void {
       await conversation.send(text)
     })
   }
-  const handleResearchSend = (event: Event): void => {
-    const request = event as ResearchSendRequest
-    void sendResearchPrompt(request.detail.text).then(request.detail.resolve, error => {
-      request.detail.reject(error instanceof Error ? error : new Error(String(error)))
-    })
-  }
-  window.addEventListener(RESEARCH_SEND_TO_CHAT_EVENT, handleResearchSend)
-  ctx.effect(() => window.removeEventListener(RESEARCH_SEND_TO_CHAT_EVENT, handleResearchSend), 'dsh-trading: research chat bridge')
+  const researchBridgeWindow = window as ResearchBridgeWindow
+  ctx.effect(() => {
+    researchBridgeWindow.dshTradingSendResearchPrompt = sendResearchPrompt
+    return () => {
+      if (researchBridgeWindow.dshTradingSendResearchPrompt === sendResearchPrompt) {
+        delete researchBridgeWindow.dshTradingSendResearchPrompt
+      }
+    }
+  }, 'dsh-trading: research chat bridge')
 
   // 共享入口动作：右缘竖条（2.9 起唯一会话入口）使用。
   // uiWorkspace 必须在点击时惰性解析：官方 dsh.client.inject 边只是加载/预取
