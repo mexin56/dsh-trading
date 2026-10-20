@@ -31,12 +31,19 @@ function StepCard({ step, onSend }: { step: SectorStep; onSend: (text: string) =
     setSending(true);
     setSent(false);
     setSendError(null);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await onSend(step.prompt);
+      await Promise.race([
+        onSend(step.prompt),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("发送超时，请检查右侧会话是否收到后再重试")), 20_000);
+        }),
+      ]);
       setSent(true);
     } catch (error) {
       setSendError(error instanceof Error ? error.message : "发送失败，请重试");
     } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
       setSending(false);
     }
   };

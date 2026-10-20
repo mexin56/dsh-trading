@@ -86,15 +86,40 @@ export function apply(ctx: ClientContext): void {
   const chart = createChartStateStore(indicators)
   const sessions = ctx.sessions as unknown as ISessions
 
-  // Send Research prompts through the same Session Controller path as the native
-  // composer, so they appear in the currently open right-side conversation.
+  // Start a clean native model conversation for each Research prompt.
   const sendResearchPrompt = async (text: string): Promise<void> => {
-    const sessionId = currentSessionId(sessions.list.getSnapshot())
-    if (!sessionId) throw new Error('请先打开右侧大模型会话')
-    await sessions.using(sessionId as never, { source: 'controllerOperation' }, async reference => {
-      const submission = reference.binding.session.beginSubmission({ mode: 'queue', text, attachments: [] })
-      const result = await reference.binding.session.prompt([{ type: 'text', text }], 'queue', undefined, submission.requestId)
-      if (!result.ok) throw new Error('消息发送失败，请稍后重试')
+    const workspace = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation | undefined
+    if (!workspace) throw new Error('大模型会话服务暂不可用，请稍后重试')
+    const before = currentSessionId(sessions.list.getSnapshot())
+    workspace.startSession()
+    const targetSessionId = await new Promise<string>((resolve, reject) => {
+        let settled = false
+        let unsubscribe = (): void => {}
+        const finish = (id?: string): void => {
+          if (settled || !id) return
+          settled = true
+          unsubscribe()
+          clearTimeout(timeout)
+          resolve(id)
+        }
+        const checkSelection = (): void => {
+          const selected = currentSessionId(sessions.list.getSnapshot())
+          if (selected && selected !== before) finish(selected)
+        }
+        const timeout = setTimeout(() => {
+          if (settled) return
+          settled = true
+          unsubscribe()
+          reject(new Error('新建大模型会话超时，请稍后重试'))
+        }, 20_000)
+        unsubscribe = sessions.list.subscribe(checkSelection)
+        checkSelection()
+    })
+
+    await sessions.using(targetSessionId as never, { source: 'controllerOperation' }, async reference => {
+      const conversation = reference.binding.ctx.get('conversation') as IConversation | undefined
+      if (!conversation) throw new Error('新会话的模型服务暂不可用，请稍后重试')
+      await conversation.send(text)
     })
   }
   const handleResearchSend = (event: Event): void => {
