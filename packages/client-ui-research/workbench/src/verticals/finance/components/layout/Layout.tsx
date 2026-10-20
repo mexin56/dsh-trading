@@ -4,7 +4,6 @@ import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { usePrivacyMode } from "@/hooks/usePrivacyMode";
-import { navTitle } from "@/lib/nav";
 
 /** Research occupies the terminal content pane; the terminal owns primary navigation. */
 export function Layout() {
@@ -14,8 +13,7 @@ export function Layout() {
   const privacy = usePrivacyMode();
   return <AiPageProvider>
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground" data-research-workspace="">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <h1 className="text-base font-semibold">{navTitle(pathname)}</h1>
+      <header className="flex shrink-0 items-center justify-end gap-3 border-b border-border px-4 py-2">
         <div className="flex items-center gap-3" style={{ marginRight: "var(--ai-trigger-space, 0px)" }}>
           <button type="button" onClick={privacy.toggle} aria-pressed={privacy.on} aria-label="切换隐私模式" title="隐私模式"><span aria-hidden="true">{privacy.on ? <EyeOff size={16} /> : <Eye size={16} />}</span></button>
           <button type="button" onClick={theme.toggle} aria-label="切换研究主题" title="研究主题"><span aria-hidden="true">{theme.dark ? <Sun size={16} /> : <Moon size={16} />}</span></button>
