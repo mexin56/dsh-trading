@@ -9,8 +9,11 @@ export function Layout() {
   return <AiPageProvider>
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground" data-research-workspace="">
       <main id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-        <div className="workspace-content" aria-busy={navigation.state !== "idle"}>
-          {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
+        <div className="workspace-content relative" aria-busy={navigation.state !== "idle"}>
+          {navigation.state !== "idle" && <>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />
+            <span role="status" className="sr-only">正在切换页面</span>
+          </>}
           <Outlet />
         </div>
       </main>
