@@ -83,13 +83,14 @@ export function SectorDetail() {
 
   return (
     <div>
-      <Link to="/sectors" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> 产业研究
-      </Link>
-
       <PageHeader
         title={sector.label}
         subtitle={sector.tagline}
+        actions={(
+          <Link to="/sectors" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> 产业研究
+          </Link>
+        )}
       />
 
       {sector.verified && sector.nodes.length > 0 && (
